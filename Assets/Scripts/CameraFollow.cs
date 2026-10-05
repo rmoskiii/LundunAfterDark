@@ -10,6 +10,7 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private float sensitivity = 0.15f;
     [SerializeField] private float minPitch = -20f;
     [SerializeField] private float maxPitch = 60f;
+    [SerializeField] private bool lockCursor = true;
 
     private InputAction lookAction;
     private float yaw;
@@ -18,7 +19,7 @@ public class CameraFollow : MonoBehaviour
     void Start()
     {
         lookAction = InputSystem.actions.FindAction("Look");
-        Cursor.lockState = CursorLockMode.Locked;
+        if (lockCursor) Cursor.lockState = CursorLockMode.Locked;
         yaw = target != null ? target.eulerAngles.y : 0f;
     }
 
