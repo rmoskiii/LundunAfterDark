@@ -4,13 +4,16 @@ using UnityEngine.InputSystem;
 public class CameraFollow : MonoBehaviour
 {
     [SerializeField] private Transform target;
-    [SerializeField] private float distance = 4.5f;
-    [SerializeField] private float height = 1.6f;
+    [SerializeField] private TouchLookArea touchLook;
+    [SerializeField] private bool useMouseLook = false;
+
+    [SerializeField] private float distance = 6.5f;
+    [SerializeField] private float height = 1.8f;
     [SerializeField] private float shoulderOffset = 0.7f;
-    [SerializeField] private float sensitivity = 0.15f;
+    [SerializeField] private float mouseSensitivity = 0.15f;
+    [SerializeField] private float touchSensitivity = 0.2f;
     [SerializeField] private float minPitch = -20f;
     [SerializeField] private float maxPitch = 60f;
-    [SerializeField] private bool lockCursor = true;
 
     private InputAction lookAction;
     private float yaw;
@@ -19,7 +22,7 @@ public class CameraFollow : MonoBehaviour
     void Start()
     {
         lookAction = InputSystem.actions.FindAction("Look");
-        if (lockCursor) Cursor.lockState = CursorLockMode.Locked;
+        if (useMouseLook) Cursor.lockState = CursorLockMode.Locked;
         yaw = target != null ? target.eulerAngles.y : 0f;
     }
 
@@ -27,9 +30,20 @@ public class CameraFollow : MonoBehaviour
     {
         if (target == null) return;
 
-        Vector2 look = lookAction.ReadValue<Vector2>();
-        yaw += look.x * sensitivity;
-        pitch -= look.y * sensitivity;
+        Vector2 look = Vector2.zero;
+
+        if (useMouseLook)
+        {
+            look += lookAction.ReadValue<Vector2>() * mouseSensitivity;
+        }
+
+        if (touchLook != null)
+        {
+            look += touchLook.ConsumeDelta() * touchSensitivity;
+        }
+
+        yaw += look.x;
+        pitch -= look.y;
         pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
 
         Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
