@@ -19,11 +19,15 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private float sprintFov = 75f;
     [SerializeField] private float fovChangeSpeed = 6f;
 
+    [Header("Shake")]
+    [SerializeField] private float shakeDecay = 15f;
+
     private InputAction lookAction;
     private Camera cam;
     private PlayerController player;
     private float yaw;
     private float pitch = 10f;
+    private float shake;
 
     void Start()
     {
@@ -37,6 +41,18 @@ public class CameraFollow : MonoBehaviour
             yaw = target.eulerAngles.y;
             player = target.GetComponent<PlayerController>();
         }
+    }
+
+    // Called by the gun each shot: nudges the aim up and slightly sideways
+    public void AddRecoil(float up, float sideways)
+    {
+        pitch -= up;
+        yaw += sideways;
+    }
+
+    public void AddShake(float amount)
+    {
+        shake = Mathf.Max(shake, amount);
     }
 
     void LateUpdate()
@@ -67,7 +83,14 @@ public class CameraFollow : MonoBehaviour
         transform.position = focusPoint - rotation * Vector3.forward * distance;
         transform.rotation = rotation;
 
-        // Widen the view while sprinting so speed feels fast
+        // Screen shake: jiggle the camera, then let it settle
+        if (shake > 0f)
+        {
+            transform.position += Random.insideUnitSphere * shake;
+            shake = Mathf.Lerp(shake, 0f, shakeDecay * Time.deltaTime);
+            if (shake < 0.001f) shake = 0f;
+        }
+
         float targetFov = (player != null && player.IsSprinting) ? sprintFov : normalFov;
         cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFov, fovChangeSpeed * Time.deltaTime);
     }
