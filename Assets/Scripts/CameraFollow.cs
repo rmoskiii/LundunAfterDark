@@ -15,15 +15,28 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private float minPitch = -20f;
     [SerializeField] private float maxPitch = 60f;
 
+    [SerializeField] private float normalFov = 60f;
+    [SerializeField] private float sprintFov = 75f;
+    [SerializeField] private float fovChangeSpeed = 6f;
+
     private InputAction lookAction;
+    private Camera cam;
+    private PlayerController player;
     private float yaw;
     private float pitch = 10f;
 
     void Start()
     {
         lookAction = InputSystem.actions.FindAction("Look");
+        cam = GetComponent<Camera>();
+
         if (useMouseLook) Cursor.lockState = CursorLockMode.Locked;
-        yaw = target != null ? target.eulerAngles.y : 0f;
+
+        if (target != null)
+        {
+            yaw = target.eulerAngles.y;
+            player = target.GetComponent<PlayerController>();
+        }
     }
 
     void LateUpdate()
@@ -53,5 +66,9 @@ public class CameraFollow : MonoBehaviour
 
         transform.position = focusPoint - rotation * Vector3.forward * distance;
         transform.rotation = rotation;
+
+        // Widen the view while sprinting so speed feels fast
+        float targetFov = (player != null && player.IsSprinting) ? sprintFov : normalFov;
+        cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFov, fovChangeSpeed * Time.deltaTime);
     }
 }
