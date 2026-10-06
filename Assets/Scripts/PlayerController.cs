@@ -14,10 +14,12 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float keyboardWalkStrength = 0.6f;
     [SerializeField] private float turnSpeed = 1080f;
     [SerializeField] private float gravity = -20f;
+    [SerializeField] private float jumpHeight = 1.5f;
 
     private CharacterController controller;
     private InputAction moveAction;
     private InputAction sprintAction;
+    private InputAction jumpAction;
     private Transform cam;
     private float verticalVelocity;
 
@@ -28,6 +30,7 @@ public class PlayerController : MonoBehaviour
         controller = GetComponent<CharacterController>();
         moveAction = InputSystem.actions.FindAction("Move");
         sprintAction = InputSystem.actions.FindAction("Sprint");
+        jumpAction = InputSystem.actions.FindAction("Jump");
         cam = Camera.main.transform;
     }
 
@@ -36,8 +39,6 @@ public class PlayerController : MonoBehaviour
         Vector2 input = moveAction.ReadValue<Vector2>();
         float strength = Mathf.Clamp01(input.magnitude);
 
-        // Keyboard keys are always "fully pushed", so fake a stick position:
-        // walking = partway, Shift = all the way out.
         bool usingKeyboard = moveAction.activeControl != null
                           && moveAction.activeControl.device is Keyboard;
 
@@ -67,6 +68,12 @@ public class PlayerController : MonoBehaviour
         if (controller.isGrounded && verticalVelocity < 0f)
         {
             verticalVelocity = -2f;
+        }
+
+        // Jump: only when standing on something
+        if (controller.isGrounded && jumpAction.WasPressedThisFrame())
+        {
+            verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
 
         verticalVelocity += gravity * Time.deltaTime;
