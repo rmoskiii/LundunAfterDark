@@ -480,6 +480,10 @@ PrefabInstance:
       value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 5866666021909216657, guid: f68be20417d8a439dba67327d788fa52, type: 3}
+      propertyPath: m_Controller
+      value: 
+      objectReference: {fileID: 9100000, guid: 7f2b243a19a0941f9bc458abf41549b2, type: 2}
+    - target: {fileID: 5866666021909216657, guid: f68be20417d8a439dba67327d788fa52, type: 3}
       propertyPath: m_ApplyRootMotion
       value: 0
       objectReference: {fileID: 0}
@@ -784,9 +788,9 @@ MonoBehaviour:
   target: {fileID: 2127824349}
   touchLook: {fileID: 48885202}
   useMouseLook: 0
-  distance: 7
-  height: 3
-  shoulderOffset: 0.7
+  distance: 3.5
+  height: 0.7
+  shoulderOffset: 0.6
   mouseSensitivity: 0.15
   touchSensitivity: 0.2
   minPitch: -20
@@ -2898,6 +2902,9 @@ GameObject:
   - component: {fileID: 2127824350}
   - component: {fileID: 2127824351}
   - component: {fileID: 2127824352}
+  - component: {fileID: 2127824354}
+  - component: {fileID: 2127824353}
+  - component: {fileID: 2127824355}
   m_Layer: 6
   m_Name: Player
   m_TagString: Untagged
@@ -3098,6 +3105,48 @@ MonoBehaviour:
   hitMarker: {fileID: 679704587}
   bloodDecalPrefab: {fileID: 2263846658476951283, guid: 2e511cd63789046498dbec53d41fdf2b, type: 3}
   maxDecals: 30
+--- !u!114 &2127824353
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2127824345}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c23bc0c76d39403b83cd0f9d18d11eb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerAnimation
+  runAnimSpeed: 6
+  damping: 0.1
+--- !u!114 &2127824354
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2127824345}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c23bc0c76d39403b83cd0f9d18d11eb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerAnimation
+  runAnimSpeed: 6
+  damping: 0.1
+--- !u!114 &2127824355
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2127824345}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c23bc0c76d39403b83cd0f9d18d11eb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerAnimation
+  runAnimSpeed: 6
+  damping: 0.1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
