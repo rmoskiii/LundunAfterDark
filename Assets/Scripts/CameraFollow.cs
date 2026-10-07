@@ -5,11 +5,12 @@ public class CameraFollow : MonoBehaviour
 {
     [SerializeField] private Transform target;
     [SerializeField] private TouchLookArea touchLook;
+    [Tooltip("For editor testing. Always off on a real phone.")]
     [SerializeField] private bool useMouseLook = false;
 
-    [SerializeField] private float distance = 6.5f;
-    [SerializeField] private float height = 1.8f;
-    [SerializeField] private float shoulderOffset = 0.7f;
+    [SerializeField] private float distance = 3.7f;
+    [SerializeField] private float height = 0.7f;
+    [SerializeField] private float shoulderOffset = 0.6f;
     [SerializeField] private float mouseSensitivity = 0.15f;
     [SerializeField] private float touchSensitivity = 0.2f;
     [SerializeField] private float minPitch = -20f;
@@ -25,16 +26,21 @@ public class CameraFollow : MonoBehaviour
     private InputAction lookAction;
     private Camera cam;
     private PlayerController player;
+    private bool mouseLookActive;
     private float yaw;
     private float pitch = 10f;
     private float shake;
+
+    public float Yaw => yaw;
+    public float Pitch => pitch;
 
     void Start()
     {
         lookAction = InputSystem.actions.FindAction("Look");
         cam = GetComponent<Camera>();
 
-        if (useMouseLook) Cursor.lockState = CursorLockMode.Locked;
+        mouseLookActive = useMouseLook && !Application.isMobilePlatform;
+        if (mouseLookActive) Cursor.lockState = CursorLockMode.Locked;
 
         if (target != null)
         {
@@ -43,7 +49,6 @@ public class CameraFollow : MonoBehaviour
         }
     }
 
-    // Called by the gun each shot: nudges the aim up and slightly sideways
     public void AddRecoil(float up, float sideways)
     {
         pitch -= up;
@@ -55,13 +60,20 @@ public class CameraFollow : MonoBehaviour
         shake = Mathf.Max(shake, amount);
     }
 
+    // Used by aim assist to steer the view
+    public void Nudge(float yawDelta, float pitchDelta)
+    {
+        yaw += yawDelta;
+        pitch += pitchDelta;
+    }
+
     void LateUpdate()
     {
         if (target == null) return;
 
         Vector2 look = Vector2.zero;
 
-        if (useMouseLook)
+        if (mouseLookActive)
         {
             look += lookAction.ReadValue<Vector2>() * mouseSensitivity;
         }
@@ -83,7 +95,6 @@ public class CameraFollow : MonoBehaviour
         transform.position = focusPoint - rotation * Vector3.forward * distance;
         transform.rotation = rotation;
 
-        // Screen shake: jiggle the camera, then let it settle
         if (shake > 0f)
         {
             transform.position += Random.insideUnitSphere * shake;

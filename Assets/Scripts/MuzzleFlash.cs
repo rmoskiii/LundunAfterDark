@@ -7,9 +7,11 @@ public class MuzzleFlash : MonoBehaviour
     [SerializeField] private float flashTime = 0.04f;
 
     private float timer;
+    private Transform cam;
 
     void Awake()
     {
+        cam = Camera.main.transform;
         SetVisible(false);
     }
 
@@ -19,8 +21,9 @@ public class MuzzleFlash : MonoBehaviour
 
         if (flashVisual != null)
         {
-            // Random spin and size so no two flashes look the same
-            flashVisual.transform.localRotation = Quaternion.Euler(0f, 0f, Random.Range(0f, 360f));
+            // Face the camera, with a random spin and size so no two flashes look the same
+            flashVisual.transform.rotation = Quaternion.LookRotation(cam.forward)
+                                           * Quaternion.Euler(0f, 0f, Random.Range(0f, 360f));
             flashVisual.transform.localScale = Vector3.one * Random.Range(0.25f, 0.4f);
         }
 
