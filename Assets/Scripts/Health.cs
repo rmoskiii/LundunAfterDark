@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 
@@ -7,6 +8,11 @@ public class Health : MonoBehaviour
     [SerializeField] private Color flashColour = Color.red;
     [SerializeField] private float flashTime = 0.1f;
     [SerializeField] private float corpseLifetime = 6f;
+    [Tooltip("Ticked: topple over with physics (blocks, props). Unticked: another script handles death (NPCs).")]
+    [SerializeField] private bool physicsDeath = true;
+
+    public event Action<Vector3> Damaged;   // passes where the hit landed
+    public event Action Died;
 
     private float currentHealth;
     private Renderer rend;
@@ -28,6 +34,8 @@ public class Health : MonoBehaviour
         currentHealth -= amount;
 
         if (rend != null) StartCoroutine(Flash());
+        Damaged?.Invoke(hitPoint);
+
         if (IsDead) Die(hitPoint, force);
     }
 
@@ -40,9 +48,13 @@ public class Health : MonoBehaviour
 
     void Die(Vector3 hitPoint, Vector3 force)
     {
-        // Hand the body over to physics and knock it over with the killing shot
-        Rigidbody rb = gameObject.AddComponent<Rigidbody>();
-        rb.AddForceAtPosition(force, hitPoint, ForceMode.Impulse);
+        Died?.Invoke();
+
+        if (physicsDeath)
+        {
+            Rigidbody rb = gameObject.AddComponent<Rigidbody>();
+            rb.AddForceAtPosition(force, hitPoint, ForceMode.Impulse);
+        }
 
         Destroy(gameObject, corpseLifetime);
     }

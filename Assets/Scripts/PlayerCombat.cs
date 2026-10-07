@@ -6,6 +6,8 @@ using UnityEngine.Rendering.Universal;
 
 public class PlayerCombat : MonoBehaviour
 {
+        // Anyone can listen for gunshots (NPCs use it to panic)
+    public static event System.Action<Vector3> GunshotFired;
     [Header("Gun")]
     [SerializeField] private float damage = 25f;
     [SerializeField] private float range = 100f;
@@ -70,6 +72,7 @@ public class PlayerCombat : MonoBehaviour
 
     void Shoot()
     {
+        GunshotFired?.Invoke(transform.position);
         PlayGunFeedback();
 
         Vector3 endPoint = cam.position + cam.forward * range;
