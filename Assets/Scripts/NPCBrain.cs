@@ -144,17 +144,21 @@ public class NPCBrain : MonoBehaviour
         StartPanic(threatPosition);
     }
 
-    void OnDied()
+        void OnDied()
     {
         state = State.Dead;
 
         agent.isStopped = true;
         agent.enabled = false;
 
-        // Let bullets pass through the body from now on
-        foreach (Collider col in GetComponentsInChildren<Collider>())
+        // Shot dead: switch colliders off so bullets pass through the body.
+        // Launched by a car: keep them, or the body falls through the road.
+        if (!health.DiedFromPhysics)
         {
-            col.enabled = false;
+            foreach (Collider col in GetComponentsInChildren<Collider>())
+            {
+                col.enabled = false;
+            }
         }
 
         if (animator != null) animator.SetTrigger("Die");

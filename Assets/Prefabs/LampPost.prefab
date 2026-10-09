@@ -9,6 +9,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2419211875997157434}
+  - component: {fileID: 5124669778383820114}
+  - component: {fileID: 4938490645890296879}
   m_Layer: 0
   m_Name: LampPost
   m_TagString: Untagged
@@ -35,6 +37,44 @@ Transform:
   - {fileID: 8496740472141425748}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!136 &5124669778383820114
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 263010586466590022}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.15
+  m_Height: 6
+  m_Direction: 1
+  m_Center: {x: 0, y: 3, z: 0}
+--- !u!114 &4938490645890296879
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 263010586466590022}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d7c4f76724f1246acb5cbbf67262eae2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Knockable
+  breakSpeed: 5
+  mass: 150
+  hitSound: {fileID: 8300000, guid: 39930844112e54366a6a2884b8552846, type: 3}
 --- !u!1 &623989242651668531
 GameObject:
   m_ObjectHideFlags: 0
@@ -158,7 +198,6 @@ GameObject:
   - component: {fileID: 921193588052427595}
   - component: {fileID: 2653726155691221667}
   - component: {fileID: 2361977527216607363}
-  - component: {fileID: 5635374399808903735}
   m_Layer: 0
   m_Name: Pole
   m_TagString: Untagged
@@ -238,29 +277,6 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!136 &5635374399808903735
-CapsuleCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 654317337017503343}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Radius: 0.5000001
-  m_Height: 2
-  m_Direction: 1
-  m_Center: {x: 0.000000059604645, y: 0, z: -0.00000008940697}
 --- !u!1 &2836155698595899252
 GameObject:
   m_ObjectHideFlags: 0

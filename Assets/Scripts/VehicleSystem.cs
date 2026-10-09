@@ -21,6 +21,8 @@ public class VehicleSystem : MonoBehaviour
     private CarController[] cars;
     private CarController nearbyCar;
     private CarController currentCar;
+    // Whatever the police should chase: James on foot, or the car he's driving
+    public Transform PlayerTarget => currentCar != null ? currentCar.transform : player.transform;
 
     void Start()
     {

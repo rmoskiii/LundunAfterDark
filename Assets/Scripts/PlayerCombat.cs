@@ -73,6 +73,7 @@ public class PlayerCombat : MonoBehaviour
     void Shoot()
     {
         GunshotFired?.Invoke(transform.position);
+        CrimeSystem.Report(CrimeType.Gunfire, transform.position);
         PlayGunFeedback();
 
         Vector3 endPoint = cam.position + cam.forward * range;
@@ -118,6 +119,9 @@ public class PlayerCombat : MonoBehaviour
 
         bool wasAlive = !health.IsDead;
         health.TakeDamage(damage, hit.point, cam.forward * impactForce);
+
+        if (wasAlive && health.GetComponent<NPCBrain>() != null)
+            CrimeSystem.Report(health.IsDead ? CrimeType.KillPedestrian : CrimeType.AssaultPedestrian, hit.point);
 
         if (wasAlive && hitMarker != null)
         {

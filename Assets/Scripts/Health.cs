@@ -8,10 +8,12 @@ public class Health : MonoBehaviour
     [SerializeField] private Color flashColour = Color.red;
     [SerializeField] private float flashTime = 0.1f;
     [SerializeField] private float corpseLifetime = 6f;
-    [Tooltip("Ticked: topple over with physics (blocks, props). Unticked: another script handles death (NPCs).")]
+    [Tooltip("Ticked: always topple with physics (props). Unticked: play a death animation unless hit hard.")]
     [SerializeField] private bool physicsDeath = true;
+    [Tooltip("A killing blow at least this strong launches the body with physics (cars do this, bullets don't)")]
+    [SerializeField] private float launchThreshold = 10f;
 
-    public event Action<Vector3> Damaged;   // passes where the hit landed
+    public event Action<Vector3> Damaged;
     public event Action Died;
 
     private float currentHealth;
@@ -19,6 +21,7 @@ public class Health : MonoBehaviour
     private Color originalColour;
 
     public bool IsDead => currentHealth <= 0f;
+    public bool DiedFromPhysics { get; private set; }
 
     void Awake()
     {
@@ -48,11 +51,13 @@ public class Health : MonoBehaviour
 
     void Die(Vector3 hitPoint, Vector3 force)
     {
+        DiedFromPhysics = physicsDeath || force.magnitude >= launchThreshold;
         Died?.Invoke();
 
-        if (physicsDeath)
+        if (DiedFromPhysics)
         {
             Rigidbody rb = gameObject.AddComponent<Rigidbody>();
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
             rb.AddForceAtPosition(force, hitPoint, ForceMode.Impulse);
         }
 

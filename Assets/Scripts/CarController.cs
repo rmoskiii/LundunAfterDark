@@ -45,12 +45,11 @@ public class CarController : MonoBehaviour
         int wheelsOnGround = ApplySuspension();
         if (wheelsOnGround == 0) return;
 
-        Vector2 input = Vector2.zero;
-        if (IsDriven)
-        {
-            input = moveAction.ReadValue<Vector2>() + touchInput;   // keyboard in the editor, buttons on the phone
-            input = Vector2.ClampMagnitude(input, 1f);
-        }
+        // Touch buttons (player) or the police AI always count. The keyboard only drives the player's car.
+        Vector2 input = touchInput;
+        if (IsDriven) input += moveAction.ReadValue<Vector2>();
+        input.x = Mathf.Clamp(input.x, -1f, 1f);
+        input.y = Mathf.Clamp(input.y, -1f, 1f);
 
         float throttle = input.y;
         float steer = input.x;
