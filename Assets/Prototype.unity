@@ -13827,6 +13827,8 @@ GameObject:
   - component: {fileID: 2129053052}
   - component: {fileID: 2129053051}
   - component: {fileID: 2129053053}
+  - component: {fileID: 2129053054}
+  - component: {fileID: 2129053055}
   m_Layer: 0
   m_Name: LawAndOrder
   m_TagString: Untagged
@@ -13894,6 +13896,43 @@ MonoBehaviour:
   - {fileID: 168911217}
   minSpawnDistance: 30
   maxUnits: 1
+  spawnDelay: 3
+--- !u!114 &2129053054
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2129053050}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 461a75d4f2a2345d6bae115cf00d18c6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BustedSystem
+  vehicleSystem: {fileID: 105774778}
+  policeStation: {fileID: 1537440992}
+  arrestMeter: {fileID: 38789598}
+  blackout: {fileID: 1352467704}
+  bigText: {fileID: 1474392205}
+  arrestRange: 6
+  maxEscapeSpeed: 3
+  timeToArrest: 2
+--- !u!114 &2129053055
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2129053050}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb31b8e888b454e1895da9176763908b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PoliceDirector
+  policeCarPrefab: {fileID: 0}
+  spawnPoints: []
+  minSpawnDistance: 30
+  maxUnits: 2
   spawnDelay: 3
 --- !u!1001 &7491816044906588352
 PrefabInstance:
