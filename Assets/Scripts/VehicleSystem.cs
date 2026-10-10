@@ -21,8 +21,24 @@ public class VehicleSystem : MonoBehaviour
     private CarController[] cars;
     private CarController nearbyCar;
     private CarController currentCar;
+    private bool controlsLocked;
+
     // Whatever the police should chase: James on foot, or the car he's driving
     public Transform PlayerTarget => currentCar != null ? currentCar.transform : player.transform;
+
+    public bool IsDriving => currentCar != null;
+
+    // How fast the player is going, on foot or in a car
+    public float PlayerSpeed
+    {
+        get
+        {
+            if (currentCar != null) return Mathf.Abs(currentCar.Speed);
+            Vector3 v = player.GetComponent<CharacterController>().velocity;
+            v.y = 0f;
+            return v.magnitude;
+        }
+    }
 
     void Start()
     {
@@ -33,6 +49,8 @@ public class VehicleSystem : MonoBehaviour
 
     void Update()
     {
+        if (controlsLocked) return;
+
         if (currentCar != null)
         {
             // Turn held buttons into steering and throttle
@@ -47,6 +65,7 @@ public class VehicleSystem : MonoBehaviour
         float closest = enterRange;
         foreach (CarController car in cars)
         {
+            if (car == null) continue;
             float d = Vector3.Distance(player.transform.position, car.transform.position);
             if (d < closest) { closest = d; nearbyCar = car; }
         }
@@ -56,7 +75,7 @@ public class VehicleSystem : MonoBehaviour
     // Hooked up to the 🚗 button's On Click
     public void EnterCar()
     {
-        if (nearbyCar == null) return;
+        if (nearbyCar == null || controlsLocked) return;
 
         currentCar = nearbyCar;
         player.SetActive(false);                    // James "gets in"
@@ -82,6 +101,36 @@ public class VehicleSystem : MonoBehaviour
 
         currentCar = null;
         ShowDrivingUI(false);
+    }
+
+    // Freeze the player during cutscenes like BUSTED
+    public void LockControls(bool locked)
+    {
+        controlsLocked = locked;
+        onFootControls.SetActive(!locked && currentCar == null);
+        drivingControls.SetActive(!locked && currentCar != null);
+        enterButton.SetActive(false);
+
+        player.GetComponent<PlayerController>().enabled = !locked;
+        player.GetComponent<PlayerCombat>().enabled = !locked;
+
+        if (currentCar != null)
+        {
+            currentCar.SetTouchInput(0f, 0f);
+            currentCar.IsDriven = !locked;
+        }
+    }
+
+    // Get out of any car and appear somewhere else
+    public void RespawnPlayer(Vector3 position, Quaternion rotation)
+    {
+        if (currentCar != null) ExitCar();
+
+        // A CharacterController ignores teleports unless you switch it off first
+        CharacterController cc = player.GetComponent<CharacterController>();
+        cc.enabled = false;
+        player.transform.SetPositionAndRotation(position, rotation);
+        cc.enabled = true;
     }
 
     void ShowDrivingUI(bool driving)

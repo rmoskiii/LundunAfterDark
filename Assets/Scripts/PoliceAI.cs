@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -5,6 +6,10 @@ using UnityEngine.AI;
 public class PoliceAI : MonoBehaviour
 {
     private enum State { Responding, Pursuing, Searching, Returning }
+
+    // Every police car currently in the game (so other systems can find them)
+    public static readonly List<PoliceAI> Active = new List<PoliceAI>();
+    public bool CanSeeTarget { get; private set; }
 
     [Header("Senses")]
     [SerializeField] private float sightRange = 45f;
@@ -29,6 +34,9 @@ public class PoliceAI : MonoBehaviour
     private float returnTimer;
     private Renderer bodyRenderer;
 
+    void OnEnable() => Active.Add(this);
+    void OnDisable() => Active.Remove(this);
+
     void Start()
     {
         car = GetComponent<CarController>();
@@ -50,6 +58,8 @@ public class PoliceAI : MonoBehaviour
         }
 
         bool canSee = state != State.Returning && CanSeePlayer(wanted);
+        CanSeeTarget = canSee;
+
         if (canSee)
         {
             wanted.ReportSighting(wanted.PlayerTarget.position);
@@ -129,7 +139,12 @@ public class PoliceAI : MonoBehaviour
         float steer = Mathf.Clamp(angle / steerSharpness, -1f, 1f);
 
         float throttle = Mathf.Abs(angle) > 70f ? 0.4f : 1f;           // slow down for sharp turns
-        if (state == State.Pursuing && FlatDistance(destination) < 8f) throttle = 0.35f;
+
+        // At 2+ stars, if you're in a car, they don't ease off: they ram you
+        bool ram = WantedSystem.Instance.Stars >= 2
+                && WantedSystem.Instance.PlayerTarget.GetComponent<CarController>() != null;
+        if (state == State.Pursuing && FlatDistance(destination) < 8f && !ram) throttle = 0.35f;
+
         if (state == State.Searching) throttle = Mathf.Min(throttle, 0.6f);
 
         // Stuck against something? Reverse for a moment, steering the other way

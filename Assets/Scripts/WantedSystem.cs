@@ -82,7 +82,7 @@ public class WantedSystem : MonoBehaviour
         Stars = Mathf.Max(Stars, stars);
     }
 
-    void ClearWanted()
+    public void ClearWanted()
     {
         heat = 0f;
         Stars = 0;
