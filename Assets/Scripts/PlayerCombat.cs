@@ -6,13 +6,15 @@ using UnityEngine.Rendering.Universal;
 
 public class PlayerCombat : MonoBehaviour
 {
-        // Anyone can listen for gunshots (NPCs use it to panic)
+    // Anyone can listen for gunshots (NPCs use it to panic)
     public static event System.Action<Vector3> GunshotFired;
+
     [Header("Gun")]
     [SerializeField] private float damage = 25f;
     [SerializeField] private float range = 100f;
     [SerializeField] private float fireRate = 8f;
     [SerializeField] private float impactForce = 6f;
+    [SerializeField] private float vehicleDamageMultiplier = 0.25f;   // cars are tougher than people
     [SerializeField] private LayerMask hitMask = ~0;
 
     [Header("Feel")]
@@ -114,6 +116,11 @@ public class PlayerCombat : MonoBehaviour
         {
             Instantiate(impactPrefab, hit.point, Quaternion.LookRotation(hit.normal));
         }
+
+        // NEW: shooting cars damages them (enough and they catch fire, then explode)
+        VehicleHealth vehicle = hit.collider.GetComponentInParent<VehicleHealth>();   // NEW
+        if (vehicle != null)                                                         // NEW
+            vehicle.TakeDamage(damage * vehicleDamageMultiplier);                    // NEW
 
         if (health == null) return;
 

@@ -65,7 +65,7 @@ public class VehicleSystem : MonoBehaviour
         float closest = enterRange;
         foreach (CarController car in cars)
         {
-            if (car == null) continue;
+            if (car == null || !car.enabled) continue;
             float d = Vector3.Distance(player.transform.position, car.transform.position);
             if (d < closest) { closest = d; nearbyCar = car; }
         }

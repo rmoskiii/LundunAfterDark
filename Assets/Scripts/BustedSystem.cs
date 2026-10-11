@@ -30,8 +30,7 @@ public class BustedSystem : MonoBehaviour
 
     void Update()
     {
-        if (busted) return;
-
+        if (busted || (PlayerHealth.Instance != null && PlayerHealth.Instance.IsDead)) return;
         if (CanBeArrested()) progress += Time.deltaTime / timeToArrest;
         else progress -= Time.deltaTime / timeToArrest * 1.5f;   // drains a bit faster
         progress = Mathf.Clamp01(progress);
