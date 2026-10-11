@@ -96,6 +96,7 @@ public class VehicleHealth : MonoBehaviour
         // Push and damage everything nearby (chain reactions!)
         var pushed = new HashSet<Rigidbody> { rb };
         var damaged = new HashSet<VehicleHealth> { this };
+        var people = new HashSet<Health>();
         foreach (Collider hit in Physics.OverlapSphere(centre, explosionRadius, ~0, QueryTriggerInteraction.Ignore))
         {
             Rigidbody other = hit.attachedRigidbody;
@@ -105,6 +106,16 @@ public class VehicleHealth : MonoBehaviour
             VehicleHealth otherCar = hit.GetComponentInParent<VehicleHealth>();
             if (otherCar != null && damaged.Add(otherCar))
                 otherCar.TakeDamage(explosionDamage * Falloff(otherCar.transform.position, centre));
+
+            // Pedestrians: hurt and thrown away from the blast
+            Health person = hit.GetComponentInParent<Health>();
+            if (person != null && !person.IsDead && people.Add(person))
+            {
+                Vector3 pos = person.transform.position;
+                float falloff = Falloff(pos, centre);
+                Vector3 throwForce = ((pos - centre).normalized + Vector3.up) * 15f * falloff;
+                person.TakeDamage(explosionDamage * falloff, pos + Vector3.up, throwForce);
+            }
         }
 
         // The player: killed if inside, hurt if standing close
@@ -124,8 +135,12 @@ public class VehicleHealth : MonoBehaviour
         if (smoke == null) smoke = MakeParticles("Smoke", smokeMaterial, new Color(0.1f, 0.1f, 0.1f, 0.7f), 1.8f, 4f, 2.5f, 15f);
         if (fire != null) fire.Stop();
 
-        // Police wrecks get cleared away so the director can send fresh units
-        if (GetComponent<PoliceAI>() != null) Destroy(gameObject, 30f);
+        // Blowing up a police car is a serious crime. Wrecks get cleared so fresh units can come.
+        if (GetComponent<PoliceAI>() != null)
+        {
+            CrimeSystem.Report(CrimeType.DestroyPoliceCar, centre);
+            Destroy(gameObject, 30f);
+        }
     }
 
     float Falloff(Vector3 point, Vector3 centre)

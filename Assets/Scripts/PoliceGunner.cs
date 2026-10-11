@@ -64,6 +64,7 @@ public class PoliceGunner : MonoBehaviour
     {
         WantedSystem wanted = WantedSystem.Instance;
         if (wanted.Stars < starsToShoot || !ai.enabled || !ai.CanSeeTarget) return false;
+        if (ai.OfficersOut || VehicleSystem.Locked) return false;   // officers on foot do the shooting
         if (PlayerHealth.Instance == null || PlayerHealth.Instance.IsDead) return false;
         return Vector3.Distance(transform.position, wanted.PlayerTarget.position) < range;
     }

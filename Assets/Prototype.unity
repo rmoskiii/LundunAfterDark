@@ -14222,7 +14222,6 @@ GameObject:
   - component: {fileID: 2129053051}
   - component: {fileID: 2129053053}
   - component: {fileID: 2129053054}
-  - component: {fileID: 2129053055}
   - component: {fileID: 2129053056}
   - component: {fileID: 2129053057}
   - component: {fileID: 2129053058}
@@ -14292,7 +14291,7 @@ MonoBehaviour:
   - {fileID: 1419635683}
   - {fileID: 168911217}
   minSpawnDistance: 30
-  maxUnits: 1
+  maxUnits: 3
   spawnDelay: 3
 --- !u!114 &2129053054
 MonoBehaviour:
@@ -14314,23 +14313,6 @@ MonoBehaviour:
   arrestRange: 6
   maxEscapeSpeed: 3
   timeToArrest: 2
---- !u!114 &2129053055
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2129053050}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fb31b8e888b454e1895da9176763908b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PoliceDirector
-  policeCarPrefab: {fileID: 0}
-  spawnPoints: []
-  minSpawnDistance: 30
-  maxUnits: 2
-  spawnDelay: 3
 --- !u!82 &2129053056
 AudioSource:
   m_ObjectHideFlags: 0

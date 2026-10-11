@@ -68,6 +68,7 @@ public class WastedSystem : MonoBehaviour
         if (anim != null) anim.speed = 1f;
 
         WantedSystem.Instance.ClearWanted();
+        PoliceAI.ClearAll();                               // fresh start outside the hospital
         vehicleSystem.RespawnPlayer(hospital.position, hospital.rotation);
         playerHealth.ResetHealth();
         vehicleSystem.LockControls(false);

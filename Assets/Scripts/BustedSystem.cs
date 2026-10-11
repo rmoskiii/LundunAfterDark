@@ -1,4 +1,5 @@
 using System.Collections;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -14,15 +15,20 @@ public class BustedSystem : MonoBehaviour
     [SerializeField] private GameObject bigText;          // the "BUSTED" text
 
     [Header("Rules")]
-    [SerializeField] private float arrestRange = 6f;      // how close a police car must be
-    [SerializeField] private float maxEscapeSpeed = 3f;   // slower than this = they can grab you
-    [SerializeField] private float timeToArrest = 2f;     // seconds to fill the meter
+    [SerializeField] private float footReach = 1.8f;      // officer this close to James = grabbing him
+    [SerializeField] private float carReach = 3f;         // officer this close to your car door
+    [SerializeField] private float maxCarSpeed = 1.5f;    // can only be pulled out of a (nearly) stopped car
+    [SerializeField] private float timeToArrest = 2.5f;   // seconds of being held to get BUSTED
 
     private float progress;
     private bool busted;
+    private TMP_Text bigTextLabel;
+    private Vector3 bigTextScale;
 
     void Start()
     {
+        bigTextLabel = bigText.GetComponent<TMP_Text>();
+        bigTextScale = bigText.transform.localScale;
         arrestMeter.gameObject.SetActive(false);
         bigText.SetActive(false);
         SetBlackout(0f);
@@ -31,8 +37,9 @@ public class BustedSystem : MonoBehaviour
     void Update()
     {
         if (busted || (PlayerHealth.Instance != null && PlayerHealth.Instance.IsDead)) return;
-        if (CanBeArrested()) progress += Time.deltaTime / timeToArrest;
-        else progress -= Time.deltaTime / timeToArrest * 1.5f;   // drains a bit faster
+
+        if (OfficerHasHold()) progress += Time.deltaTime / timeToArrest;
+        else progress -= Time.deltaTime / timeToArrest * 2f;      // break free and it drains fast
         progress = Mathf.Clamp01(progress);
 
         arrestMeter.fillAmount = progress;
@@ -41,16 +48,23 @@ public class BustedSystem : MonoBehaviour
         if (progress >= 1f) StartCoroutine(BustedSequence());
     }
 
-    bool CanBeArrested()
+    // Only an officer ON FOOT can arrest you, by getting right up to you
+    bool OfficerHasHold()
     {
         if (WantedSystem.Instance.Stars == 0) return false;
-        if (vehicleSystem.PlayerSpeed > maxEscapeSpeed) return false;
 
+        bool inCar = vehicleSystem.IsDriving;
+        if (inCar && vehicleSystem.PlayerSpeed > maxCarSpeed) return false;
+
+        float reach = inCar ? carReach : footReach;
         Vector3 playerPos = vehicleSystem.PlayerTarget.position;
-        foreach (PoliceAI cop in PoliceAI.Active)
+
+        foreach (PoliceOfficer officer in PoliceOfficer.Active)
         {
-            if (!cop.CanSeeTarget) continue;
-            if (Vector3.Distance(cop.transform.position, playerPos) < arrestRange) return true;
+            if (officer == null || !officer.IsChasing) continue;
+            Vector3 d = officer.transform.position - playerPos;
+            d.y = 0f;
+            if (d.magnitude < reach) return true;
         }
         return false;
     }
@@ -61,10 +75,21 @@ public class BustedSystem : MonoBehaviour
         arrestMeter.gameObject.SetActive(false);
         vehicleSystem.LockControls(true);
 
-        // Slow-mo + BUSTED text
+        // Slow-mo + BUSTED slams onto the screen
         Time.timeScale = 0.3f;
+        if (bigTextLabel != null)
+        {
+            bigTextLabel.text = "BUSTED";
+            bigTextLabel.color = new Color(0.35f, 0.6f, 1f);    // police blue
+        }
         bigText.SetActive(true);
-        yield return new WaitForSecondsRealtime(2f);
+        for (float t = 0f; t < 0.25f; t += Time.unscaledDeltaTime)
+        {
+            bigText.transform.localScale = bigTextScale * Mathf.Lerp(1.6f, 1f, t / 0.25f);
+            yield return null;
+        }
+        bigText.transform.localScale = bigTextScale;
+        yield return new WaitForSecondsRealtime(1.75f);
 
         // Fade to black
         for (float t = 0f; t < 1f; t += Time.unscaledDeltaTime)
@@ -78,6 +103,7 @@ public class BustedSystem : MonoBehaviour
         Time.timeScale = 1f;
         bigText.SetActive(false);
         WantedSystem.Instance.ClearWanted();
+        PoliceAI.ClearAll();                                    // no cops waiting outside the station
         vehicleSystem.RespawnPlayer(policeStation.position, policeStation.rotation);
         vehicleSystem.LockControls(false);
         progress = 0f;

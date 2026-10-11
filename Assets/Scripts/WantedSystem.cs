@@ -9,9 +9,13 @@ public class WantedSystem : MonoBehaviour
     [SerializeField] private float assault = 25f;
     [SerializeField] private float hitAndRun = 30f;
     [SerializeField] private float kill = 60f;
+    [SerializeField] private float assaultOfficer = 40f;
+    [SerializeField] private float killOfficer = 120f;
+    [SerializeField] private float destroyPoliceCar = 100f;
 
     [Header("Heat needed for each star")]
-    [SerializeField] private float[] starThresholds = { 20f, 120f, 300f, 600f, 1000f };
+    // 2 kills = 2 stars. Kill a cop on top of that = 3 stars.
+    [SerializeField] private float[] heatForStar = { 20f, 100f, 220f, 400f, 700f };
 
     [Header("Escaping")]
     [SerializeField] private float baseEscapeTime = 10f;
@@ -42,6 +46,9 @@ public class WantedSystem : MonoBehaviour
             CrimeType.AssaultPedestrian => assault,
             CrimeType.HitAndRun => hitAndRun,
             CrimeType.KillPedestrian => kill,
+            CrimeType.AssaultOfficer => assaultOfficer,
+            CrimeType.KillOfficer => killOfficer,
+            CrimeType.DestroyPoliceCar => destroyPoliceCar,
             _ => 0f
         };
 
@@ -75,7 +82,7 @@ public class WantedSystem : MonoBehaviour
     void UpdateStars()
     {
         int stars = 0;
-        foreach (float threshold in starThresholds)
+        foreach (float threshold in heatForStar)
             if (heat >= threshold) stars++;
 
         // Stars only go up while you're wanted. They clear all at once when you escape.
@@ -87,5 +94,16 @@ public class WantedSystem : MonoBehaviour
         heat = 0f;
         Stars = 0;
         escapeTimerRunning = false;
+    }
+
+    // TESTING: in Play mode, click the ⋮ on this component and choose "Add a star"
+    [ContextMenu("Add a star")]
+    void AddStarForTesting()
+    {
+        if (Stars >= heatForStar.Length) return;
+        heat = Mathf.Max(heat, heatForStar[Stars]);
+        LastKnownPosition = PlayerTarget.position;
+        timeSinceSeen = 0f;
+        UpdateStars();
     }
 }

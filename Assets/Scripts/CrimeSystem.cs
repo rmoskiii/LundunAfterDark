@@ -1,6 +1,15 @@
 using UnityEngine;
 
-public enum CrimeType { Gunfire, AssaultPedestrian, HitAndRun, KillPedestrian }
+public enum CrimeType
+{
+    Gunfire,
+    AssaultPedestrian,
+    HitAndRun,
+    KillPedestrian,
+    AssaultOfficer,
+    KillOfficer,
+    DestroyPoliceCar
+}
 
 // One place every crime gets reported to. Anything can call CrimeSystem.Report(...)
 public static class CrimeSystem

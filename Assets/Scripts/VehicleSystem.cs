@@ -23,6 +23,9 @@ public class VehicleSystem : MonoBehaviour
     private CarController currentCar;
     private bool controlsLocked;
 
+    // True while BUSTED / WASTED is playing (police freeze, nobody shoots)
+    public static bool Locked { get; private set; }
+
     // Whatever the police should chase: James on foot, or the car he's driving
     public Transform PlayerTarget => currentCar != null ? currentCar.transform : player.transform;
 
@@ -42,6 +45,7 @@ public class VehicleSystem : MonoBehaviour
 
     void Start()
     {
+        Locked = false;
         cars = FindObjectsByType<CarController>(FindObjectsSortMode.None);
         foreach (CarController car in cars) car.IsDriven = false;
         ShowDrivingUI(false);
@@ -107,6 +111,7 @@ public class VehicleSystem : MonoBehaviour
     public void LockControls(bool locked)
     {
         controlsLocked = locked;
+        Locked = locked;
         onFootControls.SetActive(!locked && currentCar == null);
         drivingControls.SetActive(!locked && currentCar != null);
         enterButton.SetActive(false);

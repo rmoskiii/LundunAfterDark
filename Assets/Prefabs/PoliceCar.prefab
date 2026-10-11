@@ -334,6 +334,10 @@ MonoBehaviour:
   arriveDistance: 7
   searchRadius: 25
   steerSharpness: 35
+  officerPrefab: {fileID: 3347311902094977462, guid: 65273e5b7c22c43978c46da580909659, type: 3}
+  deployDistance: 15
+  maxSuspectCarSpeed: 4
+  redeployCooldown: 6
   siren: {fileID: 920761846692466802}
 --- !u!114 &-5793299969692954094
 MonoBehaviour:
