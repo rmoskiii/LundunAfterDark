@@ -104,6 +104,8 @@ GameObject:
   - component: {fileID: 5861574674071759263}
   - component: {fileID: 920761846692466802}
   - component: {fileID: 8675167270976653801}
+  - component: {fileID: -5793299969692954094}
+  - component: {fileID: 3836292746501336442}
   m_Layer: 7
   m_Name: PoliceCar
   m_TagString: Untagged
@@ -333,6 +335,51 @@ MonoBehaviour:
   searchRadius: 25
   steerSharpness: 35
   siren: {fileID: 920761846692466802}
+--- !u!114 &-5793299969692954094
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 951523501466146852}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0215170aae4e4aa188c0fb0974f9265, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VehicleHealth
+  maxHealth: 100
+  crashDamageSpeed: 8
+  crashDamageMultiplier: 3
+  fuseTime: 4
+  explosionRadius: 8
+  explosionDamage: 120
+  explosionPush: 12
+  fireMaterial: {fileID: 2100000, guid: cba72c06a72b54237af85c484e1d5acb, type: 2}
+  smokeMaterial: {fileID: 2100000, guid: 2c4f594b29b5c4893961e6d8556dacfd, type: 2}
+  explosionSound: {fileID: 8300000, guid: 88aad851c527e4c81ae15b53194a2f0f, type: 3}
+--- !u!114 &3836292746501336442
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 951523501466146852}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7ed0dbc745f7d453981594436105c866, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PoliceGunner
+  starsToShoot: 3
+  range: 35
+  shotsPerBurst: 3
+  timeBetweenShots: 0.12
+  timeBetweenBursts: 1.5
+  damageOnFoot: 10
+  damageToCar: 4
+  closeHitChance: 0.7
+  farHitChance: 0.2
+  gunshot: {fileID: 8300000, guid: 2f1a6e504b25245a3837874a2364ddd7, type: 3}
+  tracerMaterial: {fileID: 2100000, guid: 2ea2daa7c46364666a0773cf4b470b29, type: 2}
 --- !u!1 &2418914795764465391
 GameObject:
   m_ObjectHideFlags: 0
