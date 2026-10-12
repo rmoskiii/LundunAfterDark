@@ -5,7 +5,8 @@ public class PoliceDirector : MonoBehaviour
 {
     [SerializeField] private PoliceAI policeCarPrefab;
     [SerializeField] private Transform[] spawnPoints;
-    [SerializeField] private float minSpawnDistance = 30f;
+    [SerializeField] private float minSpawnDistance = 30f;   // never pop in right next to you
+    [SerializeField] private float maxSpawnDistance = 260f;  // big map: don't send a car from the other side of town
     [SerializeField] private int maxUnits = 1;            // V0.03: one car. Raise later for more stars.
     [SerializeField] private float spawnDelay = 3f;
 
@@ -30,15 +31,23 @@ public class PoliceDirector : MonoBehaviour
 
     void Spawn(Vector3 playerPosition)
     {
-        // Pick a random spawn point that's far enough away from the player
+        // Big map: pick one of the 3 closest spawn points that are at least minSpawnDistance away
         List<Transform> options = new List<Transform>();
         foreach (Transform point in spawnPoints)
-            if (Vector3.Distance(point.position, playerPosition) >= minSpawnDistance)
-                options.Add(point);
+        {
+            if (point == null) continue;
+            float d = Vector3.Distance(point.position, playerPosition);
+            if (d >= minSpawnDistance && d <= maxSpawnDistance) options.Add(point);
+        }
+        if (options.Count == 0)
+            foreach (Transform point in spawnPoints)
+                if (point != null && Vector3.Distance(point.position, playerPosition) >= minSpawnDistance) options.Add(point);
 
         if (options.Count == 0) return;
 
-        Transform chosen = options[Random.Range(0, options.Count)];
+        options.Sort((a, b) => Vector3.Distance(a.position, playerPosition).CompareTo(Vector3.Distance(b.position, playerPosition)));
+        int pickFrom = Mathf.Min(3, options.Count);
+        Transform chosen = options[Random.Range(0, pickFrom)];
         units.Add(Instantiate(policeCarPrefab, chosen.position, chosen.rotation));
     }
 }
