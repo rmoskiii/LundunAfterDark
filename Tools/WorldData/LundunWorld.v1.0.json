@@ -1,0 +1,2138 @@
+{
+ "version": "1.0",
+ "units": "metres",
+ "generated": "2026-10-11",
+ "axes": {
+  "x": "west\u2192east",
+  "z": "south\u2192north",
+  "y": "up",
+  "origin": "south-west corner of the world",
+  "yaw": "degrees, 0 = +Z north, 90 = +X east, clockwise from above"
+ },
+ "heights": {
+  "ground": 0.0,
+  "roadSurface": 0.02,
+  "pavementTop": 0.15,
+  "waterSurface": -2.0,
+  "riverBed": -4.0,
+  "embankmentWallTop": 0.9,
+  "bridgeDeck": 0.0
+ },
+ "worldBounds": {
+  "groundMinX": -300,
+  "groundMaxX": 1900,
+  "groundMinZ": -300,
+  "groundMaxZ": 1500,
+  "wallMinX": -120,
+  "wallMaxX": 1720,
+  "wallMinZ": -120,
+  "wallMaxZ": 1320
+ },
+ "camera": {
+  "farClip": 450,
+  "fogStart": 120,
+  "fogEnd": 400
+ },
+ "roadClasses": [
+  {
+   "name": "ring",
+   "width": 22,
+   "lanesPerDirection": 2,
+   "speedLimitMps": 22.4,
+   "speedLimitMph": 50,
+   "pavement": 0.0,
+   "verge": 3.0,
+   "centralReservation": 2.0,
+   "markings": "dual carriageway, solid edge, dashed lane"
+  },
+  {
+   "name": "arterial",
+   "width": 15,
+   "lanesPerDirection": 2,
+   "speedLimitMps": 13.4,
+   "speedLimitMph": 30,
+   "pavement": 4.0,
+   "verge": 0.0,
+   "centralReservation": 0.0,
+   "markings": "white centre line, dashed lanes, double yellows"
+  },
+  {
+   "name": "street",
+   "width": 10,
+   "lanesPerDirection": 1,
+   "speedLimitMps": 8.9,
+   "speedLimitMph": 20,
+   "pavement": 3.0,
+   "verge": 0.0,
+   "centralReservation": 0.0,
+   "markings": "white dashed centre, double yellows"
+  },
+  {
+   "name": "service",
+   "width": 7,
+   "lanesPerDirection": 1,
+   "speedLimitMps": 6.7,
+   "speedLimitMph": 15,
+   "pavement": 1.5,
+   "verge": 0.0,
+   "centralReservation": 0.0,
+   "markings": "none"
+  },
+  {
+   "name": "bridge",
+   "width": 15,
+   "lanesPerDirection": 1,
+   "speedLimitMps": 13.4,
+   "speedLimitMph": 30,
+   "pavement": 3.5,
+   "verge": 0.0,
+   "centralReservation": 0.0,
+   "markings": "white centre line; parapets 1.1 m"
+  }
+ ],
+ "river": {
+  "width": 70,
+  "wallThickness": 4.0,
+  "centreline": [
+   {
+    "x": -20.0,
+    "z": 640.0
+   },
+   {
+    "x": 200.0,
+    "z": 670.0
+   },
+   {
+    "x": 450.0,
+    "z": 655.0
+   },
+   {
+    "x": 700.0,
+    "z": 630.0
+   },
+   {
+    "x": 900.0,
+    "z": 600.0
+   },
+   {
+    "x": 990.0,
+    "z": 540.0
+   },
+   {
+    "x": 1030.0,
+    "z": 450.0
+   },
+   {
+    "x": 1080.0,
+    "z": 360.0
+   },
+   {
+    "x": 1170.0,
+    "z": 300.0
+   },
+   {
+    "x": 1290.0,
+    "z": 300.0
+   },
+   {
+    "x": 1380.0,
+    "z": 360.0
+   },
+   {
+    "x": 1420.0,
+    "z": 470.0
+   },
+   {
+    "x": 1450.0,
+    "z": 570.0
+   },
+   {
+    "x": 1520.0,
+    "z": 630.0
+   },
+   {
+    "x": 1620.0,
+    "z": 650.0
+   }
+  ]
+ },
+ "roads": [
+  {
+   "id": "R01",
+   "name": "Lundun Ring North",
+   "roadClass": "ring",
+   "width": 22,
+   "lengthM": 2420.0,
+   "points": [
+    {
+     "x": 1560.0,
+     "z": 700.0
+    },
+    {
+     "x": 1560.0,
+     "z": 1160.0
+    },
+    {
+     "x": 40.0,
+     "z": 1160.0
+    },
+    {
+     "x": 40.0,
+     "z": 720.0
+    }
+   ],
+   "junctions": [
+    "J32",
+    "J22",
+    "J15",
+    "J04",
+    "J03",
+    "J02",
+    "J01",
+    "J08",
+    "J26"
+   ]
+  },
+  {
+   "id": "R02",
+   "name": "Lundun Ring South",
+   "roadClass": "ring",
+   "width": 22,
+   "lengthM": 2560.0,
+   "points": [
+    {
+     "x": 40.0,
+     "z": 560.0
+    },
+    {
+     "x": 40.0,
+     "z": 40.0
+    },
+    {
+     "x": 1560.0,
+     "z": 40.0
+    },
+    {
+     "x": 1560.0,
+     "z": 560.0
+    }
+   ],
+   "junctions": [
+    "J33",
+    "J42",
+    "J53",
+    "J55",
+    "J56",
+    "J57",
+    "J58",
+    "J35"
+   ]
+  },
+  {
+   "id": "R03",
+   "name": "Oxbridge Street",
+   "roadClass": "arterial",
+   "width": 15,
+   "lengthM": 1520.0,
+   "points": [
+    {
+     "x": 40.0,
+     "z": 920.0
+    },
+    {
+     "x": 1560.0,
+     "z": 920.0
+    }
+   ],
+   "junctions": [
+    "J08",
+    "J09",
+    "J10",
+    "J11",
+    "J12",
+    "J13",
+    "J14",
+    "J15"
+   ]
+  },
+  {
+   "id": "R04",
+   "name": "Regent Row",
+   "roadClass": "arterial",
+   "width": 15,
+   "lengthM": 430.0,
+   "points": [
+    {
+     "x": 560.0,
+     "z": 1160.0
+    },
+    {
+     "x": 560.0,
+     "z": 730.0
+    }
+   ],
+   "junctions": [
+    "J02",
+    "J06",
+    "J10",
+    "J17",
+    "J25"
+   ]
+  },
+  {
+   "id": "R05",
+   "name": "North Embankment",
+   "roadClass": "arterial",
+   "width": 15,
+   "lengthM": 1521.8,
+   "points": [
+    {
+     "x": 40.0,
+     "z": 720.0
+    },
+    {
+     "x": 300.0,
+     "z": 735.0
+    },
+    {
+     "x": 560.0,
+     "z": 730.0
+    },
+    {
+     "x": 820.0,
+     "z": 715.0
+    },
+    {
+     "x": 950.0,
+     "z": 700.0
+    },
+    {
+     "x": 1150.0,
+     "z": 700.0
+    },
+    {
+     "x": 1560.0,
+     "z": 700.0
+    }
+   ],
+   "junctions": [
+    "J26",
+    "J23",
+    "J24",
+    "J25",
+    "J27",
+    "J28",
+    "J29",
+    "J30",
+    "J31",
+    "J32"
+   ]
+  },
+  {
+   "id": "R06",
+   "name": "Brompton Road",
+   "roadClass": "street",
+   "width": 10,
+   "lengthM": 425.0,
+   "points": [
+    {
+     "x": 300.0,
+     "z": 1160.0
+    },
+    {
+     "x": 300.0,
+     "z": 735.0
+    }
+   ],
+   "junctions": [
+    "J01",
+    "J05",
+    "J09",
+    "J16",
+    "J23"
+   ]
+  },
+  {
+   "id": "R07",
+   "name": "Mayfield Street",
+   "roadClass": "street",
+   "width": 10,
+   "lengthM": 445.0,
+   "points": [
+    {
+     "x": 820.0,
+     "z": 1160.0
+    },
+    {
+     "x": 820.0,
+     "z": 715.0
+    }
+   ],
+   "junctions": [
+    "J03",
+    "J07",
+    "J11",
+    "J18",
+    "J27"
+   ]
+  },
+  {
+   "id": "R08",
+   "name": "Knightsbury Mews",
+   "roadClass": "street",
+   "width": 10,
+   "lengthM": 520.0,
+   "points": [
+    {
+     "x": 300.0,
+     "z": 1030.0
+    },
+    {
+     "x": 820.0,
+     "z": 1030.0
+    }
+   ],
+   "junctions": [
+    "J05",
+    "J06",
+    "J07"
+   ]
+  },
+  {
+   "id": "R09",
+   "name": "Sloane Lane",
+   "roadClass": "street",
+   "width": 10,
+   "lengthM": 520.0,
+   "points": [
+    {
+     "x": 300.0,
+     "z": 820.0
+    },
+    {
+     "x": 820.0,
+     "z": 820.0
+    }
+   ],
+   "junctions": [
+    "J16",
+    "J17",
+    "J18"
+   ]
+  },
+  {
+   "id": "R10",
+   "name": "Commercial Way",
+   "roadClass": "arterial",
+   "width": 15,
+   "lengthM": 460.0,
+   "points": [
+    {
+     "x": 950.0,
+     "z": 700.0
+    },
+    {
+     "x": 950.0,
+     "z": 1160.0
+    }
+   ],
+   "junctions": [
+    "J28",
+    "J19",
+    "J12",
+    "J04"
+   ]
+  },
+  {
+   "id": "R11",
+   "name": "Dock Street",
+   "roadClass": "street",
+   "width": 10,
+   "lengthM": 220.0,
+   "points": [
+    {
+     "x": 1150.0,
+     "z": 920.0
+    },
+    {
+     "x": 1150.0,
+     "z": 700.0
+    }
+   ],
+   "junctions": [
+    "J13",
+    "J20",
+    "J29"
+   ]
+  },
+  {
+   "id": "R12",
+   "name": "Wharf Road",
+   "roadClass": "street",
+   "width": 10,
+   "lengthM": 220.0,
+   "points": [
+    {
+     "x": 1350.0,
+     "z": 920.0
+    },
+    {
+     "x": 1350.0,
+     "z": 700.0
+    }
+   ],
+   "junctions": [
+    "J14",
+    "J21",
+    "J31"
+   ]
+  },
+  {
+   "id": "R13",
+   "name": "Warehouse Lane",
+   "roadClass": "service",
+   "width": 7,
+   "lengthM": 610.0,
+   "points": [
+    {
+     "x": 950.0,
+     "z": 810.0
+    },
+    {
+     "x": 1560.0,
+     "z": 810.0
+    }
+   ],
+   "junctions": [
+    "J19",
+    "J20",
+    "J21",
+    "J22"
+   ]
+  },
+  {
+   "id": "R14",
+   "name": "Westferry Road",
+   "roadClass": "arterial",
+   "width": 15,
+   "lengthM": 460.9,
+   "points": [
+    {
+     "x": 1150.0,
+     "z": 700.0
+    },
+    {
+     "x": 1100.0,
+     "z": 600.0
+    },
+    {
+     "x": 1100.0,
+     "z": 470.0
+    },
+    {
+     "x": 1170.0,
+     "z": 400.0
+    },
+    {
+     "x": 1290.0,
+     "z": 395.0
+    }
+   ],
+   "junctions": [
+    "J29",
+    "J36",
+    "J40",
+    "J41"
+   ]
+  },
+  {
+   "id": "R15",
+   "name": "Quay Loop",
+   "roadClass": "street",
+   "width": 10,
+   "lengthM": 382.0,
+   "points": [
+    {
+     "x": 1290.0,
+     "z": 395.0
+    },
+    {
+     "x": 1350.0,
+     "z": 450.0
+    },
+    {
+     "x": 1375.0,
+     "z": 560.0
+    },
+    {
+     "x": 1300.0,
+     "z": 640.0
+    },
+    {
+     "x": 1250.0,
+     "z": 700.0
+    }
+   ],
+   "junctions": [
+    "J41",
+    "J37",
+    "J30"
+   ]
+  },
+  {
+   "id": "R16",
+   "name": "Tower Plaza",
+   "roadClass": "street",
+   "width": 10,
+   "lengthM": 270.5,
+   "points": [
+    {
+     "x": 1100.0,
+     "z": 540.0
+    },
+    {
+     "x": 1370.5,
+     "z": 540.0
+    }
+   ],
+   "junctions": [
+    "J36",
+    "J37"
+   ]
+  },
+  {
+   "id": "B1",
+   "name": "Westbridge",
+   "roadClass": "bridge",
+   "width": 15,
+   "lengthM": 172.5,
+   "points": [
+    {
+     "x": 430.0,
+     "z": 732.5
+    },
+    {
+     "x": 430.0,
+     "z": 560.0
+    }
+   ],
+   "junctions": [
+    "J24",
+    "J34"
+   ]
+  },
+  {
+   "id": "B2",
+   "name": "Rye Bridge",
+   "roadClass": "bridge",
+   "width": 15,
+   "lengthM": 188.5,
+   "points": [
+    {
+     "x": 820.0,
+     "z": 715.0
+    },
+    {
+     "x": 790.0,
+     "z": 528.9
+    }
+   ],
+   "junctions": [
+    "J27",
+    "J38"
+   ]
+  },
+  {
+   "id": "B3",
+   "name": "Quay Bridge",
+   "roadClass": "bridge",
+   "width": 15,
+   "lengthM": 167.5,
+   "points": [
+    {
+     "x": 1230.0,
+     "z": 397.5
+    },
+    {
+     "x": 1230.0,
+     "z": 230.0
+    }
+   ],
+   "junctions": [
+    "J40",
+    "J49"
+   ]
+  },
+  {
+   "id": "B4",
+   "name": "Ring West Crossing",
+   "roadClass": "bridge",
+   "width": 22,
+   "lengthM": 160.0,
+   "points": [
+    {
+     "x": 40.0,
+     "z": 720.0
+    },
+    {
+     "x": 40.0,
+     "z": 560.0
+    }
+   ],
+   "junctions": [
+    "J26",
+    "J33"
+   ]
+  },
+  {
+   "id": "B5",
+   "name": "Ring East Crossing",
+   "roadClass": "bridge",
+   "width": 22,
+   "lengthM": 140.0,
+   "points": [
+    {
+     "x": 1560.0,
+     "z": 700.0
+    },
+    {
+     "x": 1560.0,
+     "z": 560.0
+    }
+   ],
+   "junctions": [
+    "J32",
+    "J35"
+   ]
+  },
+  {
+   "id": "R17",
+   "name": "South Embankment",
+   "roadClass": "arterial",
+   "width": 15,
+   "lengthM": 1867.4,
+   "points": [
+    {
+     "x": 40.0,
+     "z": 560.0
+    },
+    {
+     "x": 430.0,
+     "z": 560.0
+    },
+    {
+     "x": 700.0,
+     "z": 545.0
+    },
+    {
+     "x": 790.0,
+     "z": 528.9
+    },
+    {
+     "x": 840.0,
+     "z": 520.0
+    },
+    {
+     "x": 960.0,
+     "z": 470.0
+    },
+    {
+     "x": 1000.0,
+     "z": 380.0
+    },
+    {
+     "x": 1060.0,
+     "z": 260.0
+    },
+    {
+     "x": 1230.0,
+     "z": 230.0
+    },
+    {
+     "x": 1380.0,
+     "z": 240.0
+    },
+    {
+     "x": 1470.0,
+     "z": 320.0
+    },
+    {
+     "x": 1500.0,
+     "z": 450.0
+    },
+    {
+     "x": 1560.0,
+     "z": 560.0
+    }
+   ],
+   "junctions": [
+    "J33",
+    "J34",
+    "J38",
+    "J48",
+    "J49",
+    "J35"
+   ]
+  },
+  {
+   "id": "R18",
+   "name": "Old Kent Lane",
+   "roadClass": "arterial",
+   "width": 15,
+   "lengthM": 1021.7,
+   "points": [
+    {
+     "x": 40.0,
+     "z": 300.0
+    },
+    {
+     "x": 600.0,
+     "z": 300.0
+    },
+    {
+     "x": 1060.0,
+     "z": 260.0
+    }
+   ],
+   "junctions": [
+    "J42",
+    "J43",
+    "J44",
+    "J45",
+    "J46",
+    "J47",
+    "J48"
+   ]
+  },
+  {
+   "id": "R19",
+   "name": "Rye Lane",
+   "roadClass": "arterial",
+   "width": 15,
+   "lengthM": 488.9,
+   "points": [
+    {
+     "x": 790.0,
+     "z": 528.9
+    },
+    {
+     "x": 790.0,
+     "z": 40.0
+    }
+   ],
+   "junctions": [
+    "J38",
+    "J46",
+    "J51",
+    "J57"
+   ]
+  },
+  {
+   "id": "R20",
+   "name": "Peckam High Street",
+   "roadClass": "street",
+   "width": 10,
+   "lengthM": 280.0,
+   "points": [
+    {
+     "x": 700.0,
+     "z": 190.0
+    },
+    {
+     "x": 980.0,
+     "z": 190.0
+    }
+   ],
+   "junctions": [
+    "J50",
+    "J51",
+    "J52"
+   ]
+  },
+  {
+   "id": "R21",
+   "name": "Bellenden Road",
+   "roadClass": "street",
+   "width": 10,
+   "lengthM": 251.3,
+   "points": [
+    {
+     "x": 700.0,
+     "z": 291.3
+    },
+    {
+     "x": 700.0,
+     "z": 40.0
+    }
+   ],
+   "junctions": [
+    "J45",
+    "J50",
+    "J56"
+   ]
+  },
+  {
+   "id": "R22",
+   "name": "Choumert Grove",
+   "roadClass": "street",
+   "width": 10,
+   "lengthM": 227.0,
+   "points": [
+    {
+     "x": 980.0,
+     "z": 267.0
+    },
+    {
+     "x": 980.0,
+     "z": 40.0
+    }
+   ],
+   "junctions": [
+    "J47",
+    "J52",
+    "J58"
+   ]
+  },
+  {
+   "id": "R23",
+   "name": "Gilmore Road",
+   "roadClass": "street",
+   "width": 10,
+   "lengthM": 520.0,
+   "points": [
+    {
+     "x": 430.0,
+     "z": 560.0
+    },
+    {
+     "x": 430.0,
+     "z": 40.0
+    }
+   ],
+   "junctions": [
+    "J34",
+    "J39",
+    "J44",
+    "J54",
+    "J55"
+   ]
+  },
+  {
+   "id": "R24",
+   "name": "Estate Service Road",
+   "roadClass": "service",
+   "width": 7,
+   "lengthM": 420.0,
+   "points": [
+    {
+     "x": 180.0,
+     "z": 300.0
+    },
+    {
+     "x": 180.0,
+     "z": 470.0
+    },
+    {
+     "x": 430.0,
+     "z": 470.0
+    }
+   ],
+   "junctions": [
+    "J43",
+    "J39"
+   ]
+  },
+  {
+   "id": "R25",
+   "name": "Thurlow Street",
+   "roadClass": "street",
+   "width": 10,
+   "lengthM": 390.0,
+   "points": [
+    {
+     "x": 40.0,
+     "z": 180.0
+    },
+    {
+     "x": 430.0,
+     "z": 180.0
+    }
+   ],
+   "junctions": [
+    "J53",
+    "J54"
+   ]
+  }
+ ],
+ "bridges": [
+  {
+   "id": "B1",
+   "name": "Westbridge",
+   "northEnd": {
+    "x": 430.0,
+    "z": 732.5
+   },
+   "southEnd": {
+    "x": 430.0,
+    "z": 560.0
+   },
+   "northJunction": "J24",
+   "southJunction": "J34",
+   "lengthM": 172.5,
+   "waterSpanM": 70,
+   "width": 15,
+   "deckY": 0.0,
+   "deckThickness": 1.2,
+   "parapetHeight": 1.1,
+   "northRoad": "North Embankment",
+   "southRoad": "South Embankment"
+  },
+  {
+   "id": "B2",
+   "name": "Rye Bridge",
+   "northEnd": {
+    "x": 820.0,
+    "z": 715.0
+   },
+   "southEnd": {
+    "x": 790.0,
+    "z": 528.9
+   },
+   "northJunction": "J27",
+   "southJunction": "J38",
+   "lengthM": 188.5,
+   "waterSpanM": 70,
+   "width": 15,
+   "deckY": 0.0,
+   "deckThickness": 1.2,
+   "parapetHeight": 1.1,
+   "northRoad": "North Embankment",
+   "southRoad": "South Embankment"
+  },
+  {
+   "id": "B3",
+   "name": "Quay Bridge",
+   "northEnd": {
+    "x": 1230.0,
+    "z": 397.5
+   },
+   "southEnd": {
+    "x": 1230.0,
+    "z": 230.0
+   },
+   "northJunction": "J40",
+   "southJunction": "J49",
+   "lengthM": 167.5,
+   "waterSpanM": 70,
+   "width": 15,
+   "deckY": 0.0,
+   "deckThickness": 1.2,
+   "parapetHeight": 1.1,
+   "northRoad": "Westferry Road",
+   "southRoad": "South Embankment"
+  },
+  {
+   "id": "B4",
+   "name": "Ring West Crossing",
+   "northEnd": {
+    "x": 40.0,
+    "z": 720.0
+   },
+   "southEnd": {
+    "x": 40.0,
+    "z": 560.0
+   },
+   "northJunction": "J26",
+   "southJunction": "J33",
+   "lengthM": 160.0,
+   "waterSpanM": 71,
+   "width": 22,
+   "deckY": 0.0,
+   "deckThickness": 1.2,
+   "parapetHeight": 1.1,
+   "northRoad": "Lundun Ring North",
+   "southRoad": "Lundun Ring South"
+  },
+  {
+   "id": "B5",
+   "name": "Ring East Crossing",
+   "northEnd": {
+    "x": 1560.0,
+    "z": 700.0
+   },
+   "southEnd": {
+    "x": 1560.0,
+    "z": 560.0
+   },
+   "northJunction": "J32",
+   "southJunction": "J35",
+   "lengthM": 140.0,
+   "waterSpanM": 71,
+   "width": 22,
+   "deckY": 0.0,
+   "deckThickness": 1.2,
+   "parapetHeight": 1.1,
+   "northRoad": "Lundun Ring North",
+   "southRoad": "Lundun Ring South"
+  }
+ ],
+ "junctions": [
+  {
+   "id": "J01",
+   "x": 300.0,
+   "z": 1160.0,
+   "arms": 3,
+   "roads": [
+    "R01",
+    "R06"
+   ]
+  },
+  {
+   "id": "J02",
+   "x": 560.0,
+   "z": 1160.0,
+   "arms": 3,
+   "roads": [
+    "R01",
+    "R04"
+   ]
+  },
+  {
+   "id": "J03",
+   "x": 820.0,
+   "z": 1160.0,
+   "arms": 3,
+   "roads": [
+    "R01",
+    "R07"
+   ]
+  },
+  {
+   "id": "J04",
+   "x": 950.0,
+   "z": 1160.0,
+   "arms": 3,
+   "roads": [
+    "R01",
+    "R10"
+   ]
+  },
+  {
+   "id": "J05",
+   "x": 300.0,
+   "z": 1030.0,
+   "arms": 3,
+   "roads": [
+    "R06",
+    "R08"
+   ]
+  },
+  {
+   "id": "J06",
+   "x": 560.0,
+   "z": 1030.0,
+   "arms": 4,
+   "roads": [
+    "R04",
+    "R08"
+   ]
+  },
+  {
+   "id": "J07",
+   "x": 820.0,
+   "z": 1030.0,
+   "arms": 3,
+   "roads": [
+    "R07",
+    "R08"
+   ]
+  },
+  {
+   "id": "J08",
+   "x": 40.0,
+   "z": 920.0,
+   "arms": 3,
+   "roads": [
+    "R01",
+    "R03"
+   ]
+  },
+  {
+   "id": "J09",
+   "x": 300.0,
+   "z": 920.0,
+   "arms": 4,
+   "roads": [
+    "R03",
+    "R06"
+   ]
+  },
+  {
+   "id": "J10",
+   "x": 560.0,
+   "z": 920.0,
+   "arms": 4,
+   "roads": [
+    "R03",
+    "R04"
+   ]
+  },
+  {
+   "id": "J11",
+   "x": 820.0,
+   "z": 920.0,
+   "arms": 4,
+   "roads": [
+    "R03",
+    "R07"
+   ]
+  },
+  {
+   "id": "J12",
+   "x": 950.0,
+   "z": 920.0,
+   "arms": 4,
+   "roads": [
+    "R03",
+    "R10"
+   ]
+  },
+  {
+   "id": "J13",
+   "x": 1150.0,
+   "z": 920.0,
+   "arms": 3,
+   "roads": [
+    "R03",
+    "R11"
+   ]
+  },
+  {
+   "id": "J14",
+   "x": 1350.0,
+   "z": 920.0,
+   "arms": 3,
+   "roads": [
+    "R03",
+    "R12"
+   ]
+  },
+  {
+   "id": "J15",
+   "x": 1560.0,
+   "z": 920.0,
+   "arms": 3,
+   "roads": [
+    "R01",
+    "R03"
+   ]
+  },
+  {
+   "id": "J16",
+   "x": 300.0,
+   "z": 820.0,
+   "arms": 3,
+   "roads": [
+    "R06",
+    "R09"
+   ]
+  },
+  {
+   "id": "J17",
+   "x": 560.0,
+   "z": 820.0,
+   "arms": 4,
+   "roads": [
+    "R04",
+    "R09"
+   ]
+  },
+  {
+   "id": "J18",
+   "x": 820.0,
+   "z": 820.0,
+   "arms": 3,
+   "roads": [
+    "R07",
+    "R09"
+   ]
+  },
+  {
+   "id": "J19",
+   "x": 950.0,
+   "z": 810.0,
+   "arms": 3,
+   "roads": [
+    "R10",
+    "R13"
+   ]
+  },
+  {
+   "id": "J20",
+   "x": 1150.0,
+   "z": 810.0,
+   "arms": 4,
+   "roads": [
+    "R11",
+    "R13"
+   ]
+  },
+  {
+   "id": "J21",
+   "x": 1350.0,
+   "z": 810.0,
+   "arms": 4,
+   "roads": [
+    "R12",
+    "R13"
+   ]
+  },
+  {
+   "id": "J22",
+   "x": 1560.0,
+   "z": 810.0,
+   "arms": 3,
+   "roads": [
+    "R01",
+    "R13"
+   ]
+  },
+  {
+   "id": "J23",
+   "x": 300.0,
+   "z": 735.0,
+   "arms": 3,
+   "roads": [
+    "R05",
+    "R06"
+   ]
+  },
+  {
+   "id": "J24",
+   "x": 430.0,
+   "z": 732.5,
+   "arms": 3,
+   "roads": [
+    "R05",
+    "B1"
+   ]
+  },
+  {
+   "id": "J25",
+   "x": 560.0,
+   "z": 730.0,
+   "arms": 3,
+   "roads": [
+    "R04",
+    "R05"
+   ]
+  },
+  {
+   "id": "J26",
+   "x": 40.0,
+   "z": 720.0,
+   "arms": 3,
+   "roads": [
+    "R01",
+    "R05",
+    "B4"
+   ]
+  },
+  {
+   "id": "J27",
+   "x": 820.0,
+   "z": 715.0,
+   "arms": 4,
+   "roads": [
+    "R05",
+    "R07",
+    "B2"
+   ]
+  },
+  {
+   "id": "J28",
+   "x": 950.0,
+   "z": 700.0,
+   "arms": 3,
+   "roads": [
+    "R05",
+    "R10"
+   ]
+  },
+  {
+   "id": "J29",
+   "x": 1150.0,
+   "z": 700.0,
+   "arms": 4,
+   "roads": [
+    "R05",
+    "R11",
+    "R14"
+   ]
+  },
+  {
+   "id": "J30",
+   "x": 1250.0,
+   "z": 700.0,
+   "arms": 3,
+   "roads": [
+    "R05",
+    "R15"
+   ]
+  },
+  {
+   "id": "J31",
+   "x": 1350.0,
+   "z": 700.0,
+   "arms": 3,
+   "roads": [
+    "R05",
+    "R12"
+   ]
+  },
+  {
+   "id": "J32",
+   "x": 1560.0,
+   "z": 700.0,
+   "arms": 3,
+   "roads": [
+    "R01",
+    "R05",
+    "B5"
+   ]
+  },
+  {
+   "id": "J33",
+   "x": 40.0,
+   "z": 560.0,
+   "arms": 3,
+   "roads": [
+    "R02",
+    "B4",
+    "R17"
+   ]
+  },
+  {
+   "id": "J34",
+   "x": 430.0,
+   "z": 560.0,
+   "arms": 4,
+   "roads": [
+    "B1",
+    "R17",
+    "R23"
+   ]
+  },
+  {
+   "id": "J35",
+   "x": 1560.0,
+   "z": 560.0,
+   "arms": 3,
+   "roads": [
+    "R02",
+    "B5",
+    "R17"
+   ]
+  },
+  {
+   "id": "J36",
+   "x": 1100.0,
+   "z": 540.0,
+   "arms": 3,
+   "roads": [
+    "R14",
+    "R16"
+   ]
+  },
+  {
+   "id": "J37",
+   "x": 1370.5,
+   "z": 540.0,
+   "arms": 3,
+   "roads": [
+    "R15",
+    "R16"
+   ]
+  },
+  {
+   "id": "J38",
+   "x": 790.0,
+   "z": 528.9,
+   "arms": 4,
+   "roads": [
+    "B2",
+    "R17",
+    "R19"
+   ]
+  },
+  {
+   "id": "J39",
+   "x": 430.0,
+   "z": 470.0,
+   "arms": 3,
+   "roads": [
+    "R23",
+    "R24"
+   ]
+  },
+  {
+   "id": "J40",
+   "x": 1230.0,
+   "z": 397.5,
+   "arms": 3,
+   "roads": [
+    "R14",
+    "B3"
+   ]
+  },
+  {
+   "id": "J41",
+   "x": 1290.0,
+   "z": 395.0,
+   "arms": 2,
+   "roads": [
+    "R14",
+    "R15"
+   ]
+  },
+  {
+   "id": "J42",
+   "x": 40.0,
+   "z": 300.0,
+   "arms": 3,
+   "roads": [
+    "R02",
+    "R18"
+   ]
+  },
+  {
+   "id": "J43",
+   "x": 180.0,
+   "z": 300.0,
+   "arms": 3,
+   "roads": [
+    "R18",
+    "R24"
+   ]
+  },
+  {
+   "id": "J44",
+   "x": 430.0,
+   "z": 300.0,
+   "arms": 4,
+   "roads": [
+    "R18",
+    "R23"
+   ]
+  },
+  {
+   "id": "J45",
+   "x": 700.0,
+   "z": 291.3,
+   "arms": 3,
+   "roads": [
+    "R18",
+    "R21"
+   ]
+  },
+  {
+   "id": "J46",
+   "x": 790.0,
+   "z": 283.5,
+   "arms": 4,
+   "roads": [
+    "R18",
+    "R19"
+   ]
+  },
+  {
+   "id": "J47",
+   "x": 980.0,
+   "z": 267.0,
+   "arms": 3,
+   "roads": [
+    "R18",
+    "R22"
+   ]
+  },
+  {
+   "id": "J48",
+   "x": 1060.0,
+   "z": 260.0,
+   "arms": 3,
+   "roads": [
+    "R17",
+    "R18"
+   ]
+  },
+  {
+   "id": "J49",
+   "x": 1230.0,
+   "z": 230.0,
+   "arms": 3,
+   "roads": [
+    "B3",
+    "R17"
+   ]
+  },
+  {
+   "id": "J50",
+   "x": 700.0,
+   "z": 190.0,
+   "arms": 3,
+   "roads": [
+    "R20",
+    "R21"
+   ]
+  },
+  {
+   "id": "J51",
+   "x": 790.0,
+   "z": 190.0,
+   "arms": 4,
+   "roads": [
+    "R19",
+    "R20"
+   ]
+  },
+  {
+   "id": "J52",
+   "x": 980.0,
+   "z": 190.0,
+   "arms": 3,
+   "roads": [
+    "R20",
+    "R22"
+   ]
+  },
+  {
+   "id": "J53",
+   "x": 40.0,
+   "z": 180.0,
+   "arms": 3,
+   "roads": [
+    "R02",
+    "R25"
+   ]
+  },
+  {
+   "id": "J54",
+   "x": 430.0,
+   "z": 180.0,
+   "arms": 3,
+   "roads": [
+    "R23",
+    "R25"
+   ]
+  },
+  {
+   "id": "J55",
+   "x": 430.0,
+   "z": 40.0,
+   "arms": 3,
+   "roads": [
+    "R02",
+    "R23"
+   ]
+  },
+  {
+   "id": "J56",
+   "x": 700.0,
+   "z": 40.0,
+   "arms": 3,
+   "roads": [
+    "R02",
+    "R21"
+   ]
+  },
+  {
+   "id": "J57",
+   "x": 790.0,
+   "z": 40.0,
+   "arms": 3,
+   "roads": [
+    "R02",
+    "R19"
+   ]
+  },
+  {
+   "id": "J58",
+   "x": 980.0,
+   "z": 40.0,
+   "arms": 3,
+   "roads": [
+    "R02",
+    "R22"
+   ]
+  }
+ ],
+ "districts": [
+  {
+   "id": "D_KNIGHT",
+   "name": "KNIGHTSBURY",
+   "polygon": [
+    {
+     "x": 120.0,
+     "z": 735.0
+    },
+    {
+     "x": 930.0,
+     "z": 700.0
+    },
+    {
+     "x": 930.0,
+     "z": 1130.0
+    },
+    {
+     "x": 120.0,
+     "z": 1130.0
+    }
+   ]
+  },
+  {
+   "id": "D_CANARY",
+   "name": "CANARY QUAY",
+   "polygon": [
+    {
+     "x": 960.0,
+     "z": 700.0
+    },
+    {
+     "x": 1520.0,
+     "z": 700.0
+    },
+    {
+     "x": 1520.0,
+     "z": 1000.0
+    },
+    {
+     "x": 960.0,
+     "z": 1000.0
+    }
+   ]
+  },
+  {
+   "id": "D_CANARY_PEN",
+   "name": "CANARY QUAY PENINSULA",
+   "polygon": [
+    {
+     "x": 1090.0,
+     "z": 400.0
+    },
+    {
+     "x": 1170.0,
+     "z": 360.0
+    },
+    {
+     "x": 1290.0,
+     "z": 360.0
+    },
+    {
+     "x": 1360.0,
+     "z": 410.0
+    },
+    {
+     "x": 1390.0,
+     "z": 560.0
+    },
+    {
+     "x": 1420.0,
+     "z": 640.0
+    },
+    {
+     "x": 1060.0,
+     "z": 640.0
+    },
+    {
+     "x": 1060.0,
+     "z": 470.0
+    }
+   ]
+  },
+  {
+   "id": "D_GILMOR",
+   "name": "GILMORE ESTATE",
+   "polygon": [
+    {
+     "x": 130.0,
+     "z": 120.0
+    },
+    {
+     "x": 600.0,
+     "z": 120.0
+    },
+    {
+     "x": 600.0,
+     "z": 560.0
+    },
+    {
+     "x": 130.0,
+     "z": 560.0
+    }
+   ]
+  },
+  {
+   "id": "D_PECKAM",
+   "name": "PECKAM",
+   "polygon": [
+    {
+     "x": 650.0,
+     "z": 100.0
+    },
+    {
+     "x": 1060.0,
+     "z": 100.0
+    },
+    {
+     "x": 1060.0,
+     "z": 300.0
+    },
+    {
+     "x": 980.0,
+     "z": 470.0
+    },
+    {
+     "x": 650.0,
+     "z": 520.0
+    }
+   ]
+  }
+ ],
+ "parks": [
+  {
+   "name": "Hydemoor Park",
+   "polygon": [
+    {
+     "x": 60.0,
+     "z": 935.0
+    },
+    {
+     "x": 288.0,
+     "z": 935.0
+    },
+    {
+     "x": 288.0,
+     "z": 1144.0
+    },
+    {
+     "x": 60.0,
+     "z": 1144.0
+    }
+   ]
+  },
+  {
+   "name": "Gilmore Green",
+   "polygon": [
+    {
+     "x": 200.0,
+     "z": 195.0
+    },
+    {
+     "x": 330.0,
+     "z": 195.0
+    },
+    {
+     "x": 330.0,
+     "z": 285.0
+    },
+    {
+     "x": 200.0,
+     "z": 285.0
+    }
+   ]
+  },
+  {
+   "name": "Quay Gardens",
+   "polygon": [
+    {
+     "x": 1240.0,
+     "z": 430.0
+    },
+    {
+     "x": 1320.0,
+     "z": 430.0
+    },
+    {
+     "x": 1335.0,
+     "z": 520.0
+    },
+    {
+     "x": 1250.0,
+     "z": 525.0
+    }
+   ]
+  },
+  {
+   "name": "Rye Common",
+   "polygon": [
+    {
+     "x": 1000.0,
+     "z": 110.0
+    },
+    {
+     "x": 1050.0,
+     "z": 110.0
+    },
+    {
+     "x": 1050.0,
+     "z": 175.0
+    },
+    {
+     "x": 1000.0,
+     "z": 175.0
+    }
+   ]
+  }
+ ],
+ "pois": [
+  {
+   "id": "POI_SAFEHOUSE",
+   "name": "Safehouse",
+   "kind": "safehouse",
+   "x": 905.0,
+   "z": 205.0,
+   "yaw": 180
+  },
+  {
+   "id": "M1_ONFOOT",
+   "name": "M1 The Pickup (Gilmore courtyard)",
+   "kind": "mission",
+   "x": 330.0,
+   "z": 380.0,
+   "yaw": 0
+  },
+  {
+   "id": "M2",
+   "name": "M2 Kestrel showroom",
+   "kind": "mission",
+   "x": 690.0,
+   "z": 860.0,
+   "yaw": 180
+  },
+  {
+   "id": "M3",
+   "name": "M3 Warehouse 9",
+   "kind": "mission",
+   "x": 1260.0,
+   "z": 780.0,
+   "yaw": 180
+  },
+  {
+   "id": "M4",
+   "name": "M4 Tower Plaza meet",
+   "kind": "mission",
+   "x": 1220.0,
+   "z": 560.0,
+   "yaw": 0
+  },
+  {
+   "id": "POI_POLICE",
+   "name": "Police station",
+   "kind": "police",
+   "x": 745.0,
+   "z": 250.0,
+   "yaw": 90
+  },
+  {
+   "id": "POI_HOSPITAL",
+   "name": "Hospital",
+   "kind": "hospital",
+   "x": 240.0,
+   "z": 760.0,
+   "yaw": 180
+  },
+  {
+   "id": "LM_CIRCUS",
+   "name": "Knightsbury Circus",
+   "kind": "landmark",
+   "x": 560.0,
+   "z": 920.0,
+   "yaw": 0
+  },
+  {
+   "id": "LM_QUAY_TOWERS",
+   "name": "Quay Towers",
+   "kind": "landmark",
+   "x": 1200.0,
+   "z": 470.0,
+   "yaw": 0
+  }
+ ],
+ "spawns": [
+  {
+   "id": "SP_PLAYER_START",
+   "x": 905.0,
+   "z": 197.0,
+   "yaw": 180,
+   "note": "Pavement outside the safehouse door; confirm against the prefab pavement (test G4)"
+  },
+  {
+   "id": "SP_KESTREL",
+   "x": 880.0,
+   "z": 187.0,
+   "yaw": 270,
+   "note": "Parked on the left, westbound, Peckam High Street"
+  },
+  {
+   "id": "SP_BUSTED",
+   "x": 780.5,
+   "z": 250.0,
+   "yaw": 90,
+   "note": "Police station steps, Rye Lane west pavement"
+  },
+  {
+   "id": "SP_WASTED",
+   "x": 240.0,
+   "z": 741.0,
+   "yaw": 180,
+   "note": "Hospital entrance, North Embankment north pavement"
+  },
+  {
+   "id": "SP_M1_PARK",
+   "x": 300.0,
+   "z": 476.0,
+   "yaw": 270,
+   "note": "Estate car park drop-off (drive target for M1)"
+  },
+  {
+   "id": "SP_POLICE_1",
+   "x": 300,
+   "z": 40,
+   "yaw": 90,
+   "note": "Police car spawn on the ring; builder offsets to the left-hand lane"
+  },
+  {
+   "id": "SP_POLICE_2",
+   "x": 1300,
+   "z": 40,
+   "yaw": 270,
+   "note": "Police car spawn on the ring; builder offsets to the left-hand lane"
+  },
+  {
+   "id": "SP_POLICE_3",
+   "x": 200,
+   "z": 1160,
+   "yaw": 90,
+   "note": "Police car spawn on the ring; builder offsets to the left-hand lane"
+  },
+  {
+   "id": "SP_POLICE_4",
+   "x": 1300,
+   "z": 1160,
+   "yaw": 270,
+   "note": "Police car spawn on the ring; builder offsets to the left-hand lane"
+  },
+  {
+   "id": "SP_POLICE_5",
+   "x": 40,
+   "z": 420,
+   "yaw": 0,
+   "note": "Police car spawn on the ring; builder offsets to the left-hand lane"
+  },
+  {
+   "id": "SP_POLICE_6",
+   "x": 40,
+   "z": 1020,
+   "yaw": 180,
+   "note": "Police car spawn on the ring; builder offsets to the left-hand lane"
+  },
+  {
+   "id": "SP_POLICE_7",
+   "x": 1560,
+   "z": 300,
+   "yaw": 0,
+   "note": "Police car spawn on the ring; builder offsets to the left-hand lane"
+  },
+  {
+   "id": "SP_POLICE_8",
+   "x": 1560,
+   "z": 1020,
+   "yaw": 180,
+   "note": "Police car spawn on the ring; builder offsets to the left-hand lane"
+  }
+ ],
+ "existingStreet": {
+  "prefab": "PeckamStreet",
+  "centreX": 860,
+  "centreZ": 190,
+  "sizeX": 112,
+  "sizeZ": 64,
+  "replacesRoad": "Peckam High Street",
+  "replacesFromX": 804,
+  "replacesToX": 916
+ },
+ "validation": {
+  "problems": 0,
+  "roads": 30,
+  "bridges": 5,
+  "junctions": 58,
+  "connectedPieces": 1,
+  "referenceRoutes": [
+   {
+    "label": "Safehouse \u2192 M1 car park",
+    "metres": 869,
+    "seconds_at_15mps": 58,
+    "via": [
+     "Peckam High Street",
+     "Rye Lane",
+     "Old Kent Lane",
+     "Gilmore Road",
+     "Estate Service Road"
+    ]
+   },
+   {
+    "label": "Safehouse \u2192 M2 showroom",
+    "metres": 877,
+    "seconds_at_15mps": 58,
+    "via": [
+     "Peckam High Street",
+     "Rye Lane",
+     "Rye Bridge",
+     "Mayfield Street",
+     "Sloane Lane"
+    ]
+   },
+   {
+    "label": "Safehouse \u2192 M4 Tower Plaza",
+    "metres": 921,
+    "seconds_at_15mps": 61,
+    "via": [
+     "Peckam High Street",
+     "Choumert Grove",
+     "Old Kent Lane",
+     "South Embankment",
+     "Quay Bridge",
+     "Westferry Road",
+     "Tower Plaza"
+    ]
+   },
+   {
+    "label": "Safehouse \u2192 M3 Warehouse 9",
+    "metres": 1193,
+    "seconds_at_15mps": 80,
+    "via": [
+     "Peckam High Street",
+     "Rye Lane",
+     "Rye Bridge",
+     "North Embankment",
+     "Commercial Way",
+     "Warehouse Lane"
+    ]
+   },
+   {
+    "label": "M1 car park \u2192 M3 Warehouse 9",
+    "metres": 1321,
+    "seconds_at_15mps": 88,
+    "via": [
+     "Estate Service Road",
+     "Gilmore Road",
+     "South Embankment",
+     "Rye Bridge",
+     "North Embankment",
+     "Commercial Way",
+     "Warehouse Lane"
+    ]
+   }
+  ]
+ }
+}
