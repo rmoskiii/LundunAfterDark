@@ -37,12 +37,12 @@ public class LundunLampLights : MonoBehaviour
 
     void Start()
     {
-        vehicles = FindFirstObjectByType<VehicleSystem>();
+        vehicles = FindAnyObjectByType<VehicleSystem>();
         all.AddRange(lamps);
 
         // Take over the hand-placed high-street lamp lights
         bool copied = false;
-        foreach (Light l in FindObjectsByType<Light>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+        foreach (Light l in FindObjectsByType<Light>(FindObjectsInactive.Exclude))
         {
             if (l.type != LightType.Spot && l.type != LightType.Point) continue;
             if (l.transform.IsChildOf(transform)) continue;

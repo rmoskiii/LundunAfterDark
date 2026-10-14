@@ -51,7 +51,7 @@ public class LundunNavigation : MonoBehaviour
 
     void OnDestroy() { if (Instance == this) Instance = null; }
 
-    void Start() { vehicles = FindFirstObjectByType<VehicleSystem>(); }
+    void Start() { vehicles = FindAnyObjectByType<VehicleSystem>(); }
 
     /// Sets the waypoint. snapToRoad = move it onto the nearest road (used for taps on the map).
     public void SetDestination(Vector3 position, string name, bool snapToRoad = false)
@@ -103,7 +103,7 @@ public class LundunNavigation : MonoBehaviour
     {
         nextPlan = Time.unscaledTime + replanEvery;
         if (graph == null) return;
-        if (vehicles == null) vehicles = FindFirstObjectByType<VehicleSystem>();
+        if (vehicles == null) vehicles = FindAnyObjectByType<VehicleSystem>();
         if (vehicles == null) return;
         Vector3 me = vehicles.PlayerTarget.position;
         double metres;

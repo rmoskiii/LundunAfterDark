@@ -165622,6 +165622,29 @@ MonoBehaviour:
   tickEvery: 0.25
   spawnsPerTick: 2
   carPrefabs:
+  - {fileID: 7325134764430620115, guid: 4b7f18309d1324984a7b643d80b75d6a, type: 3}
+  - {fileID: 3723237390087905040, guid: 0b8f89d0ffb364eb588a9fc8f9097d89, type: 3}
+  - {fileID: 5331085392357967299, guid: 024714d236539462eb0c2535a92a707d, type: 3}
+  - {fileID: 8034791801672590917, guid: 40e166507589741cba51dfce45e24650, type: 3}
+  - {fileID: 7636969675710550881, guid: 97c4e573af61948ff879d4bca50cc023, type: 3}
+  - {fileID: 5945578833067365652, guid: 01fd96413c984401ab43a6dc04a6a200, type: 3}
+  - {fileID: 5312273217855713366, guid: 962256ca3b0874dc2acdf638c4fed85e, type: 3}
+  - {fileID: 6331637815297818051, guid: 36b9bfa3dfc9b473a9b973f285b8da7c, type: 3}
+  - {fileID: 8234962505435912699, guid: b7d29780dcd5742f795a63c4190b54bf, type: 3}
+  - {fileID: 3316730912052265914, guid: 9ab760945d5de45e9ae4369f954ea38d, type: 3}
+  - {fileID: 8274761982868067639, guid: cf4a458b988ea4c3984291bc031eef49, type: 3}
+  - {fileID: 7858766193746565598, guid: b8abdeb20878249b8b784adf81e39bf5, type: 3}
+  - {fileID: 9217640379737303489, guid: f2eb84111ef73448aa5f4a60343d56d5, type: 3}
+  - {fileID: 3304221660523799043, guid: 5bf753c0ee2ef4647a0e5dfc88de84db, type: 3}
+  - {fileID: 1673734472060874995, guid: fbc4f097f665d4595b1f07e521f8bd58, type: 3}
+  - {fileID: 2721441428045805781, guid: e33a8631d43b748009e46ee2f419cae7, type: 3}
+  - {fileID: 6168364429496998170, guid: 121268044a31848e3a5da24c6a7377a8, type: 3}
+  - {fileID: 5920869123251730579, guid: 2677ea265fa814ab49f9a5767953f08a, type: 3}
+  - {fileID: 8703388546715219447, guid: 5a54b336e57bd4f4180b501cd7ac0ba7, type: 3}
+  - {fileID: 3493142320996506237, guid: 7b62452ca313f4b788a34729cd51329e, type: 3}
+  - {fileID: 6348855667002045275, guid: 5fb3101e907e344108106ea61bfc25bd, type: 3}
+  - {fileID: 8841216688186274710, guid: 01a3dca3d449345e5b29280304021958, type: 3}
+  - {fileID: 4511312803496940731, guid: ec4786604e7a643e2bdbff17f0eb1c06, type: 3}
   - {fileID: 2802601293312772036, guid: 820857430af064f7e85cb709f351048b, type: 3}
   carSpawnNearest: 70
   carSpawnFarthest: 170
@@ -165635,6 +165658,8 @@ MonoBehaviour:
   - {r: 0.12, g: 0.3, b: 0.18, a: 1}
   - {r: 0.75, g: 0.68, b: 0.55, a: 1}
   - {r: 0.95, g: 0.95, b: 0.95, a: 1}
+  busPrefab: {fileID: 3899824447242703854, guid: d5cec261f57e94f36b1fc9b9edb2b5fc, type: 3}
+  busSpeed: 9
   adaptive: 1
   slowFrame: 0.037
   okFrame: 0.034

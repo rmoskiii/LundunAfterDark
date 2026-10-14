@@ -32,6 +32,10 @@ public class LundunPopulation : MonoBehaviour
         new Color(0.85f, 0.85f, 0.87f), new Color(0.08f, 0.08f, 0.09f), new Color(0.55f, 0.57f, 0.6f), new Color(0.6f, 0.06f, 0.06f),
         new Color(0.08f, 0.18f, 0.42f), new Color(0.12f, 0.3f, 0.18f), new Color(0.75f, 0.68f, 0.55f), new Color(0.95f, 0.95f, 0.95f) };
 
+    [Header("Buses")]
+    [SerializeField] private GameObject busPrefab;              // made by Lundun → 11  Make Double-Decker Bus
+    [SerializeField] private float busSpeed = 9f;
+
     [Header("Safety net: shrink the budget if frame rate drops")]
     [SerializeField] private bool adaptive = true;
     [SerializeField] private float slowFrame = 0.037f;      // ~27 fps
@@ -61,9 +65,14 @@ public class LundunPopulation : MonoBehaviour
     private TextMeshProUGUI stats;
     private int activeCount;
 
-    class Car { public GameObject go; public LundunTrafficCar ai; public CarController cc; public Rigidbody rb; public VehicleHealth health; public Renderer[] renderers; public bool active; public bool parked; }
+    class Car { public GameObject go; public LundunTrafficCar ai; public CarController cc; public Rigidbody rb; public VehicleHealth health; public Renderer[] renderers; public bool active; public bool parked; public bool bus; }
     private readonly List<Car> cars = new List<Car>();
-    private int movingCount, parkedCount;
+    private int movingCount, parkedCount, busCount, nextRoute;
+    private List<List<int>> busRoutes;
+    // bus loops (three stops each, no U-turns): Peckam → Knightsbury Circus → Mayfield St, and Gilmore → Warehouses → Quay Bridge
+    private static readonly float[][] RouteStops = {
+        new float[] { 905, 190, 560, 920, 820, 1030 },
+        new float[] { 430, 300, 1260, 780, 1230, 230 } };
     private static readonly string[] DriveClasses = { "ring", "arterial", "street", "service" };
     private static readonly string[] ParkClasses = { "street", "arterial" };
     private readonly Dictionary<Material, Material[]> paintCache = new Dictionary<Material, Material[]>();
@@ -73,7 +82,7 @@ public class LundunPopulation : MonoBehaviour
 
     void Start()
     {
-        vehicles = FindFirstObjectByType<VehicleSystem>();
+        vehicles = FindAnyObjectByType<VehicleSystem>();
         if (showStats) MakeStats();
     }
 
@@ -84,7 +93,7 @@ public class LundunPopulation : MonoBehaviour
         if (dt > 0f && dt < 0.5f) frameAvg = Mathf.Lerp(frameAvg, dt, 0.05f);
         if (Time.unscaledTime < nextTick) return;
         nextTick = Time.unscaledTime + tickEvery;
-        if (vehicles == null) { vehicles = FindFirstObjectByType<VehicleSystem>(); if (vehicles == null) return; }
+        if (vehicles == null) { vehicles = FindAnyObjectByType<VehicleSystem>(); if (vehicles == null) return; }
 
         Adapt();
         TimeOfDayFactor = DensityAt(LundunClock.Instance != null ? LundunClock.Instance.Hour : 22f);
@@ -95,10 +104,13 @@ public class LundunPopulation : MonoBehaviour
         int movingTarget = Mathf.RoundToInt(MovingCarBudget * Scale * TimeOfDayFactor);
         int parkedTarget = Mathf.RoundToInt(ParkedCarBudget * Scale);
         TickCars(player, movingTarget, parkedTarget);
+        int busTarget = Scale < 0.5f ? 0 : Mathf.RoundToInt(BusBudget * Mathf.Min(1f, Scale));
+        TickBuses(player, busTarget);
 
         if (stats != null)
             stats.text = Mathf.RoundToInt(1f / frameAvg) + " fps   people " + activeCount + "/" + target
                        + "   traffic " + movingCount + "/" + movingTarget + "   parked " + parkedCount + "/" + parkedTarget
+                       + "   buses " + busCount + "/" + busTarget
                        + "   scale " + Scale.ToString("0.00");
     }
 
@@ -203,12 +215,13 @@ public class LundunPopulation : MonoBehaviour
             float d = Flat(c.go.transform.position, player);
             bool seen = SeenCar(c, cam);
             bool damaged = c.health != null && (c.health.IsWrecked || c.health.IsBurning || c.health.Current < 60f);
-            if (d > carDespawnBeyond && !seen)
+            if (d > carDespawnBeyond + (c.bus ? 40f : 0f) && !seen)
             {
                 if (damaged || c.go.transform.position.y < -5f) { Destroy(c.go); cars.RemoveAt(i); continue; }
                 c.go.SetActive(false); c.active = false; continue;
             }
             if (c.health != null && c.health.IsWrecked) continue;            // wrecks don't count
+            if (c.bus) continue;                                              // counted in TickBuses
             if (c.ai.CurrentMode == LundunTrafficCar.Mode.Driving) movingCount++; else parkedCount++;
         }
 
@@ -261,10 +274,83 @@ public class LundunPopulation : MonoBehaviour
         return false;
     }
 
+    // ------------------------------------------------------------------ buses
+    void TickBuses(Vector3 player, int target)
+    {
+        busCount = 0;
+        if (busPrefab == null) return;
+        foreach (Car c in cars) if (c.bus && c.active && c.go != null && !(c.health != null && c.health.IsWrecked)) busCount++;
+        if (busCount >= target) return;
+        LundunNavigation nav = LundunNavigation.Instance;
+        if (nav == null || nav.Graph == null) return;
+        if (busRoutes == null)
+        {
+            busRoutes = new List<List<int>>();
+            foreach (float[] r in RouteStops)
+            {
+                NavPoint[] stops = new NavPoint[r.Length / 2];
+                for (int i = 0; i < stops.Length; i++) stops[i] = new NavPoint(r[i * 2], r[i * 2 + 1]);
+                List<int> loop = nav.Graph.LoopRoute(stops);
+                if (loop.Count >= 3) busRoutes.Add(loop);
+            }
+        }
+        if (busRoutes.Count == 0) return;
+
+        Camera cam = Camera.main;
+        List<int> route = busRoutes[nextRoute++ % busRoutes.Count];
+        // a hop on this route 90–220 m from the player, out of sight
+        int start = rng.Next(route.Count);
+        for (int k = 0; k < route.Count; k++)
+        {
+            int i = (start + k) % route.Count;
+            NavPoint a = nav.Graph.NodePosition(route[i]), b = nav.Graph.NodePosition(route[(i + 1) % route.Count]);
+            double len = NavPoint.Dist(a, b);
+            if (len < 40) continue;
+            NavPoint p = new NavPoint(a.x + (b.x - a.x) * 20 / len, a.z + (b.z - a.z) * 20 / len);   // 20 m past the junction
+            float d = Vector2.Distance(new Vector2((float)p.x, (float)p.z), new Vector2(player.x, player.z));
+            if (d < 90f || d > 220f) continue;
+            double w; string cls; nav.Graph.EdgeInfo(route[i], route[(i + 1) % route.Count], out w, out cls);
+            Vector3 along = new Vector3((float)(b.x - a.x), 0f, (float)(b.z - a.z)).normalized;
+            Vector3 left = new Vector3(-along.z, 0f, along.x);
+            Vector3 pos = new Vector3((float)p.x, 0f, (float)p.z) + left * Mathf.Max((float)(w * 0.25), (float)(w * 0.5) - 1.8f);
+            if (cam != null && LundunView.CanSee(cam, pos)) continue;
+            if (Physics.CheckSphere(pos + Vector3.up * 1.5f, 6f, LayerMask.GetMask("Vehicle", "Player"), QueryTriggerInteraction.Ignore)) continue;
+
+            Car c = GetPooledBus();
+            if (c == null) return;
+            Quaternion rot = Quaternion.LookRotation(along, Vector3.up);
+            Vector3 at = pos + Vector3.up * 1.2f;
+            c.go.transform.SetPositionAndRotation(at, rot);
+            c.go.SetActive(true);
+            c.rb.position = at; c.rb.rotation = rot;
+            c.rb.linearVelocity = along * busSpeed * 0.5f; c.rb.angularVelocity = Vector3.zero;
+            c.cc.SetTouchInput(0f, 0f);
+            c.active = true;
+            c.ai.BeginRoute(nav.Graph, route, i, busSpeed);
+            return;
+        }
+    }
+
+    Car GetPooledBus()
+    {
+        foreach (Car c in cars) if (c.bus && !c.active && c.go != null) return c;
+        if (busPrefab == null) return null;
+        GameObject go = Instantiate(busPrefab, transform);
+        go.SetActive(false);
+        go.name = busPrefab.name + "_" + cars.Count;
+        LundunTrafficCar ai = go.GetComponent<LundunTrafficCar>();
+        if (ai == null) ai = go.AddComponent<LundunTrafficCar>();
+        Car nc = new Car { go = go, ai = ai, cc = go.GetComponent<CarController>(), rb = go.GetComponent<Rigidbody>(), bus = true,
+                           health = go.GetComponent<VehicleHealth>(), renderers = go.GetComponentsInChildren<Renderer>(true) };
+        cars.Add(nc);
+        return nc;
+    }
+
     Car GetPooledCar()
     {
-        foreach (Car c in cars) if (!c.active && c.go != null) return c;
-        if (cars.Count >= Budgets[2, 1] + Budgets[2, 2]) return null;
+        foreach (Car c in cars) if (!c.active && !c.bus && c.go != null) return c;
+        int carsMade = 0; foreach (Car c in cars) if (!c.bus) carsMade++;
+        if (carsMade >= Budgets[2, 1] + Budgets[2, 2]) return null;
         GameObject prefab = carPrefabs[rng.Next(carPrefabs.Length)];
         if (prefab == null) return null;
         GameObject go = Instantiate(prefab, transform);
@@ -370,7 +456,7 @@ public class LundunPopulation : MonoBehaviour
     void MakeStats()
     {
         Canvas canvas = null;
-        foreach (Canvas c in FindObjectsByType<Canvas>(FindObjectsSortMode.None)) if (c.isRootCanvas) { canvas = c; break; }
+        foreach (Canvas c in FindObjectsByType<Canvas>()) if (c.isRootCanvas) { canvas = c; break; }
         if (canvas == null) return;
         GameObject g = new GameObject("PopulationStats", typeof(RectTransform));
         g.transform.SetParent(canvas.transform, false);

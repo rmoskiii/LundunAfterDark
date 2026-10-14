@@ -140,6 +140,73 @@ public class LundunRoadGraph
         return false;
     }
 
+    // ----- for buses -----
+    public int NearestNode(NavPoint q)
+    {
+        int best = -1; double bd = double.MaxValue;
+        for (int i = 0; i < nodes.Count; i++) { double d = NavPoint.Dist(nodes[i], q); if (d < bd) { bd = d; best = i; } }
+        return best;
+    }
+
+    /// Shortest list of nodes from node s to node t (both included). Empty if unreachable.
+    /// banFirst / banLast: a neighbour you may not leave s towards / arrive at t from (stops buses doing U-turns).
+    public List<int> NodePath(int s, int t, int banFirst = -1, int banLast = -1)
+    {
+        int n = nodes.Count;
+        double[] dist = new double[n]; int[] prev = new int[n]; bool[] done = new bool[n];
+        for (int i = 0; i < n; i++) { dist[i] = double.MaxValue; prev[i] = -1; }
+        dist[s] = 0;
+        while (true)
+        {
+            int u = -1; double bu = double.MaxValue;
+            for (int i = 0; i < n; i++) if (!done[i] && dist[i] < bu) { bu = dist[i]; u = i; }
+            if (u < 0 || u == t) break;
+            done[u] = true;
+            foreach (int ei in adj[u])
+            {
+                Edge e = edges[ei]; int v = e.a == u ? e.b : e.a;
+                if (u == s && v == banFirst) continue;
+                if (v == t && u == banLast) continue;
+                if (dist[u] + e.len < dist[v]) { dist[v] = dist[u] + e.len; prev[v] = u; }
+            }
+        }
+        List<int> path = new List<int>();
+        if (dist[t] == double.MaxValue) return path;
+        for (int v = t; v >= 0; v = prev[v]) { path.Add(v); if (v == s) break; }
+        path.Reverse();
+        return path;
+    }
+
+    /// A loop through the given places (as nodes; the last node leads back to the first), with no U-turns.
+    public List<int> LoopRoute(NavPoint[] stops)
+    {
+        int k = stops.Length;
+        int[] at = new int[k];
+        for (int i = 0; i < k; i++) at[i] = NearestNode(stops[i]);
+        List<int> loop = new List<int>();
+        int cameFrom = -1;
+        for (int i = 0; i < k; i++)
+        {
+            bool last = i == k - 1;
+            // the last leg must not arrive at the start the same way the first leg left it
+            int banLast = last && loop.Count > 1 ? loop[1] : -1;
+            List<int> leg = NodePath(at[i], at[(i + 1) % k], cameFrom, banLast);
+            if (leg.Count < 2) leg = NodePath(at[i], at[(i + 1) % k]);       // no way round: accept it
+            if (leg.Count < 2) continue;
+            for (int j = 0; j < leg.Count - 1; j++) loop.Add(leg[j]);
+            cameFrom = leg[leg.Count - 2];
+        }
+        return loop;
+    }
+
+    /// Counts places where the loop doubles straight back (should be 0 for buses).
+    public static int UTurns(List<int> loop)
+    {
+        int n = 0;
+        for (int i = 0; i < loop.Count; i++) if (loop[(i + loop.Count - 1) % loop.Count] == loop[(i + 1) % loop.Count]) n++;
+        return n;
+    }
+
     // ----- for traffic -----
     public NavPoint NodePosition(int n) { return nodes[n]; }
     public void EdgeEnds(int e, out int a, out int b) { a = edges[e].a; b = edges[e].b; }

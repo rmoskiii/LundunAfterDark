@@ -22,6 +22,11 @@ public class LundunTrafficCar : MonoBehaviour
     [SerializeField] private float cornerSpeed = 5f;
     [SerializeField] private float brakeLookBase = 4f;        // metres checked ahead, plus speed × 1.2
 
+    [Header("Bus (only used when IsBus)")]
+    [SerializeField] private bool isBus = false;
+    [SerializeField] private float stopEvery = 260f;            // metres between bus stops
+    [SerializeField] private float stopFor = 6f;                // seconds at each stop
+
     [Header("Ramming")]
     [SerializeField] private float angryImpact = 4f;           // m/s relative speed that sets a driver off
 
@@ -36,6 +41,11 @@ public class LundunTrafficCar : MonoBehaviour
     private static int obstacleMask = -1;
     private System.Random rng;
     private static int seedCounter;
+    private List<int> route;            // fixed loop of nodes (buses); null = wander at random
+    private int routeIndex;
+    private float sinceStop, stopUntil;
+
+    public bool IsBus { get { return isBus; } }
 
     void Awake()
     {
@@ -59,8 +69,21 @@ public class LundunTrafficCar : MonoBehaviour
     // ------------------------------------------------------------------ set-up (called by LundunPopulation)
     public void BeginDriving(LundunRoadGraph g, int from, int to, float speed)
     {
-        graph = g; fromNode = from; toNode = to; cruise = speed;
+        graph = g; fromNode = from; toNode = to; cruise = speed; route = null;
         PickNext();
+        CurrentMode = Mode.Driving;
+        HasDriver = true;
+        DriverTemper = RollTemper();
+    }
+
+    /// Follow a fixed loop of nodes, starting on the hop route[index] → route[index+1]. Buses stop every stopEvery metres.
+    public void BeginRoute(LundunRoadGraph g, List<int> loop, int index, float speed)
+    {
+        graph = g; route = loop; routeIndex = index; cruise = speed;
+        fromNode = route[routeIndex % route.Count];
+        toNode = route[(routeIndex + 1) % route.Count];
+        nextNode = route[(routeIndex + 2) % route.Count];
+        sinceStop = 0f; stopUntil = 0f;
         CurrentMode = Mode.Driving;
         HasDriver = true;
         DriverTemper = RollTemper();
@@ -129,6 +152,12 @@ public class LundunTrafficCar : MonoBehaviour
             if (turn > 30f) want = Mathf.Min(want, Mathf.Lerp(cruise, cornerSpeed, Mathf.InverseLerp(30f, 90f, turn)));
         }
         float speed = car.Speed;
+        if (isBus)
+        {
+            sinceStop += Mathf.Max(0f, speed) * Time.deltaTime;
+            if (Time.time < stopUntil) want = 0f;
+            else if (sinceStop > stopEvery && toEnd > 30f && s > 20f) { stopUntil = Time.time + stopFor; sinceStop = 0f; want = 0f; }
+        }
         float look = brakeLookBase + Mathf.Max(0f, speed) * 1.2f;
         Vector3 front = transform.position + transform.forward * 2.8f + Vector3.up * 0.6f;
         if (Physics.SphereCast(front, 0.9f, transform.forward, out RaycastHit hit, look, obstacleMask, QueryTriggerInteraction.Ignore)
@@ -144,7 +173,9 @@ public class LundunTrafficCar : MonoBehaviour
     {
         Vector3 centre = start + dir * along;
         Vector3 left = new Vector3(-dir.z, 0f, dir.x);
-        float offset = narrowStreet.Contains(new Vector2(centre.x, centre.z)) ? 1.6f : (float)(width * 0.25);   // UK: keep left
+        float offset = narrowStreet.Contains(new Vector2(centre.x, centre.z)) ? 1.6f
+                     : isBus ? Mathf.Max((float)(width * 0.25), (float)(width * 0.5) - 1.8f)   // buses hug the kerb
+                     : (float)(width * 0.25);                                                     // UK: keep left
         return centre + left * offset;
     }
 
@@ -156,6 +187,13 @@ public class LundunTrafficCar : MonoBehaviour
 
     void PickNext()
     {
+        if (route != null)
+        {
+            routeIndex = (routeIndex + 1) % route.Count;
+            if (route[routeIndex % route.Count] != fromNode) routeIndex = route.IndexOf(fromNode) >= 0 ? route.IndexOf(fromNode) : routeIndex;
+            nextNode = route[(routeIndex + 2) % route.Count];
+            return;
+        }
         graph.NextNodes(toNode, fromNode, scratch);
         nextNode = scratch.Count > 0 ? scratch[rng.Next(scratch.Count)] : fromNode;
     }
@@ -165,7 +203,7 @@ public class LundunTrafficCar : MonoBehaviour
     {
         if (c != car || !HasDriver) return;
         // carjack: driver pulled out of the driver's side (UK: right), reacts by temper
-        Transform player = FindFirstObjectByType<VehicleSystem>() != null ? FindFirstObjectByType<VehicleSystem>().PlayerTarget : null;
+        Transform player = FindAnyObjectByType<VehicleSystem>() != null ? FindAnyObjectByType<VehicleSystem>().PlayerTarget : null;
         EjectDriver(DriverTemper, player);
         CurrentMode = Mode.Abandoned;
     }
@@ -173,7 +211,7 @@ public class LundunTrafficCar : MonoBehaviour
     void OnCollisionEnter(Collision c)
     {
         if (!HasDriver || CurrentMode != Mode.Driving) return;
-        VehicleSystem vs = FindFirstObjectByType<VehicleSystem>();
+        VehicleSystem vs = FindAnyObjectByType<VehicleSystem>();
         if (vs == null || vs.CurrentCar == null) return;
         if (!c.transform.IsChildOf(vs.CurrentCar.transform)) return;          // only James's car counts
         if (c.relativeVelocity.magnitude < angryImpact) return;

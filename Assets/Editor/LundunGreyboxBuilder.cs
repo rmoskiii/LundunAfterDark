@@ -389,7 +389,7 @@ public static class LundunGreyboxBuilder
 
         // directional light (moon/sun)
         Light sun = null;
-        foreach (Light l in Object.FindObjectsByType<Light>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+        foreach (Light l in Object.FindObjectsByType<Light>(FindObjectsInactive.Exclude))
             if (l.type == LightType.Directional) { sun = l; break; }
         if (sun == null) { sun = new GameObject("Directional Light").AddComponent<Light>(); sun.type = LightType.Directional; }
         sun.shadows = LightShadows.Soft;
@@ -400,7 +400,7 @@ public static class LundunGreyboxBuilder
 
         // Lundun's own camera grade (the old SampleScene profile used ACES, which crushes the dark)
         Volume vol = null;
-        foreach (Volume v in Object.FindObjectsByType<Volume>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (Volume v in Object.FindObjectsByType<Volume>(FindObjectsInactive.Include))
             if (v.gameObject.name == "Global Volume") { vol = v; break; }
         if (vol == null) { vol = new GameObject("Global Volume").AddComponent<Volume>(); vol.isGlobal = true; vol.priority = 0; }
         vol.sharedProfile = GradeProfile();

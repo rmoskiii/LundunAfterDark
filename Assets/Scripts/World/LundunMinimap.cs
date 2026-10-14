@@ -59,7 +59,7 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
 
     void Start()
     {
-        vehicles = FindFirstObjectByType<VehicleSystem>();
+        vehicles = FindAnyObjectByType<VehicleSystem>();
         Canvas c = GetComponentInParent<Canvas>();
         rootCanvas = c != null ? c.rootCanvas : null;
         if (hudRoot != null) hudBasePos = hudRoot.anchoredPosition;

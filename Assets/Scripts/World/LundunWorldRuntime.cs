@@ -29,7 +29,7 @@ public class LundunWorldRuntime : MonoBehaviour
 
     void Start()
     {
-        vehicles = FindFirstObjectByType<VehicleSystem>();
+        vehicles = FindAnyObjectByType<VehicleSystem>();
     }
 
     void Update()
@@ -44,7 +44,7 @@ public class LundunWorldRuntime : MonoBehaviour
         if (Time.time >= nextSweep)
         {
             nextSweep = Time.time + 1f;
-            foreach (PoliceAI cop in FindObjectsByType<PoliceAI>(FindObjectsSortMode.None))
+            foreach (PoliceAI cop in FindObjectsByType<PoliceAI>())
                 if (cop.transform.position.y < lostY) Destroy(cop.gameObject);
         }
     }

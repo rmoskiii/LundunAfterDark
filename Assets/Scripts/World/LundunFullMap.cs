@@ -50,7 +50,7 @@ public class LundunFullMap : MonoBehaviour
 
     void Start()
     {
-        vehicles = FindFirstObjectByType<VehicleSystem>();
+        vehicles = FindAnyObjectByType<VehicleSystem>();
         Canvas c = GetComponentInParent<Canvas>();
         rootCanvas = c != null ? c.rootCanvas : null;
     }
@@ -130,7 +130,7 @@ public class LundunFullMap : MonoBehaviour
 
     void Refresh()
     {
-        if (vehicles == null) vehicles = FindFirstObjectByType<VehicleSystem>();
+        if (vehicles == null) vehicles = FindAnyObjectByType<VehicleSystem>();
         if (vehicles != null && playerIcon != null)
         {
             Transform p = vehicles.PlayerTarget;

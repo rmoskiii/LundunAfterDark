@@ -30,7 +30,7 @@ public class LundunAngryDriver : MonoBehaviour
         brain = GetComponent<NPCBrain>();
         health = GetComponent<Health>();
         animator = GetComponentInChildren<Animator>();
-        vehicles = FindFirstObjectByType<VehicleSystem>();
+        vehicles = FindAnyObjectByType<VehicleSystem>();
         if (brain != null) brain.enabled = false;          // we're in charge for now
         if (agent != null) { agent.speed = RunSpeed; agent.isStopped = false; }
     }
