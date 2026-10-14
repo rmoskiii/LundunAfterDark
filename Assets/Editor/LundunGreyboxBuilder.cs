@@ -8,6 +8,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
@@ -37,11 +38,7 @@ public static class LundunGreyboxBuilder
         AssetDatabase.Refresh();
 
         // Lundun becomes the scene the app starts in. Prototype stays in the list, switched off.
-        List<EditorBuildSettingsScene> list = new List<EditorBuildSettingsScene>();
-        list.Add(new EditorBuildSettingsScene(ScenePath, true));
-        foreach (EditorBuildSettingsScene s in EditorBuildSettings.scenes)
-            if (s.path != ScenePath) list.Add(new EditorBuildSettingsScene(s.path, false));
-        EditorBuildSettings.scenes = list.ToArray();
+        SetStartScene();
 
         EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
         Debug.Log("[Lundun] Lundun scene created from Prototype and set as the start scene. Next: Lundun → 1  Build Greybox World.");
@@ -85,7 +82,7 @@ public static class LundunGreyboxBuilder
                 go.AddComponent<MeshFilter>().sharedMesh = mesh;
                 MeshRenderer mr = go.AddComponent<MeshRenderer>();
                 mr.sharedMaterial = GetMaterial(mats, md.material);
-                if (md.group == "Roads" || md.group == "Junctions" || md.group == "Ground" || md.group == "Parks" && md.material == "Park" || md.material == "Water")
+                if (md.group == "Roads" || md.group == "Junctions" || md.group == "Ground" || md.group == "Parks" && md.material == "Park" || md.material == "Water" || md.material == "LightPool")
                     mr.shadowCastingMode = ShadowCastingMode.Off;
                 if (md.collider) go.AddComponent<MeshCollider>().sharedMesh = mesh;
                 if (md.navIgnore) AddNavModifier(go, true, -1);
@@ -126,7 +123,9 @@ public static class LundunGreyboxBuilder
 
             AssetDatabase.SaveAssets();
             EnsureNavigationSurface();
-            ApplyLighting(true);
+            List<Vector3> lampList = new List<Vector3>();
+            foreach (LampInfo lp in r.lamps) lampList.Add(new Vector3((float)lp.x, (float)lp.y, (float)lp.z));
+            SetupLighting(lampList);
             EditorSceneManager.MarkSceneDirty(scene);
             Selection.activeGameObject = root;
             Debug.Log("[Lundun] Greybox built. " + string.Join("\n", r.log.ToArray()) + "\nNext: Lundun → 2  Place Gameplay Objects.");
@@ -150,7 +149,7 @@ public static class LundunGreyboxBuilder
     }
 
     // ------------------------------------------------------------------ 2
-    static readonly string[] StayPut = { "World", "Navigation", "LundunRuntime", "PeckamStreet", "LawAndOrder", "VehicleSystem", "Canvas", "EventSystem", "Main Camera", "Directional Light", "Global Volume", "WastedVolume", "Image" };
+    static readonly string[] StayPut = { "World", "Navigation", "LundunRuntime", "PeckamStreet", "LawAndOrder", "VehicleSystem", "Canvas", "EventSystem", "Main Camera", "Directional Light", "Global Volume", "WastedVolume", "Image", "LundunLighting" };
     static readonly string[] SwitchOff = { "Plane", "NavMesh", "PoliceSpawns" };
 
     [MenuItem("Lundun/2  Place Gameplay Objects", false, 2)]
@@ -275,7 +274,7 @@ public static class LundunGreyboxBuilder
     }
 
     // ------------------------------------------------------------------ 4
-    [MenuItem("Lundun/4  iPhone Settings (30 fps, render scale 0.75)", false, 4)]
+    [MenuItem("Lundun/4  iPhone Settings", false, 4)]
     public static void IPhoneSettings()
     {
         Object rp = AssetDatabase.LoadAssetAtPath<Object>(MobileRPPath);
@@ -283,60 +282,196 @@ public static class LundunGreyboxBuilder
         SerializedObject so = new SerializedObject(rp);
         SetFloat(so, "m_RenderScale", 0.75f);
         SetFloat(so, "m_ShadowDistance", 40f);
+        SetInt(so, "m_AdditionalLightsPerObjectLimit", 8);   // matches the 8 real lamp lights
         so.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(rp);
         AssetDatabase.SaveAssets();
-        Debug.Log("[Lundun] Mobile URP: render scale 0.75, shadow distance 40 m. 30 fps is set by LundunRuntime when the game starts.");
+        Debug.Log("[Lundun] Mobile URP: render scale 0.75, shadow distance 40 m, 8 lights per object. 30 fps is set by LundunRuntime when the game starts.");
     }
 
     // ------------------------------------------------------------------ lighting
-    [MenuItem("Lundun/Lighting/Night", false, 20)] public static void Night() { ApplyLighting(true); }
-    [MenuItem("Lundun/Lighting/Day", false, 21)] public static void Day() { ApplyLighting(false); }
+    const string LightingDir = "Assets/World/Lighting";
 
-    static void ApplyLighting(bool night)
+    [MenuItem("Lundun/Lighting/Night", false, 20)] public static void Night() { UsePreset("Night"); }
+    [MenuItem("Lundun/Lighting/Dawn", false, 21)] public static void Dawn() { UsePreset("Dawn"); }
+    [MenuItem("Lundun/Lighting/Day", false, 22)] public static void Day() { UsePreset("Day"); }
+    [MenuItem("Lundun/Lighting/Rebuild Lighting Rig", false, 40)] public static void RebuildRig()
     {
+        if (SceneManager.GetActiveScene().name != "Lundun") { Dialog("Open the Lundun scene first."); return; }
+        SetupLighting(null);
+    }
+
+    static void UsePreset(string which)
+    {
+        Transform t = FindRoot("LundunLighting");
+        LundunLighting ll = t != null ? t.GetComponent<LundunLighting>() : null;
+        if (ll == null) { Dialog("No LundunLighting object yet. Run Lundun → 1  Build Greybox World."); return; }
+        ll.preset = GetPreset(which);
+        ll.Apply(ll.preset.look);
+        EditorUtility.SetDirty(ll);
+        Selection.activeObject = ll.preset;      // shows the preset in the Inspector, ready to tweak
+        EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+    }
+
+    static LundunLightingPreset GetPreset(string which)
+    {
+        EnsureFolder(LightingDir);
+        string path = LightingDir + "/" + which + ".asset";
+        LundunLightingPreset p = AssetDatabase.LoadAssetAtPath<LundunLightingPreset>(path);
+        if (p == null)
+        {
+            p = ScriptableObject.CreateInstance<LundunLightingPreset>();
+            p.look = LightingLook.Default(which);
+            AssetDatabase.CreateAsset(p, path);
+        }
+        return p;
+    }
+
+    /// Creates/refreshes the lighting rig: presets, sky, camera grade, LundunLighting + lamp light pool.
+    /// lamps = lamp head positions from the generator (null = keep the ones already stored).
+    static void SetupLighting(List<Vector3> lamps)
+    {
+        GetPreset("Dawn"); GetPreset("Day");
+        LundunLightingPreset night = GetPreset("Night");
+        Dictionary<string, Material> mats = new Dictionary<string, Material>();
+
+        // directional light (moon/sun)
         Light sun = null;
         foreach (Light l in Object.FindObjectsByType<Light>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
             if (l.type == LightType.Directional) { sun = l; break; }
         if (sun == null) { sun = new GameObject("Directional Light").AddComponent<Light>(); sun.type = LightType.Directional; }
-        sun.color = night ? new Color(0.62f, 0.70f, 0.95f) : new Color(1f, 0.96f, 0.88f);
-        sun.intensity = night ? 0.35f : 1.2f;
         sun.shadows = LightShadows.Soft;
-        sun.transform.rotation = night ? Quaternion.Euler(40f, 210f, 0f) : Quaternion.Euler(50f, 150f, 0f);
-        RenderSettings.sun = sun;
 
-        Color fog = night ? new Color(0.05f, 0.06f, 0.10f) : new Color(0.70f, 0.76f, 0.84f);
-        RenderSettings.ambientMode = AmbientMode.Flat;
-        RenderSettings.ambientLight = night ? new Color(0.24f, 0.26f, 0.36f) : new Color(0.60f, 0.62f, 0.68f);
-        RenderSettings.fog = true;
-        RenderSettings.fogMode = FogMode.Linear;
-        RenderSettings.fogColor = fog;
-        RenderSettings.fogStartDistance = night ? 120f : 150f;
-        RenderSettings.fogEndDistance = night ? 400f : 440f;
-
+        // camera: sky behind everything, far enough for the fog
         Camera cam = Camera.main;
-        if (cam != null)
-        {
-            cam.farClipPlane = 450f;
-            cam.clearFlags = night ? CameraClearFlags.SolidColor : CameraClearFlags.Skybox;
-            cam.backgroundColor = fog;
-            EditorUtility.SetDirty(cam);
-        }
-        if (!night && RenderSettings.skybox == null)
-            RenderSettings.skybox = AssetDatabase.GetBuiltinExtraResource<Material>("Default-Skybox.mat");
+        if (cam != null) { cam.clearFlags = CameraClearFlags.Skybox; cam.farClipPlane = 450f; EditorUtility.SetDirty(cam); }
 
-        // lit windows and street lamps glow at night only
+        // Lundun's own camera grade (the old SampleScene profile used ACES, which crushes the dark)
+        Volume vol = null;
+        foreach (Volume v in Object.FindObjectsByType<Volume>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            if (v.gameObject.name == "Global Volume") { vol = v; break; }
+        if (vol == null) { vol = new GameObject("Global Volume").AddComponent<Volume>(); vol.isGlobal = true; vol.priority = 0; }
+        vol.sharedProfile = GradeProfile();
+        EditorUtility.SetDirty(vol);
+
+        // rig object
+        Transform rt = FindRoot("LundunLighting");
+        GameObject rig = rt != null ? rt.gameObject : new GameObject("LundunLighting");
+        LundunLampLights lampLights = rig.GetComponent<LundunLampLights>();
+        if (lampLights == null) lampLights = rig.AddComponent<LundunLampLights>();
+        if (lamps != null) { lampLights.SetLamps(lamps.ToArray()); EditorUtility.SetDirty(lampLights); }
+        LundunLighting ll = rig.GetComponent<LundunLighting>();
+        if (ll == null) ll = rig.AddComponent<LundunLighting>();
+
+        List<Material> windows = new List<Material>();
         foreach (string guid in AssetDatabase.FindAssets("t:Material", new[] { MatDir }))
         {
             Material m = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid));
-            if (m == null) continue;
-            if (m.name.StartsWith("Bld_")) m.SetColor("_EmissionColor", night ? Color.white * 1.3f : Color.black);
-            else if (m.name == "LampHead") m.SetColor("_EmissionColor", night ? new Color(1f, 0.82f, 0.5f) * 2.5f : new Color(0.3f, 0.25f, 0.15f));
-            else continue;
-            EditorUtility.SetDirty(m);
+            if (m != null && m.name.StartsWith("Bld_")) windows.Add(m);
         }
-        DynamicGI.UpdateEnvironment();
+        SerializedObject so = new SerializedObject(ll);
+        so.FindProperty("preset").objectReferenceValue = ll.preset != null ? ll.preset : night;
+        so.FindProperty("sun").objectReferenceValue = sun;
+        so.FindProperty("grade").objectReferenceValue = vol;
+        so.FindProperty("sky").objectReferenceValue = GetMaterial(mats, "Sky");
+        so.FindProperty("lampHeadMaterial").objectReferenceValue = GetMaterial(mats, "LampHead");
+        so.FindProperty("lightPoolMaterial").objectReferenceValue = GetMaterial(mats, "LightPool");
+        so.FindProperty("lampLights").objectReferenceValue = lampLights;
+        SerializedProperty arr = so.FindProperty("windowMaterials");
+        arr.arraySize = windows.Count;
+        for (int i = 0; i < windows.Count; i++) arr.GetArrayElementAtIndex(i).objectReferenceValue = windows[i];
+        so.ApplyModifiedPropertiesWithoutUndo();
+        ll.Apply(ll.preset.look);
+
+        AssetDatabase.SaveAssets();
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+    }
+
+    static VolumeProfile GradeProfile()
+    {
+        EnsureFolder(LightingDir);
+        string path = LightingDir + "/LundunGrade.asset";
+        VolumeProfile p = AssetDatabase.LoadAssetAtPath<VolumeProfile>(path);
+        if (p != null) return p;
+        p = ScriptableObject.CreateInstance<VolumeProfile>();
+        AssetDatabase.CreateAsset(p, path);
+
+        Tonemapping tm = p.Add<Tonemapping>(true);
+        tm.mode.Override(TonemappingMode.Neutral);
+        ColorAdjustments ca = p.Add<ColorAdjustments>(true);
+        ca.postExposure.Override(0.6f); ca.contrast.Override(8f); ca.saturation.Override(-8f);
+        Bloom bl = p.Add<Bloom>(true);
+        bl.intensity.Override(0.6f); bl.threshold.Override(0.95f); bl.scatter.Override(0.6f);
+        Vignette vg = p.Add<Vignette>(true);
+        vg.intensity.Override(0.18f);
+        foreach (VolumeComponent c in p.components) { c.name = c.GetType().Name; AssetDatabase.AddObjectToAsset(c, p); }
+        EditorUtility.SetDirty(p);
+        AssetDatabase.SaveAssets();
+        return p;
+    }
+
+    /// Soft round glow used by the fake lamp light on the ground.
+    static Texture2D PoolTexture()
+    {
+        string path = GenDir + "/LightPoolGlow.asset";
+        Texture2D t = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        if (t != null) return t;
+        const int S = 128;
+        t = new Texture2D(S, S, TextureFormat.RGBA32, true);
+        for (int y = 0; y < S; y++)
+            for (int x = 0; x < S; x++)
+            {
+                float dx = (x + 0.5f) / S * 2f - 1f, dy = (y + 0.5f) / S * 2f - 1f;
+                float d = Mathf.Sqrt(dx * dx + dy * dy);
+                float v = Mathf.Clamp01(1f - d);
+                v = v * v * (3f - 2f * v);           // smooth edge
+                t.SetPixel(x, y, new Color(v, v, v, v));
+            }
+        t.Apply(true);
+        t.wrapMode = TextureWrapMode.Clamp;
+        t.name = "LightPoolGlow";
+        AssetDatabase.CreateAsset(t, path);
+        return t;
+    }
+
+    // ------------------------------------------------------------------ tidy
+    [MenuItem("Lundun/Tidy: Move Scene to Assets/Scenes + Add to Build", false, 45)]
+    public static void TidyScene()
+    {
+        Scene s = SceneManager.GetActiveScene();
+        if (s.name != "Lundun") { Dialog("Open your Lundun scene (the one with the city) first."); return; }
+        EditorSceneManager.SaveScene(s);
+        string cur = s.path;
+        if (cur != ScenePath)
+        {
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) != null)
+            {
+                long size = new System.IO.FileInfo(ScenePath).Length;
+                if (size > 100000) { Dialog("There's already a full Lundun scene at " + ScenePath + ". Not touching anything — tell Claude."); return; }
+                AssetDatabase.DeleteAsset(ScenePath);          // the old empty one
+            }
+            string err = AssetDatabase.MoveAsset(cur, ScenePath);
+            if (!string.IsNullOrEmpty(err)) { Dialog("Couldn't move the scene: " + err); return; }
+            string oldData = cur.Substring(0, cur.Length - ".unity".Length);    // NavMesh data folder next to the scene
+            string newData = ScenePath.Substring(0, ScenePath.Length - ".unity".Length);
+            if (AssetDatabase.IsValidFolder(oldData) && !AssetDatabase.IsValidFolder(newData)) AssetDatabase.MoveAsset(oldData, newData);
+            string parent = System.IO.Path.GetDirectoryName(cur).Replace('\\', '/');
+            if (parent != "Assets/Scenes" && AssetDatabase.IsValidFolder(parent) && AssetDatabase.FindAssets("", new[] { parent }).Length == 0)
+                AssetDatabase.DeleteAsset(parent);
+            AssetDatabase.Refresh();
+            EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        }
+        SetStartScene();
+        Debug.Log("[Lundun] Scene is at " + ScenePath + " and is the first scene in the build. iPhone builds now open Lundun.");
+    }
+
+    static void SetStartScene()
+    {
+        List<EditorBuildSettingsScene> list = new List<EditorBuildSettingsScene>();
+        list.Add(new EditorBuildSettingsScene(ScenePath, true));
+        foreach (EditorBuildSettingsScene sc in EditorBuildSettings.scenes)
+            if (sc.path != ScenePath && AssetDatabase.LoadAssetAtPath<SceneAsset>(sc.path) != null) list.Add(new EditorBuildSettingsScene(sc.path, false));
+        EditorBuildSettings.scenes = list.ToArray();
     }
 
     // ------------------------------------------------------------------ helpers
@@ -413,7 +548,7 @@ public static class LundunGreyboxBuilder
         if (m == null)
         {
             bool unlit = name.StartsWith("Beacon_");
-            Shader sh = Shader.Find(unlit ? "Universal Render Pipeline/Unlit" : "Universal Render Pipeline/Lit");
+            Shader sh = Shader.Find(name == "Sky" ? "Lundun/SkyGradient" : name == "LightPool" ? "Lundun/LightPool" : unlit ? "Universal Render Pipeline/Unlit" : "Universal Render Pipeline/Lit");
             if (sh == null) sh = Shader.Find("Standard");
             m = new Material(sh);
             m.name = name;
@@ -448,6 +583,14 @@ public static class LundunGreyboxBuilder
             case "Beacon_Hospital": c = new Color(1f, 0.3f, 0.3f, 1f); break;
             case "Beacon_Landmark": c = new Color(1f, 0.85f, 0.3f, 1f); break;
             case "Beacon_Mission": c = new Color(1f, 0.55f, 0.1f, 1f); break;
+        }
+        if (name == "Sky") return;                 // colours come from the lighting preset
+        if (name == "LightPool")
+        {
+            m.SetTexture("_MainTex", PoolTexture());
+            m.SetColor("_Color", new Color(1f, 0.72f, 0.42f));
+            m.SetFloat("_Intensity", 0.7f);
+            return;
         }
         if (name.StartsWith("Bld_"))
         {

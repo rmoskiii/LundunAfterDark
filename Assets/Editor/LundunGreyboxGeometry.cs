@@ -35,6 +35,7 @@ namespace LundunGreybox
         public bool collider;
         public bool navIgnore;      // left out of the NavMesh bake
         public int navArea = -1;    // -1 = default walkable
+        public bool chunk = true;   // split into 100 m blocks (each block gets its own lights and is culled separately)
         public List<float> pos = new List<float>();
         public List<float> uv = new List<float>();
         public List<int> tri = new List<int>();
@@ -107,6 +108,7 @@ namespace LundunGreybox
     public class Beacon { public string id, kind; public double x, z, radius, height; }
     public class ColliderBox { public string name; public double cx, cy, cz, sx, sy, sz; }
     public class BuildingInfo { public string district; public V2 c, dir; public double len, dep, h; }
+    public class LampInfo { public double x, y, z; }
 
     public class GreyboxResult
     {
@@ -115,6 +117,7 @@ namespace LundunGreybox
         public List<Beacon> beacons = new List<Beacon>();
         public List<ColliderBox> walls = new List<ColliderBox>();
         public List<BuildingInfo> buildings = new List<BuildingInfo>();
+        public List<LampInfo> lamps = new List<LampInfo>();
         public List<string> log = new List<string>();
     }
 
@@ -232,9 +235,65 @@ namespace LundunGreybox
             BuildBuildings(R);
             BuildMarkers(R);
             BuildBounds(R);
+            List<MeshData> split = new List<MeshData>();
+            foreach (MeshData m in R.meshes) { if (m.chunk) split.AddRange(Chunk(m)); else split.Add(m); }
+            R.meshes = split;
             int v = 0; foreach (MeshData m in R.meshes) v += m.VertexCount;
             R.log.Add(string.Format("{0} meshes, {1} vertices, {2} buildings, {3} markers", R.meshes.Count, v, R.buildings.Count, R.markers.Count));
             return R;
+        }
+
+        // ------------------------------------------------------------------ chunking
+        public const double ChunkSize = 100, ChunkOrigin = -300;
+
+        static List<MeshData> Chunk(MeshData m)
+        {
+            Dictionary<long, MeshData> parts = new Dictionary<long, MeshData>();
+            Dictionary<long, Dictionary<int, int>> remap = new Dictionary<long, Dictionary<int, int>>();
+            List<long> order = new List<long>();
+            for (int t = 0; t + 2 < m.tri.Count; t += 3)
+            {
+                double cx = 0, cz = 0;
+                for (int k = 0; k < 3; k++) { int i = m.tri[t + k]; cx += m.pos[i * 3]; cz += m.pos[i * 3 + 2]; }
+                long ix = (long)Math.Floor((cx / 3 - ChunkOrigin) / ChunkSize), iz = (long)Math.Floor((cz / 3 - ChunkOrigin) / ChunkSize);
+                long key = ix * 100000 + iz;
+                MeshData p; Dictionary<int, int> map;
+                if (!parts.TryGetValue(key, out p))
+                {
+                    p = new MeshData(m.name + "_" + ix + "_" + iz, m.group, m.material, m.collider) { navIgnore = m.navIgnore, navArea = m.navArea, chunk = false };
+                    parts[key] = p; remap[key] = new Dictionary<int, int>(); order.Add(key);
+                }
+                map = remap[key];
+                for (int k = 0; k < 3; k++)
+                {
+                    int i = m.tri[t + k], j;
+                    if (!map.TryGetValue(i, out j))
+                    {
+                        j = p.VertexCount; map[i] = j;
+                        p.pos.Add(m.pos[i * 3]); p.pos.Add(m.pos[i * 3 + 1]); p.pos.Add(m.pos[i * 3 + 2]);
+                        p.uv.Add(m.uv[i * 2]); p.uv.Add(m.uv[i * 2 + 1]);
+                    }
+                    p.tri.Add(j);
+                }
+            }
+            List<MeshData> r = new List<MeshData>();
+            foreach (long k in order) r.Add(parts[k]);
+            return r;
+        }
+
+        /// Adds points so no segment is longer than maxSeg (long triangles would ignore the 100 m blocks).
+        static List<V2> Densify(List<V2> pts, double maxSeg)
+        {
+            List<V2> r = new List<V2>();
+            for (int i = 0; i + 1 < pts.Count; i++)
+            {
+                r.Add(pts[i]);
+                double L = V2.Dist(pts[i], pts[i + 1]);
+                int n = (int)Math.Ceiling(L / maxSeg);
+                for (int k = 1; k < n; k++) r.Add(Lerp(pts[i], pts[i + 1], (double)k / n));
+            }
+            if (pts.Count > 0) r.Add(pts[pts.Count - 1]);
+            return r;
         }
 
         // ------------------------------------------------------------------ prep
@@ -366,7 +425,7 @@ namespace LundunGreybox
         {
             LwBounds b = W.worldBounds;
             MeshData inner = new MeshData("Ground_Inner", "Ground", "Ground", true);
-            MeshData outer = new MeshData("Ground_Outer", "Ground", "Ground", true) { navIgnore = true };
+            MeshData outer = new MeshData("Ground_Outer", "Ground", "Ground", true) { navIgnore = true, chunk = false };
             double nearR = GroundEdge + GroundTile * 0.75;
             for (double tx = b.groundMinX; tx < b.groundMaxX - 1e-6; tx += GroundTile)
                 for (double tz = b.groundMinZ; tz < b.groundMaxZ - 1e-6; tz += GroundTile)
@@ -492,6 +551,7 @@ namespace LundunGreybox
         static void Ribbon(MeshData m, List<V2> pts, double offA, double offB, double y)
         {
             if (pts.Count < 2) return;
+            pts = Densify(pts, 20);
             List<V2> A = Line.Offset(pts, offA), B = Line.Offset(pts, offB);
             for (int i = 0; i + 1 < pts.Count; i++)
                 m.Quad(new P3(A[i], y), new P3(A[i + 1], y), new P3(B[i + 1], y), new P3(B[i], y), 0, 1, 0);
@@ -545,6 +605,7 @@ namespace LundunGreybox
         {
             List<V2> c = ri.line.Sub(a, b);
             if (c.Count < 2) return;
+            c = Densify(c, 20);
             List<V2> inn = Line.Offset(c, s * ri.w / 2), outr = Line.Offset(c, s * (ri.w / 2 + ri.pave));
             for (int i = 0; i + 1 < c.Count; i++)
             {
@@ -637,6 +698,7 @@ namespace LundunGreybox
         {
             MeshData poles = new MeshData("LampPoles", "Lamps", "LampPole", false) { navIgnore = true };
             MeshData heads = new MeshData("LampHeads", "Lamps", "LampHead", false) { navIgnore = true };
+            MeshData pools = new MeshData("LightPools", "Lamps", "LightPool", false) { navIgnore = true };
             foreach (RoadInfo ri in roads.Values)
             {
                 if (ri.cls == "service") continue;
@@ -654,10 +716,19 @@ namespace LundunGreybox
                         V2 toRoad = dir.Left * -s;
                         poles.Box(pos, dir, 0.09, 0.09, 0, 6.2, false, 0.1, 0, false);
                         heads.Box(pos + toRoad * 0.7, toRoad, 0.8, 0.22, 5.95, 6.2, true, 0.1, 0, false);
+                        V2 pc = pos + toRoad * 1.5, f = dir, l = dir.Left;
+                        double pr = PoolRadius;
+                        pools.Quad(new P3(pc - f * pr - l * pr, PoolY, 0, 0), new P3(pc + f * pr - l * pr, PoolY, 1, 0),
+                                   new P3(pc + f * pr + l * pr, PoolY, 1, 1), new P3(pc - f * pr + l * pr, PoolY, 0, 1), 0, 1, 0);
+                        V2 hp = pos + toRoad * 0.9;
+                        R.lamps.Add(new LampInfo { x = hp.x, y = 5.9, z = hp.z });
                     }
             }
-            R.meshes.Add(poles); R.meshes.Add(heads);
+            R.meshes.Add(poles); R.meshes.Add(heads); R.meshes.Add(pools);
+            R.log.Add(R.lamps.Count + " street lamps");
         }
+
+        const double PoolRadius = 9, PoolY = 0.17;
 
         static bool NearOtherRoad(V2 q, RoadInfo self, double margin)
         {
@@ -853,9 +924,9 @@ namespace LundunGreybox
             {
                 int variant = (int)(Math.Abs(b.c.x * 7.13 + b.c.z * 3.71)) % 3;
                 string mat = "Bld_" + b.district.Replace("D_", "") + "_" + variant;
-                string key = mat + "_" + (int)(b.c.x / 200) + "_" + (int)(b.c.z / 200);
+                string key = mat + "_" + (int)Math.Floor((b.c.x - ChunkOrigin) / ChunkSize) + "_" + (int)Math.Floor((b.c.z - ChunkOrigin) / ChunkSize);
                 MeshData m;
-                if (!chunks.TryGetValue(key, out m)) { m = new MeshData("Buildings_" + key, "Buildings", mat, true) { navIgnore = false }; chunks[key] = m; }
+                if (!chunks.TryGetValue(key, out m)) { m = new MeshData("Buildings_" + key, "Buildings", mat, true) { navIgnore = false, chunk = false }; chunks[key] = m; }
                 m.Box(b.c, b.dir, b.len / 2, b.dep / 2, 0, b.h, false, 1.0 / 32.0, rng.Next(0, 8) * 4, true);
             }
             List<string> keys = new List<string>(chunks.Keys); keys.Sort();
@@ -953,7 +1024,7 @@ namespace LundunGreybox
         static void BuildBounds(GreyboxResult R)
         {
             LwBounds b = W.worldBounds;
-            MeshData hedge = new MeshData("EdgeHedge", "Bounds", "Hedge", false) { navIgnore = true };
+            MeshData hedge = new MeshData("EdgeHedge", "Bounds", "Hedge", false) { navIgnore = true, chunk = false };
             double x0 = b.wallMinX, x1 = b.wallMaxX, z0 = b.wallMinZ, z1 = b.wallMaxZ, t = 1.5;
             V2[][] sides = {
                 new[] { new V2(x0, z0), new V2(x1, z0) }, new[] { new V2(x1, z0), new V2(x1, z1) },
