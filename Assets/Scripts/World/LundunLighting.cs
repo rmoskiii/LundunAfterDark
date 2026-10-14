@@ -27,6 +27,8 @@ public class LundunLighting : MonoBehaviour
     [SerializeField] private float lampGlowStrength = 2.5f;
 
     public LightingLook Current { get; private set; }
+    /// Set by LundunClock: the clock decides the look while playing.
+    public bool DrivenByClock { get; set; }
     private bool appliedInPlay;
 
     void OnEnable() { if (preset != null) Apply(preset.look); }
@@ -36,7 +38,7 @@ public class LundunLighting : MonoBehaviour
         // Edit mode: follow the preset live. Play mode: apply once; the clock (Pass 4) takes over later.
         if (preset == null) return;
         if (!Application.isPlaying) Apply(preset.look);
-        else if (!appliedInPlay) { Apply(preset.look); appliedInPlay = true; }
+        else if (!appliedInPlay && !DrivenByClock) { Apply(preset.look); appliedInPlay = true; }
     }
 
     public void Apply(LightingLook l)

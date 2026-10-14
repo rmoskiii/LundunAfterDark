@@ -26,6 +26,9 @@ public class VehicleSystem : MonoBehaviour
     // True while BUSTED / WASTED is playing (police freeze, nobody shoots)
     public static bool Locked { get; private set; }
 
+    // Fired after BUSTED / WASTED put the player back at the police station / hospital (the clock jumps an hour)
+    public static event System.Action Respawned;
+
     // Whatever the police should chase: James on foot, or the car he's driving
     public Transform PlayerTarget => currentCar != null ? currentCar.transform : player.transform;
 
@@ -136,6 +139,7 @@ public class VehicleSystem : MonoBehaviour
         cc.enabled = false;
         player.transform.SetPositionAndRotation(position, rotation);
         cc.enabled = true;
+        if (Respawned != null) Respawned();
     }
 
     void ShowDrivingUI(bool driving)

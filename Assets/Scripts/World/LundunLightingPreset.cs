@@ -74,6 +74,14 @@ public struct LightingLook
                 l.windowGlow = 0.5f; l.lampLevel = 0.4f;
                 l.postExposure = 0.3f; l.contrast = 6f; l.saturation = 0f; l.bloom = 0.4f;
                 return l;
+            case "Dusk":
+                l.sunColor = new Color(1f, 0.55f, 0.38f); l.sunIntensity = 0.8f; l.sunAngles = new Vector2(8f, 265f); l.shadowStrength = 0.6f;
+                l.ambientSky = new Color(0.48f, 0.42f, 0.58f); l.ambientHorizon = new Color(0.62f, 0.42f, 0.42f); l.ambientGround = new Color(0.18f, 0.15f, 0.15f);
+                l.skyTop = new Color(0.18f, 0.20f, 0.42f); l.skyHorizon = new Color(0.95f, 0.50f, 0.40f); l.skyBottom = new Color(0.20f, 0.16f, 0.20f);
+                l.fogStart = 140f; l.fogEnd = 420f;
+                l.windowGlow = 0.9f; l.lampLevel = 0.7f;
+                l.postExposure = 0.35f; l.contrast = 6f; l.saturation = 0f; l.bloom = 0.45f;
+                return l;
             case "Day":
                 l.sunColor = new Color(1f, 0.96f, 0.88f); l.sunIntensity = 1.3f; l.sunAngles = new Vector2(50f, 150f); l.shadowStrength = 0.8f;
                 l.ambientSky = new Color(0.62f, 0.68f, 0.80f); l.ambientHorizon = new Color(0.55f, 0.55f, 0.55f); l.ambientGround = new Color(0.30f, 0.28f, 0.25f);
