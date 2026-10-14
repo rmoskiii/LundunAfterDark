@@ -179,7 +179,7 @@ public static class LundunGreyboxBuilder
             if (g.name == "James") { james = g; continue; }
             if (g.name == "Car") { car = g; continue; }
             if (Array.IndexOf(SwitchOff, g.name) >= 0) { if (g.activeSelf) { g.SetActive(false); off.Add(g.name); } continue; }
-            if (Array.IndexOf(StayPut, g.name) >= 0 || g.transform == street) continue;
+            if (Array.IndexOf(StayPut, g.name) >= 0 || g.name.StartsWith("Lundun") || g.transform == street) continue;
             if (g.GetComponent<RectTransform>() != null || g.GetComponent<Canvas>() != null || g.GetComponent<Camera>() != null
                 || g.GetComponent<Light>() != null || g.GetComponent<Volume>() != null || HasComponent(g, "EventSystem")) continue;
             g.transform.SetParent(street, false);      // keeps its old position, now relative to the street's new spot

@@ -50,7 +50,7 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
 
     private readonly List<Blip> statics = new List<Blip>();
     private readonly List<Blip> dynamicPool = new List<Blip>();
-    private Blip carBlip;
+    private Blip carBlip, waypointBlip;
     private VehicleSystem vehicles;
     private Canvas rootCanvas;
     private Vector2 hudBasePos;
@@ -72,8 +72,10 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
                 if (id == "POI_SAFEHOUSE") AddStatic(t, new Color(0.25f, 0.9f, 0.45f), "S", 30, true, 1f);
                 else if (id == "POI_HOSPITAL") AddStatic(t, new Color(0.95f, 0.25f, 0.3f), "H", 26, false, 1f);
                 else if (id == "POI_POLICE") AddStatic(t, new Color(0.25f, 0.5f, 1f), "P", 26, false, 1f);
-                else if (id.StartsWith("POI_M")) AddStatic(t, new Color(1f, 0.82f, 0.2f), id.Substring(5, 1), 26, true, 0.45f);   // missions: greyed until missions exist
+                else if (id.Length >= 2 && id[0] == 'M' && char.IsDigit(id[1])) AddStatic(t, new Color(1f, 0.82f, 0.2f), id.Substring(1, 1), 26, true, 0.45f);   // M1_ONFOOT, M2… greyed until missions exist
             }
+        waypointBlip = NewBlip(new Color(0.72f, 0.36f, 1f, 1f), "", 22);
+        waypointBlip.clampToEdge = true;
         if (playerCar != null)
         {
             carBlip = NewBlip(new Color(1f, 0.85f, 0.25f), "", 14);
@@ -143,6 +145,10 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
         float edge = radiusPx - 14f;
         foreach (Blip b in statics) Place(b, centre, ppm, camYaw, edge);
 
+        LundunNavigation nav = LundunNavigation.Instance;
+        if (nav != null && nav.HasWaypoint) PlaceAt(waypointBlip, nav.Waypoint, centre, ppm, camYaw, edge);
+        else waypointBlip.rt.gameObject.SetActive(false);
+
         if (carBlip != null)
         {
             bool show = !(vehicles.IsDriving && player == playerCar);
@@ -169,7 +175,11 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
     void Place(Blip b, Vector3 centre, float ppm, float camYaw, float edge)
     {
         if (b.target == null) { b.rt.gameObject.SetActive(false); return; }
-        Vector3 p = b.target.position;
+        PlaceAt(b, b.target.position, centre, ppm, camYaw, edge);
+    }
+
+    void PlaceAt(Blip b, Vector3 p, Vector3 centre, float ppm, float camYaw, float edge)
+    {
         Vector2 off = Rotate(new Vector2(p.x - centre.x, p.z - centre.z) * ppm, camYaw);
         bool outside = off.magnitude > edge;
         if (outside && !b.clampToEdge) { b.rt.gameObject.SetActive(false); return; }
