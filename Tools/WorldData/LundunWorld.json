@@ -3105,10 +3105,10 @@
   },
   {
    "id": "SP_KESTREL",
-   "x": 880.0,
-   "z": 187.0,
+   "x": 948.0,
+   "z": 187.5,
    "yaw": 270,
-   "note": "Parked on the left, westbound, Peckam High Street"
+   "note": "Parked on the left, westbound, Peckam High Street (east of the old street, clear of props)"
   },
   {
    "id": "SP_BUSTED",

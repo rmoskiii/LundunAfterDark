@@ -12,7 +12,7 @@ public struct NavPoint
 
 public class LundunRoadGraph
 {
-    class Edge { public int a, b; public double len; public string road; }
+    class Edge { public int a, b; public double len, width, pave; public string road; }
 
     readonly List<NavPoint> nodes = new List<NavPoint>();
     readonly List<Edge> edges = new List<Edge>();
@@ -26,6 +26,8 @@ public class LundunRoadGraph
         Dictionary<string, int> key = new Dictionary<string, int>();
         Dictionary<string, LwJunction> junc = new Dictionary<string, LwJunction>();
         foreach (LwJunction j in w.junctions) junc[j.id] = j;
+        Dictionary<string, double> pave = new Dictionary<string, double>();
+        foreach (LwRoadClass c in w.roadClasses) pave[c.name] = c.pavement;
 
         foreach (LwRoad r in w.roads)
         {
@@ -52,7 +54,7 @@ public class LundunRoadGraph
             {
                 int a = stops[s].Value, b = stops[s + 1].Value;
                 if (a == b) continue;
-                Edge e = new Edge { a = a, b = b, len = Math.Max(0.01, stops[s + 1].Key - stops[s].Key), road = r.id };
+                Edge e = new Edge { a = a, b = b, len = Math.Max(0.01, stops[s + 1].Key - stops[s].Key), width = r.width, pave = pave.ContainsKey(r.roadClass) ? pave[r.roadClass] : 0, road = r.id };
                 adj[a].Add(edges.Count); adj[b].Add(edges.Count);
                 edges.Add(e);
             }
@@ -83,6 +85,54 @@ public class LundunRoadGraph
             if (d < dist) { dist = d; edge = i; t = tt; best = p; }
         }
         return best;
+    }
+
+    /// A random spot on a road between minD and maxD (straight-line) from centre. dir = along the road.
+    /// Used for spawning police / traffic out of sight. Bridges are skipped (no spawning mid-river).
+    public bool RandomRoadPoint(NavPoint centre, double minD, double maxD, Random rng, out NavPoint p, out NavPoint dir, out double halfWidth)
+    {
+        double pavement;
+        return RandomRoadPoint(centre, minD, maxD, rng, false, out p, out dir, out halfWidth, out pavement);
+    }
+
+    /// needPavement = only roads that have pavements (for pedestrians). pavement = pavement width there.
+    public bool RandomRoadPoint(NavPoint centre, double minD, double maxD, Random rng, bool needPavement,
+                                out NavPoint p, out NavPoint dir, out double halfWidth, out double pavement)
+    {
+        pavement = 0;
+        p = centre; dir = new NavPoint(0, 1); halfWidth = 5;
+        List<int> cand = new List<int>(); double total = 0;
+        for (int i = 0; i < edges.Count; i++)
+        {
+            if (edges[i].road.StartsWith("B")) continue;
+            if (needPavement && edges[i].pave <= 0) continue;
+            NavPoint a = nodes[edges[i].a], b = nodes[edges[i].b];
+            double near = SegDist(centre, a, b), far = Math.Max(NavPoint.Dist(centre, a), NavPoint.Dist(centre, b));
+            if (near <= maxD && far >= minD) { cand.Add(i); total += edges[i].len; }
+        }
+        if (cand.Count == 0) return false;
+        for (int attempt = 0; attempt < 40; attempt++)
+        {
+            double pick = rng.NextDouble() * total; int ei = cand[cand.Count - 1];
+            foreach (int c in cand) { pick -= edges[c].len; if (pick <= 0) { ei = c; break; } }
+            Edge e = edges[ei];
+            NavPoint a = nodes[e.a], b = nodes[e.b];
+            double t = rng.NextDouble();
+            NavPoint q = new NavPoint(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t);
+            double d = NavPoint.Dist(q, centre);
+            if (d < minD || d > maxD) continue;
+            double len = NavPoint.Dist(a, b);
+            p = q; dir = new NavPoint((b.x - a.x) / len, (b.z - a.z) / len); halfWidth = e.width / 2; pavement = e.pave;
+            return true;
+        }
+        return false;
+    }
+
+    static double SegDist(NavPoint q, NavPoint a, NavPoint b)
+    {
+        double dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz;
+        double t = l2 < 1e-9 ? 0 : Math.Max(0, Math.Min(1, ((q.x - a.x) * dx + (q.z - a.z) * dz) / l2));
+        return NavPoint.Dist(q, new NavPoint(a.x + dx * t, a.z + dz * t));
     }
 
     /// Shortest route along the roads from 'from' to 'to'. Includes both end points.

@@ -13,7 +13,8 @@ public class LundunWorldRuntime : MonoBehaviour
     [SerializeField] private float lostY = -15f;             // anything below this has sunk
     [SerializeField] private Transform playerCar;
     [SerializeField] private Transform carRespawn;
-    [SerializeField] private float offRoadCost = 2f;          // NavMesh area 0 (grass, other walkable stuff). Roads are area 3, cost 1.
+    [SerializeField] private float offRoadCost = 2f;
+    [SerializeField] private float pavementCost = 3f;        // NavMesh area 4          // NavMesh area 0 (grass, other walkable stuff). Roads are area 3, cost 1.
 
     private VehicleSystem vehicles;
     private float nextSweep;
@@ -23,6 +24,7 @@ public class LundunWorldRuntime : MonoBehaviour
         QualitySettings.vSyncCount = 0;
         Application.targetFrameRate = targetFps;
         NavMesh.SetAreaCost(0, offRoadCost);   // police and pedestrians prefer roads and pavements
+        NavMesh.SetAreaCost(4, pavementCost);  // pavements: police cars only mount them if it really saves time
     }
 
     void Start()

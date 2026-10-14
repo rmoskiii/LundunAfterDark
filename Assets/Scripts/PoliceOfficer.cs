@@ -194,33 +194,14 @@ public class PoliceOfficer : MonoBehaviour
     void FireAt(Transform target)
     {
         Vector3 from = transform.position + Vector3.up * 1.4f + transform.forward * 0.5f;
-        Vector3 aim = target.position + Vector3.up * 1.1f;
+        Vector3 aim = PoliceAim.Centre(target);
         float distance = Vector3.Distance(from, aim);
 
         float chance = Mathf.Lerp(closeHitChance, farHitChance, distance / shootRange);
         chance = Mathf.Clamp(chance, 0.05f, 0.9f);
 
-        // Misses go past you, so you see the tracer
-        if (Random.value > chance)
-        {
-            Vector3 side = Vector3.Cross(Vector3.up, (aim - from).normalized);
-            aim += side * Random.Range(1f, 2f) * (Random.value < 0.5f ? -1f : 1f)
-                 + Vector3.up * Random.Range(-0.4f, 0.8f);
-        }
-
-        Vector3 dir = (aim - from).normalized;
-        Vector3 end = from + dir * shootRange;
-
-        if (Physics.Raycast(from, dir, out RaycastHit hit, shootRange * 1.5f, ~0, QueryTriggerInteraction.Ignore))
-        {
-            end = hit.point;
-            if (hit.transform == target || hit.transform.IsChildOf(target))
-            {
-                VehicleHealth playerCar = target.GetComponent<VehicleHealth>();
-                if (playerCar != null) playerCar.TakeDamage(damageToCar);
-                else PlayerHealth.Instance.TakeDamage(damageOnFoot);
-            }
-        }
+        // Hit or miss is rolled first; a hit lands unless a building is in the way (see PoliceAim)
+        Vector3 end = PoliceAim.Fire(transform, from, target, chance, shootRange, damageOnFoot, damageToCar);
 
         if (gunshot != null)
         {

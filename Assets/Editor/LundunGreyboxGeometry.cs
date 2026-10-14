@@ -202,6 +202,8 @@ namespace LundunGreybox
         /// NavMesh area for roads, pavements, junctions, bridges. Everything else walkable is area 0,
         /// which LundunWorldRuntime makes more expensive so police prefer roads.
         public const int RoadArea = 3;
+        /// Pavements get their own area so pedestrians can prefer them (and police cars avoid them).
+        public const int PavementArea = 4;
 
         class RoadInfo
         {
@@ -561,7 +563,7 @@ namespace LundunGreybox
         static void BuildRoads(GreyboxResult R)
         {
             MeshData asphalt = new MeshData("Carriageways", "Roads", "Road", true) { navArea = RoadArea };
-            MeshData pave = new MeshData("Pavements", "Roads", "Pavement", true) { navArea = RoadArea };
+            MeshData pave = new MeshData("Pavements", "Roads", "Pavement", true) { navArea = PavementArea };
             MeshData marks = new MeshData("Markings", "Roads", "Marking", false) { navIgnore = true };
             double yRoad = W.heights.roadSurface, yPave = W.heights.pavementTop, yMark = yRoad + 0.02;
             foreach (RoadInfo ri in roads.Values)

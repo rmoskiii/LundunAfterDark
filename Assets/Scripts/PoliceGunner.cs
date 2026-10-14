@@ -83,7 +83,7 @@ public class PoliceGunner : MonoBehaviour
     {
         Transform target = WantedSystem.Instance.PlayerTarget;
         Vector3 from = transform.position + Vector3.up * 2f;     // leaning out above the roof
-        Vector3 aim = target.position + Vector3.up * 1.1f;
+        Vector3 aim = PoliceAim.Centre(target);
         float distance = Vector3.Distance(from, aim);
 
         // Harder to hit at range and when you're moving fast; more stars = better aim
@@ -92,27 +92,8 @@ public class PoliceGunner : MonoBehaviour
         chance += (WantedSystem.Instance.Stars - starsToShoot) * 0.1f;
         chance = Mathf.Clamp(chance, 0.05f, 0.9f);
 
-        // A miss is aimed beside you, so you see/hear it whizz past
-        if (Random.value > chance)
-        {
-            Vector3 side = Vector3.Cross(Vector3.up, (aim - from).normalized);
-            aim += side * Random.Range(1.2f, 2.5f) * (Random.value < 0.5f ? -1f : 1f)
-                 + Vector3.up * Random.Range(-0.5f, 1f);
-        }
-
-        Vector3 dir = (aim - from).normalized;
-        Vector3 end = from + dir * range;
-
-        if (Physics.Raycast(from, dir, out RaycastHit hit, range, ~0, QueryTriggerInteraction.Ignore))
-        {
-            end = hit.point;
-            if (hit.transform == target || hit.transform.IsChildOf(target))
-            {
-                VehicleHealth playerCar = target.GetComponent<VehicleHealth>();
-                if (playerCar != null) playerCar.TakeDamage(damageToCar);
-                else PlayerHealth.Instance.TakeDamage(damageOnFoot);
-            }
-        }
+        // Hit or miss is rolled first; a hit lands unless a building is in the way (see PoliceAim)
+        Vector3 end = PoliceAim.Fire(transform, from, target, chance, range, damageOnFoot, damageToCar);
 
         if (gunshot != null)
         {

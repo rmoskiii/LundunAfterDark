@@ -248,6 +248,58 @@ public static class LundunGreyboxBuilder
                   "\nNext: Lundun → 3  Bake Navigation.");
     }
 
+    [MenuItem("Lundun/Fix: Tag Pavements for Pedestrians", false, 47)]
+    public static void TagPavements()
+    {
+        Scene scene = SceneManager.GetActiveScene();
+        Transform world = FindRoot("World");
+        if (scene.name != "Lundun" || world == null) { Dialog("Open the Lundun scene (with the world built) first."); return; }
+        int n = 0;
+        foreach (Transform t in world.GetComponentsInChildren<Transform>(true))
+        {
+            if (!t.name.StartsWith("Pavements")) continue;
+            Component mod = null;
+            Type mt = FindType("Unity.AI.Navigation.NavMeshModifier");
+            if (mt != null) mod = t.GetComponent(mt);
+            if (mod == null) { AddNavModifier(t.gameObject, false, Generator.PavementArea); n++; continue; }
+            SerializedObject so = new SerializedObject(mod);
+            SetBool(so, "m_IgnoreFromBuild", false);
+            SetBool(so, "m_OverrideArea", true);
+            SetInt(so, "m_Area", Generator.PavementArea);
+            so.ApplyModifiedPropertiesWithoutUndo();
+            n++;
+        }
+        EditorSceneManager.MarkSceneDirty(scene);
+        Debug.Log("[Lundun] " + n + " pavement pieces tagged as pavement (NavMesh area 4). Now run Lundun → 3  Bake Navigation.");
+    }
+
+    [MenuItem("Lundun/Update Spawn Points from Data", false, 46)]
+    public static void UpdateSpawns()
+    {
+        Scene scene = SceneManager.GetActiveScene();
+        if (scene.name != "Lundun") { Dialog("Open the Lundun scene first."); return; }
+        Transform world = FindRoot("World");
+        LundunWorldData data = LoadData();
+        if (world == null || data == null) { Dialog("Build the world first."); return; }
+        int moved = 0;
+        foreach (LwSpawn sp in data.spawns)
+        {
+            Transform t = Find(world, sp.id);
+            if (t == null) continue;
+            t.SetPositionAndRotation(new Vector3(sp.x, t.position.y, sp.z), Quaternion.Euler(0, sp.yaw, 0));
+            moved++;
+        }
+        Transform kestrel = Find(world, "SP_KESTREL"), car = FindRoot("Car");
+        if (kestrel != null && car != null)
+        {
+            Rigidbody rb = car.GetComponent<Rigidbody>();
+            car.SetPositionAndRotation(new Vector3(kestrel.position.x, Mathf.Max(car.position.y, 1f), kestrel.position.z), kestrel.rotation);
+            if (rb != null) rb.position = car.position;
+        }
+        EditorSceneManager.MarkSceneDirty(scene);
+        Debug.Log("[Lundun] " + moved + " spawn points updated" + (car != null ? "; car moved to SP_KESTREL." : "."));
+    }
+
     // ------------------------------------------------------------------ 3
     [MenuItem("Lundun/3  Bake Navigation", false, 3)]
     public static void BakeNavigation()

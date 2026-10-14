@@ -18,6 +18,11 @@ public class NPCBrain : MonoBehaviour
     [SerializeField] private float fleeDistance = 20f;
     [SerializeField] private float panicDuration = 8f;
 
+    [Header("Lundun: stay on pavements")]
+    [SerializeField] private int pavementArea = 4;        // NavMesh area the greybox gives pavements
+    [SerializeField] private int roadArea = 3;            // carriageways
+    [SerializeField] private float roadCost = 6f;         // walking along a road "costs" 6x: they cross, but don't stroll down it
+
     private NavMeshAgent agent;
     private Animator animator;
     private Health health;
@@ -30,6 +35,7 @@ public class NPCBrain : MonoBehaviour
     void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
+        agent.SetAreaCost(roadArea, roadCost);
         animator = GetComponentInChildren<Animator>();
         health = GetComponent<Health>();
         idleTimer = Random.Range(idleTimeRange.x, idleTimeRange.y);
@@ -117,12 +123,17 @@ public class NPCBrain : MonoBehaviour
 
     Vector3 RandomPointNear(Vector3 centre, float radius)
     {
-        for (int i = 0; i < 10; i++)
+        // pavements first, anywhere walkable second (e.g. the old high street, which has no pavement area)
+        for (int pass = 0; pass < 2; pass++)
         {
-            Vector3 candidate = centre + Random.insideUnitSphere * radius;
-            if (NavMesh.SamplePosition(candidate, out NavMeshHit hit, 2f, NavMesh.AllAreas))
+            int mask = pass == 0 ? 1 << pavementArea : NavMesh.AllAreas;
+            for (int i = 0; i < 8; i++)
             {
-                return hit.position;
+                Vector3 candidate = centre + Random.insideUnitSphere * radius;
+                if (NavMesh.SamplePosition(candidate, out NavMeshHit hit, 2f, mask))
+                {
+                    return hit.position;
+                }
             }
         }
         return transform.position;

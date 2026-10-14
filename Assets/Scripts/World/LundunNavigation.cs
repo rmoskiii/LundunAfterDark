@@ -26,6 +26,7 @@ public class LundunNavigation : MonoBehaviour
     public int RouteVersion { get; private set; }
     public List<Destination> Destinations { get; private set; }
     public LundunWorldData World { get; private set; }
+    public LundunRoadGraph Graph { get { return graph; } }
 
     private LundunRoadGraph graph;
     private VehicleSystem vehicles;
