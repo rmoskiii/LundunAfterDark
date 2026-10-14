@@ -25,8 +25,14 @@ public class CarController : MonoBehaviour
     private InputAction moveAction;
     private Vector2 touchInput;     // set by VehicleSystem from the on-screen buttons
 
+    /// Every car currently in the world (player's, traffic, parked, police). Cars add/remove themselves.
+    public static readonly System.Collections.Generic.List<CarController> All = new System.Collections.Generic.List<CarController>();
+
     public bool IsDriven { get; set; }
     public float Speed => Vector3.Dot(rb.linearVelocity, transform.forward);
+
+    void OnEnable() { All.Add(this); }
+    void OnDisable() { All.Remove(this); }
 
     void Start()
     {

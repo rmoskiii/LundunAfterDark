@@ -12,7 +12,7 @@ public struct NavPoint
 
 public class LundunRoadGraph
 {
-    class Edge { public int a, b; public double len, width, pave; public string road; }
+    class Edge { public int a, b; public double len, width, pave; public string road, cls; }
 
     readonly List<NavPoint> nodes = new List<NavPoint>();
     readonly List<Edge> edges = new List<Edge>();
@@ -54,7 +54,7 @@ public class LundunRoadGraph
             {
                 int a = stops[s].Value, b = stops[s + 1].Value;
                 if (a == b) continue;
-                Edge e = new Edge { a = a, b = b, len = Math.Max(0.01, stops[s + 1].Key - stops[s].Key), width = r.width, pave = pave.ContainsKey(r.roadClass) ? pave[r.roadClass] : 0, road = r.id };
+                Edge e = new Edge { a = a, b = b, len = Math.Max(0.01, stops[s + 1].Key - stops[s].Key), width = r.width, pave = pave.ContainsKey(r.roadClass) ? pave[r.roadClass] : 0, road = r.id, cls = r.roadClass };
                 adj[a].Add(edges.Count); adj[b].Add(edges.Count);
                 edges.Add(e);
             }
@@ -99,13 +99,24 @@ public class LundunRoadGraph
     public bool RandomRoadPoint(NavPoint centre, double minD, double maxD, Random rng, bool needPavement,
                                 out NavPoint p, out NavPoint dir, out double halfWidth, out double pavement)
     {
-        pavement = 0;
+        int edge; double t; string cls;
+        return RandomRoadSpot(centre, minD, maxD, rng, needPavement, null, out p, out dir, out halfWidth, out pavement, out edge, out t, out cls);
+    }
+
+    /// The full version: also says which edge (and how far along, 0..1) and the road class.
+    /// classes = only these road classes (null = any). Bridges are always skipped.
+    public bool RandomRoadSpot(NavPoint centre, double minD, double maxD, Random rng, bool needPavement, string[] classes,
+                               out NavPoint p, out NavPoint dir, out double halfWidth, out double pavement,
+                               out int edgeIndex, out double along, out string roadClass)
+    {
+        pavement = 0; edgeIndex = -1; along = 0; roadClass = "";
         p = centre; dir = new NavPoint(0, 1); halfWidth = 5;
         List<int> cand = new List<int>(); double total = 0;
         for (int i = 0; i < edges.Count; i++)
         {
             if (edges[i].road.StartsWith("B")) continue;
             if (needPavement && edges[i].pave <= 0) continue;
+            if (classes != null && Array.IndexOf(classes, edges[i].cls) < 0) continue;
             NavPoint a = nodes[edges[i].a], b = nodes[edges[i].b];
             double near = SegDist(centre, a, b), far = Math.Max(NavPoint.Dist(centre, a), NavPoint.Dist(centre, b));
             if (near <= maxD && far >= minD) { cand.Add(i); total += edges[i].len; }
@@ -123,9 +134,29 @@ public class LundunRoadGraph
             if (d < minD || d > maxD) continue;
             double len = NavPoint.Dist(a, b);
             p = q; dir = new NavPoint((b.x - a.x) / len, (b.z - a.z) / len); halfWidth = e.width / 2; pavement = e.pave;
+            edgeIndex = ei; along = t; roadClass = e.cls;
             return true;
         }
         return false;
+    }
+
+    // ----- for traffic -----
+    public NavPoint NodePosition(int n) { return nodes[n]; }
+    public void EdgeEnds(int e, out int a, out int b) { a = edges[e].a; b = edges[e].b; }
+
+    /// Nodes you can drive to from 'node', except 'cameFrom' (no U-turns unless it's a dead end).
+    public void NextNodes(int node, int cameFrom, List<int> result)
+    {
+        result.Clear();
+        foreach (int ei in adj[node]) { Edge e = edges[ei]; int o = e.a == node ? e.b : e.a; if (o != cameFrom) result.Add(o); }
+        if (result.Count == 0 && cameFrom >= 0) result.Add(cameFrom);
+    }
+
+    /// Width and class of the road between two neighbouring nodes.
+    public bool EdgeInfo(int a, int b, out double width, out string roadClass)
+    {
+        foreach (int ei in adj[a]) { Edge e = edges[ei]; if ((e.a == a && e.b == b) || (e.a == b && e.b == a)) { width = e.width; roadClass = e.cls; return true; } }
+        width = 10; roadClass = "street"; return false;
     }
 
     static double SegDist(NavPoint q, NavPoint a, NavPoint b)

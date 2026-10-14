@@ -101,6 +101,9 @@ public class NPCBrain : MonoBehaviour
         }
     }
 
+    /// Run away from a spot (e.g. a carjacked driver running from James).
+    public void Panic(Vector3 from) { if (state != State.Dead) StartPanic(from); }
+
     void StartPanic(Vector3 from)
     {
         threatPosition = from;

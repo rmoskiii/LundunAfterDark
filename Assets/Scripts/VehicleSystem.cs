@@ -18,7 +18,6 @@ public class VehicleSystem : MonoBehaviour
     [SerializeField] private HoldButton leftButton;
     [SerializeField] private HoldButton rightButton;
 
-    private CarController[] cars;
     private CarController nearbyCar;
     private CarController currentCar;
     private bool controlsLocked;
@@ -28,6 +27,10 @@ public class VehicleSystem : MonoBehaviour
 
     // Fired after BUSTED / WASTED put the player back at the police station / hospital (the clock jumps an hour)
     public static event System.Action Respawned;
+
+    // Fired just before James gets into a car (traffic cars use it: the driver gets pulled out)
+    public static event System.Action<CarController> Entering;
+    public CarController CurrentCar => currentCar;
 
     // Whatever the police should chase: James on foot, or the car he's driving
     public Transform PlayerTarget => currentCar != null ? currentCar.transform : player.transform;
@@ -49,8 +52,7 @@ public class VehicleSystem : MonoBehaviour
     void Start()
     {
         Locked = false;
-        cars = FindObjectsByType<CarController>(FindObjectsSortMode.None);
-        foreach (CarController car in cars) car.IsDriven = false;
+        foreach (CarController car in CarController.All) car.IsDriven = false;
         ShowDrivingUI(false);
     }
 
@@ -70,9 +72,10 @@ public class VehicleSystem : MonoBehaviour
         // On foot: is there a car close enough to get into?
         nearbyCar = null;
         float closest = enterRange;
-        foreach (CarController car in cars)
+        foreach (CarController car in CarController.All)    // includes traffic and parked cars
         {
             if (car == null || !car.enabled) continue;
+            if (car.GetComponent<PoliceAI>() != null) continue;   // can't steal police cars (yet)
             float d = Vector3.Distance(player.transform.position, car.transform.position);
             if (d < closest) { closest = d; nearbyCar = car; }
         }
@@ -84,6 +87,7 @@ public class VehicleSystem : MonoBehaviour
     {
         if (nearbyCar == null || controlsLocked) return;
 
+        if (Entering != null) Entering(nearbyCar);
         currentCar = nearbyCar;
         player.SetActive(false);                    // James "gets in"
         currentCar.IsDriven = true;

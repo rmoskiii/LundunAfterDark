@@ -13,8 +13,8 @@ public class LundunWorldRuntime : MonoBehaviour
     [SerializeField] private float lostY = -15f;             // anything below this has sunk
     [SerializeField] private Transform playerCar;
     [SerializeField] private Transform carRespawn;
-    [SerializeField] private float offRoadCost = 2f;
-    [SerializeField] private float pavementCost = 3f;        // NavMesh area 4          // NavMesh area 0 (grass, other walkable stuff). Roads are area 3, cost 1.
+    [SerializeField] private float offRoadCost = 2f;          // NavMesh area 0 (grass, other walkable stuff). Roads are area 3, cost 1.
+    [SerializeField] private float pavementCost = 3f;         // NavMesh area 4 (pavements)
 
     private VehicleSystem vehicles;
     private float nextSweep;
