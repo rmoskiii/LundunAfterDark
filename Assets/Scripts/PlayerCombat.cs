@@ -17,6 +17,13 @@ public class PlayerCombat : MonoBehaviour
     [SerializeField] private float vehicleDamageMultiplier = 0.25f;   // cars are tougher than people
     [SerializeField] private LayerMask hitMask = ~0;
 
+    [Header("Punch (Attack with someone in arm's reach punches instead of shooting)")]
+    [SerializeField] private float punchReach = 1.8f;           // metres from James
+    [SerializeField] private float punchDamage = 20f;           // 5 punches floors someone
+    [SerializeField] private float punchRate = 1.6f;            // punches per second when held
+    [Range(0f, 1f)] [SerializeField] private float punchFightBack = 0.3f;   // they square up to James afterwards
+    [SerializeField] private AudioClip punchClip;               // optional thud
+
     [Header("Feel")]
     [SerializeField] private float recoilUp = 0.6f;
     [SerializeField] private float recoilSideways = 0.25f;
@@ -42,6 +49,8 @@ public class PlayerCombat : MonoBehaviour
     private InputAction fireAction;
     private Transform cam;
     private float nextFireTime;
+    private float nextPunchTime;
+    private readonly Collider[] nearby = new Collider[16];
     private readonly Queue<GameObject> decals = new Queue<GameObject>();
 
     void Start()
@@ -52,7 +61,17 @@ public class PlayerCombat : MonoBehaviour
 
     void Update()
     {
-        if (WantsToFire() && Time.time >= nextFireTime)
+        if (!WantsToFire()) return;
+
+        // someone right in front of James: fists, not bullets
+        Health close = FindPunchTarget();
+        if (close != null)
+        {
+            if (Time.time >= nextPunchTime) { nextPunchTime = Time.time + 1f / punchRate; Punch(close); }
+            return;
+        }
+
+        if (Time.time >= nextFireTime)
         {
             nextFireTime = Time.time + 1f / fireRate;
             Shoot();
@@ -70,6 +89,68 @@ public class PlayerCombat : MonoBehaviour
         }
 
         return true;
+    }
+
+    // ------------------------------------------------------------------ punching
+    Health FindPunchTarget()
+    {
+        Vector3 me = transform.position;
+        Vector3 look = cam.forward; look.y = 0f;
+        if (look.sqrMagnitude < 0.01f) look = transform.forward;
+        look.Normalize();
+
+        int n = Physics.OverlapSphereNonAlloc(me + Vector3.up, punchReach, nearby, ~0, QueryTriggerInteraction.Ignore);
+        Health best = null; float bestD = float.MaxValue;
+        for (int i = 0; i < n; i++)
+        {
+            Health h = nearby[i].GetComponentInParent<Health>();
+            if (h == null || h.IsDead || h.transform.IsChildOf(transform)) continue;
+            if (h.GetComponent<NPCBrain>() == null && h.GetComponent<PoliceOfficer>() == null) continue;   // people only, not bins
+            Vector3 to = h.transform.position - me; to.y = 0f;
+            float d = to.magnitude;
+            if (d > punchReach || d < 0.01f) continue;
+            if (Vector3.Dot(to / d, look) < 0.35f) continue;          // roughly where you're aiming
+            if (d < bestD) { bestD = d; best = h; }
+        }
+        return best;
+    }
+
+    void Punch(Health target)
+    {
+        Vector3 to = target.transform.position - transform.position; to.y = 0f;
+        Vector3 dir = to.sqrMagnitude > 0.001f ? to.normalized : transform.forward;
+        transform.rotation = Quaternion.LookRotation(dir);          // square up to them
+        LundunPlayerReact.Act("Punch", 0.7f);
+
+        if (gunAudio != null && punchClip != null) gunAudio.PlayOneShot(punchClip);
+        if (cameraFollow != null) cameraFollow.AddShake(shakeAmount * 0.6f);
+
+        bool isOfficer = target.GetComponent<PoliceOfficer>() != null;
+        NPCBrain brain = target.GetComponent<NPCBrain>();
+        GameObject who = target.gameObject;
+        Vector3 from = transform.position;
+
+        // pedestrians reel (facing James) before the damage lands, so they flinch with the punch, not the gunshot flinch
+        if (brain != null && !isOfficer)
+        {
+            float faceYaw = Mathf.Atan2(-dir.x, -dir.z) * Mathf.Rad2Deg;
+            bool fightBack = Random.value < punchFightBack;
+            LundunStagger.Play(who, "Punched", 1.0f, true, faceYaw, () =>
+            {
+                if (who == null) return;
+                if (fightBack && who.GetComponent<LundunAngryDriver>() == null) who.AddComponent<LundunAngryDriver>().Begin(false);
+                else { NPCBrain b = who.GetComponent<NPCBrain>(); if (b != null) b.Panic(from); }
+            });
+        }
+
+        bool wasAlive = !target.IsDead;
+        Vector3 hitPoint = target.transform.position + Vector3.up * 1.5f;
+        target.TakeDamage(punchDamage, hitPoint, dir * 2f);
+        if (!wasAlive) return;
+
+        if (isOfficer) CrimeSystem.Report(target.IsDead ? CrimeType.KillOfficer : CrimeType.AssaultOfficer, hitPoint);
+        else if (brain != null) CrimeSystem.Report(target.IsDead ? CrimeType.KillPedestrian : CrimeType.AssaultPedestrian, hitPoint);
+        if (hitMarker != null) hitMarker.Show(target.IsDead);
     }
 
     void Shoot()

@@ -165615,12 +165615,26 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LundunPopulation
   budget: 1
   pedestrianPrefabs:
-  - {fileID: 9202867239248782183, guid: 197e772bf7e8b4afeb995145a2c088ae, type: 3}
+  - {fileID: 5204466048250341396, guid: 3d1f1f977d49f430b84fe5f535dab786, type: 3}
+  - {fileID: 4619497606425862178, guid: 4176a0e5da1f84615b2fdbd3be9936bb, type: 3}
+  - {fileID: 7207630065306023650, guid: 9f76fcdef8fe34edbba29da6a9722e13, type: 3}
+  - {fileID: 1543171981043166535, guid: 4b33c533de8864b9181200001deef812, type: 3}
+  - {fileID: 3740384595983660718, guid: d9c6ca59dfdf2441b91544b698d4d9f6, type: 3}
+  - {fileID: 4471935234050122318, guid: 80583530dcf314a5995f5232358dce02, type: 3}
+  - {fileID: 5568327245592778397, guid: 2cc6ec4e52401402f84f9f748c155ed9, type: 3}
+  - {fileID: 1081486493960518602, guid: 555fa0db656f8433c92402e2a4420444, type: 3}
+  - {fileID: 2977350835935725219, guid: 9a35adb18fb1947ff8ba202bf7eb2456, type: 3}
+  gunModel: {fileID: 919132149155446097, guid: 4e5b6d888017f4edcb1fa30a1785ea0d, type: 3}
+  districtFlavour: 0.6
   spawnNearest: 45
   spawnFarthest: 110
   despawnBeyond: 140
   tickEvery: 0.25
   spawnsPerTick: 2
+  shoveSpeed: 3.5
+  shoveReach: 1.25
+  shoveFightBack: 0.25
+  shoveRunOff: 0.35
   carPrefabs:
   - {fileID: 7325134764430620115, guid: 4b7f18309d1324984a7b643d80b75d6a, type: 3}
   - {fileID: 3723237390087905040, guid: 0b8f89d0ffb364eb588a9fc8f9097d89, type: 3}
@@ -165649,6 +165663,10 @@ MonoBehaviour:
   carSpawnNearest: 70
   carSpawnFarthest: 170
   carDespawnBeyond: 220
+  trafficDensity: 1
+  parkedDensity: 1
+  movingCarSpacing: 25
+  parkedCarSpacing: 10
   paintColours:
   - {r: 0.85, g: 0.85, b: 0.87, a: 1}
   - {r: 0.08, g: 0.08, b: 0.09, a: 1}

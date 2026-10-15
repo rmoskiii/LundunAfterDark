@@ -17,17 +17,33 @@ public class LundunPopulation : MonoBehaviour
 
     [Header("Pedestrians")]
     [SerializeField] private GameObject[] pedestrianPrefabs;
+    [Tooltip("Pistol model for armed drivers (set by Lundun → 12  Build People)")]
+    [SerializeField] private GameObject gunModel;
+    [Tooltip("How strongly districts prefer their own look (Ped_Suit_* in Knightsbury, Ped_Street_* on the estate / Peckam, Ped_Work_* at the warehouses)")]
+    [SerializeField, Range(0f, 1f)] private float districtFlavour = 0.6f;
     [SerializeField] private float spawnNearest = 45f;
     [SerializeField] private float spawnFarthest = 110f;
     [SerializeField] private float despawnBeyond = 140f;
     [SerializeField] private float tickEvery = 0.25f;       // how often the manager thinks (not every frame)
     [SerializeField] private int spawnsPerTick = 2;
 
+    [Header("Shoving: run into people and they stumble")]
+    [SerializeField] private float shoveSpeed = 3.5f;          // James must be at least jogging (m/s)
+    [SerializeField] private float shoveReach = 1.25f;         // metres, centre to centre
+    [Range(0f, 1f)] [SerializeField] private float shoveFightBack = 0.25f;   // squares up to James afterwards
+    [Range(0f, 1f)] [SerializeField] private float shoveRunOff = 0.35f;      // runs off; the rest just carry on
+
     [Header("Traffic and parked cars")]
     [SerializeField] private GameObject[] carPrefabs;          // made by Lundun → 9  Build Traffic
     [SerializeField] private float carSpawnNearest = 70f;
     [SerializeField] private float carSpawnFarthest = 170f;
     [SerializeField] private float carDespawnBeyond = 220f;
+    [Tooltip("1 = normal. 0.5 = half as many moving cars, 1.5 = busier")]
+    [SerializeField, Range(0f, 2f)] private float trafficDensity = 1f;
+    [Tooltip("1 = normal. 0 = no parked cars")]
+    [SerializeField, Range(0f, 2f)] private float parkedDensity = 1f;
+    [SerializeField] private float movingCarSpacing = 25f;     // a new moving car never appears closer than this to another car
+    [SerializeField] private float parkedCarSpacing = 10f;
     [SerializeField] private Color[] paintColours = {
         new Color(0.85f, 0.85f, 0.87f), new Color(0.08f, 0.08f, 0.09f), new Color(0.55f, 0.57f, 0.6f), new Color(0.6f, 0.06f, 0.06f),
         new Color(0.08f, 0.18f, 0.42f), new Color(0.12f, 0.3f, 0.18f), new Color(0.75f, 0.68f, 0.55f), new Color(0.95f, 0.95f, 0.95f) };
@@ -45,11 +61,11 @@ public class LundunPopulation : MonoBehaviour
     [SerializeField] private bool showStats = true;
 
     // Budgets: pedestrians, moving cars, parked cars, buses (cars/buses used from R2)
-    static readonly int[,] Budgets = { { 10, 6, 12, 1 }, { 18, 10, 20, 2 }, { 26, 14, 28, 2 } };
+    static readonly int[,] Budgets = { { 10, 3, 5, 1 }, { 18, 6, 9, 2 }, { 26, 9, 14, 2 } };
 
     public int PedestrianBudget { get { return Budgets[(int)budget, 0]; } }
-    public int MovingCarBudget { get { return Budgets[(int)budget, 1]; } }
-    public int ParkedCarBudget { get { return Budgets[(int)budget, 2]; } }
+    public int MovingCarBudget { get { return Mathf.RoundToInt(Budgets[(int)budget, 1] * trafficDensity); } }
+    public int ParkedCarBudget { get { return Mathf.RoundToInt(Budgets[(int)budget, 2] * parkedDensity); } }
     public int BusBudget { get { return Budgets[(int)budget, 3]; } }
     /// 0.4–1: shrinks when the phone struggles. Other spawners multiply their budgets by this too.
     public float Scale { get; private set; }
@@ -77,7 +93,7 @@ public class LundunPopulation : MonoBehaviour
     private static readonly string[] ParkClasses = { "street", "arterial" };
     private readonly Dictionary<Material, Material[]> paintCache = new Dictionary<Material, Material[]>();
 
-    void Awake() { Instance = this; Scale = 1f; TimeOfDayFactor = 1f; }
+    void Awake() { Instance = this; Scale = 1f; TimeOfDayFactor = 1f; if (gunModel != null) LundunAngryDriver.GunModel = gunModel; }
     void OnDestroy() { if (Instance == this) Instance = null; }
 
     void Start()
@@ -91,6 +107,7 @@ public class LundunPopulation : MonoBehaviour
         // average frame time (unscaled, so the paused map doesn't count)
         float dt = Time.unscaledDeltaTime;
         if (dt > 0f && dt < 0.5f) frameAvg = Mathf.Lerp(frameAvg, dt, 0.05f);
+        CheckShoves();
         if (Time.unscaledTime < nextTick) return;
         nextTick = Time.unscaledTime + tickEvery;
         if (vehicles == null) { vehicles = FindAnyObjectByType<VehicleSystem>(); if (vehicles == null) return; }
@@ -112,6 +129,48 @@ public class LundunPopulation : MonoBehaviour
                        + "   traffic " + movingCount + "/" + movingTarget + "   parked " + parkedCount + "/" + parkedTarget
                        + "   buses " + busCount + "/" + busTarget
                        + "   scale " + Scale.ToString("0.00");
+    }
+
+    // ------------------------------------------------------------------ shoving
+    private CharacterController playerBody;
+    private float nextShove;
+    const float ShoveClip = 4.3f;               // Anim_Shove_reaction (stumble and spin round)
+    const float ShoveClipYaw = 12f;             // the stumble drifts ~12° right of straight ahead
+
+    /// James running into a pedestrian on foot knocks them stumbling (every frame, but only ~20 people to check).
+    void CheckShoves()
+    {
+        PlayerHealth ph = PlayerHealth.Instance;
+        if (ph == null || ph.IsDead || !ph.OnFoot || Time.time < nextShove) return;
+        if (playerBody == null || playerBody.transform != ph.Body) playerBody = ph.Body.GetComponent<CharacterController>();
+        if (playerBody == null) return;
+        Vector3 v = playerBody.velocity; v.y = 0f;
+        if (v.magnitude < shoveSpeed) return;
+        Vector3 me = ph.Body.position, dir = v.normalized;
+        foreach (Ped p in peds)
+        {
+            if (!p.active || p.go == null || (p.health != null && p.health.IsDead)) continue;
+            Vector3 to = p.go.transform.position - me; to.y = 0f;
+            if (to.sqrMagnitude > shoveReach * shoveReach || Vector3.Dot(to.normalized, dir) < 0.3f) continue;
+            if (LundunStagger.Busy(p.go)) continue;
+            nextShove = Time.time + 0.4f;
+            GameObject who = p.go;
+            Vector3 pushedFrom = me;
+            bool fighting = who.GetComponent<LundunAngryDriver>() != null;
+            double roll = rng.NextDouble();
+            float yaw = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg - ShoveClipYaw;      // stumble the way James pushed them
+            LundunStagger.Play(who, "Shoved", ShoveClip, true, yaw, () =>
+            {
+                if (fighting || who == null) return;                                   // already having a go at James
+                if (roll < shoveFightBack) who.AddComponent<LundunAngryDriver>().Begin(false);
+                else if (roll < shoveFightBack + shoveRunOff)
+                {
+                    NPCBrain b = who.GetComponent<NPCBrain>();
+                    if (b != null) b.Panic(pushedFrom);
+                }
+            });
+            return;
+        }
     }
 
     // ------------------------------------------------------------------ pedestrians
@@ -150,7 +209,7 @@ public class LundunPopulation : MonoBehaviour
         {
             Vector3 pos;
             if (!FindPavementSpot(player, cam, out pos)) break;
-            Ped p = GetPooled();
+            Ped p = GetPooled(pos);
             if (p == null) break;
             p.go.transform.SetPositionAndRotation(pos, Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f));
             p.go.SetActive(true);        // NavMeshAgent snaps onto the NavMesh here
@@ -159,13 +218,22 @@ public class LundunPopulation : MonoBehaviour
         }
     }
 
-    Ped GetPooled()
+    Ped GetPooled(Vector3 at)
     {
+        string look = rng.NextDouble() < districtFlavour ? LookFor(at) : null;
+        if (look != null) foreach (Ped p in peds) if (!p.active && p.go != null && p.go.name.Contains(look)) return p;
         foreach (Ped p in peds) if (!p.active && p.go != null) return p;
         if (pedestrianPrefabs == null || pedestrianPrefabs.Length == 0) return null;
-        // pool grows up to the High budget, one new person per tick at most
+        // pool grows up to the High budget
         if (peds.Count >= Budgets[2, 0]) return null;
-        GameObject prefab = pedestrianPrefabs[rng.Next(pedestrianPrefabs.Length)];
+        GameObject prefab = null;
+        if (look != null)
+        {
+            List<GameObject> match = new List<GameObject>();
+            foreach (GameObject g in pedestrianPrefabs) if (g != null && g.name.Contains(look)) match.Add(g);
+            if (match.Count > 0) prefab = match[rng.Next(match.Count)];
+        }
+        if (prefab == null) prefab = pedestrianPrefabs[rng.Next(pedestrianPrefabs.Length)];
         if (prefab == null) return null;
         GameObject go = Instantiate(prefab, transform);
         go.SetActive(false);
@@ -180,7 +248,7 @@ public class LundunPopulation : MonoBehaviour
     public GameObject SpawnPersonAt(Vector3 near, float yaw)
     {
         if (!UnityEngine.AI.NavMesh.SamplePosition(near, out UnityEngine.AI.NavMeshHit hit, 3f, UnityEngine.AI.NavMesh.AllAreas)) return null;
-        Ped p = GetPooled();
+        Ped p = GetPooled(hit.position);
         if (p == null)
         {
             // pool full: borrow the farthest unseen person
@@ -222,6 +290,9 @@ public class LundunPopulation : MonoBehaviour
             }
             if (c.health != null && c.health.IsWrecked) continue;            // wrecks don't count
             if (c.bus) continue;                                              // counted in TickBuses
+            // too many standing cars (e.g. lots you've stolen and dumped): tidy the far, unseen ones away
+            if (c.ai.CurrentMode != LundunTrafficCar.Mode.Driving && parkedCount >= parkedTarget && d > 60f && !seen)
+            { if (damaged) { Destroy(c.go); cars.RemoveAt(i); } else { c.go.SetActive(false); c.active = false; } continue; }
             if (c.ai.CurrentMode == LundunTrafficCar.Mode.Driving) movingCount++; else parkedCount++;
         }
 
@@ -250,7 +321,7 @@ public class LundunPopulation : MonoBehaviour
             float lateral = parked ? (float)halfWidth - 1.2f : (float)(halfWidth * 0.5);
             Vector3 pos = new Vector3((float)p.x, 0f, (float)p.z) + left * lateral;
             if (cam != null && LundunView.CanSee(cam, pos)) continue;
-            if (Physics.CheckSphere(pos + Vector3.up, 3.5f, LayerMask.GetMask("Vehicle", "Player"), QueryTriggerInteraction.Ignore)) continue;
+            if (Physics.CheckSphere(pos + Vector3.up, parked ? parkedCarSpacing : movingCarSpacing, LayerMask.GetMask("Vehicle", "Player"), QueryTriggerInteraction.Ignore)) continue;
 
             Car c = GetPooledCar();
             if (c == null) return false;
@@ -404,6 +475,33 @@ public class LundunPopulation : MonoBehaviour
     {
         foreach (Renderer r in c.renderers) if (r != null && r.isVisible) return true;
         return false;
+    }
+
+    /// Which look suits this spot: "Suit" in Knightsbury, "Street" on the estate / in Peckam, "Work" at the warehouses.
+    string LookFor(Vector3 at)
+    {
+        LundunNavigation nav = LundunNavigation.Instance;
+        if (nav == null || nav.World == null || nav.World.districts == null) return null;
+        foreach (LwPoly d in nav.World.districts)
+        {
+            if (!InPoly(at.x, at.z, d.polygon)) continue;
+            switch (d.id)
+            {
+                case "D_KNIGHT": return "Suit";
+                case "D_GILMOR": case "D_PECKAM": return "Street";
+                case "D_CANARY": return "Work";
+                default: return null;
+            }
+        }
+        return null;
+    }
+
+    static bool InPoly(float x, float z, LwPoint[] p)
+    {
+        bool c = false;
+        for (int i = 0, j = p.Length - 1; i < p.Length; j = i++)
+            if (((p[i].z > z) != (p[j].z > z)) && (x < (p[j].x - p[i].x) * (z - p[i].z) / (p[j].z - p[i].z) + p[i].x)) c = !c;
+        return c;
     }
 
     bool FindPavementSpot(Vector3 player, Camera cam, out Vector3 pos)

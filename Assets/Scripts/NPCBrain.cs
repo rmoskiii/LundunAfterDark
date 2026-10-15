@@ -39,20 +39,21 @@ public class NPCBrain : MonoBehaviour
         animator = GetComponentInChildren<Animator>();
         health = GetComponent<Health>();
         idleTimer = Random.Range(idleTimeRange.x, idleTimeRange.y);
+        health.Died += OnDied;          // always listen for death, even while switched off (fighting James, stumbling)
     }
+
+    void OnDestroy() { if (health != null) health.Died -= OnDied; }
 
     // Start listening when switched on, stop when switched off (like initState / dispose)
     void OnEnable()
     {
         health.Damaged += OnDamaged;
-        health.Died += OnDied;
         PlayerCombat.GunshotFired += OnGunshot;
     }
 
     void OnDisable()
     {
         health.Damaged -= OnDamaged;
-        health.Died -= OnDied;
         PlayerCombat.GunshotFired -= OnGunshot;
     }
 
@@ -154,12 +155,15 @@ public class NPCBrain : MonoBehaviour
 
     void OnDamaged(Vector3 hitPoint)
     {
-        if (state == State.Dead) return;
+        if (state == State.Dead || health.IsDead) return;
         StartPanic(threatPosition);
+        // flinch on the spot for a moment, then run (the reaction clip moves them a little)
+        LundunStagger.Play(gameObject, "Hit", 0.8f, true);
     }
 
-        void OnDied()
+    void OnDied()
     {
+        if (state == State.Dead) return;
         state = State.Dead;
 
         agent.isStopped = true;

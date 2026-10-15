@@ -142,6 +142,7 @@ public class PoliceOfficer : MonoBehaviour
         bool shooting = stars >= starsToShoot && distance > closeRange && distance < shootRange
                      && PlayerHealth.Instance != null && !PlayerHealth.Instance.IsDead;
 
+        LundunAnim.Bool(animator, "Aim", shooting);
         if (shooting)
         {
             // Stand, face you, fire
@@ -151,6 +152,7 @@ public class PoliceOfficer : MonoBehaviour
             {
                 nextShot = Time.time + timeBetweenShots * Random.Range(0.8f, 1.3f);
                 FireAt(target);
+                LundunAnim.Trigger(animator, "Shoot");
             }
             return;
         }

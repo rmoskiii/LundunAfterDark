@@ -96,7 +96,7 @@ pois_out = [dict(id=POI_EXTRA[n]['id'], name=n, kind=k, x=float(p[0]), z=float(p
 
 SPAWNS = [
     dict(id='SP_PLAYER_START', x=905.0, z=197.0, yaw=180, note='Pavement outside the safehouse door; confirm against the prefab pavement (test G4)'),
-    dict(id='SP_KESTREL', x=948.0, z=187.5, yaw=270, note='Parked on the left, westbound, Peckam High Street (east of the old street, clear of props)'),
+    dict(id='SP_KESTREL', x=934.0, z=183.6, yaw=270, note='Parked up on the south pavement, Peckam High Street (east of the old street, out of the traffic lane)'),
     dict(id='SP_BUSTED', x=780.5, z=250.0, yaw=90, note='Police station steps, Rye Lane west pavement'),
     dict(id='SP_WASTED', x=240.0, z=741.0, yaw=180, note='Hospital entrance, North Embankment north pavement'),
     dict(id='SP_M1_PARK', x=300.0, z=476.0, yaw=270, note='Estate car park drop-off (drive target for M1)'),
