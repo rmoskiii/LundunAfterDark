@@ -279,7 +279,7 @@ namespace LundunGreybox
         /// Bubble-letter piece: outline, two-tone fill, highlights, drips. Transparent background.
         public void Graffiti(string name, string word, int style)
         {
-            int w = 512, h = 224, x, y; if (!Alloc(name, w, h, out x, out y)) return;
+            int w = 448, h = 192, x, y; if (!Alloc(name, w, h, out x, out y)) return;
             Fill(x, y, w, h, new Col(0, 0, 0, 0));
             Col[][] palettes = {
                 new[] { Col.Hex("ff3d7f"), Col.Hex("ffd23f"), Col.Hex("101010"), Col.Hex("ffffff") },
@@ -405,6 +405,52 @@ namespace LundunGreybox
             Fill(x + w / 2 - 1, y + 8, 3, h - 16, line);
             for (int a = 0; a < 64; a++) { double t0 = a * Math.PI * 2 / 64, t1 = (a + 1) * Math.PI * 2 / 64; Seg(x + w / 2 + Math.Cos(t0) * 36, y + h / 2 + Math.Sin(t0) * 36, x + w / 2 + Math.Cos(t1) * 36, y + h / 2 + Math.Sin(t1) * 36, 1.4, line); }
             Frame(x + 8, y + h / 2 - 50, 50, 100, 3, line); Frame(x + w - 58, y + h / 2 - 50, 50, 100, 3, line);
+        }
+
+        /// Grid of office / ward windows, some lit warmer than others.
+        public void OfficeWindows(string name)
+        {
+            int w = 256, h = 128, x, y; if (!Alloc(name, w, h, out x, out y)) return;
+            Fill(x, y, w, h, Col.Hex("2b3036"));
+            for (int r = 0; r < 4; r++)
+                for (int c = 0; c < 8; c++)
+                {
+                    double t = rng.NextDouble();
+                    Col lit = t < 0.25 ? Col.Hex("1c2733") : t < 0.8 ? Col.Hex("e8f0ff") : Col.Hex("ffe2a8");
+                    Fill(x + c * 32 + 4, y + r * 32 + 6, 24, 20, lit);
+                }
+        }
+
+        public void HomeWindows(string name)
+        {
+            int w = 256, h = 128, x, y; if (!Alloc(name, w, h, out x, out y)) return;
+            Fill(x, y, w, h, new Col(0, 0, 0, 0));
+            for (int r = 0; r < 2; r++)
+                for (int c = 0; c < 3; c++)
+                {
+                    int wx = x + 14 + c * 82, wy = y + 10 + r * 62;
+                    Fill(wx - 4, wy - 4, 62, 48, Col.Hex("f2efe6"));
+                    FillV(wx, wy, 54, 40, Col.Hex("ffcf7a"), Col.Hex("fff0c8"));
+                    Fill(wx + 25, wy, 4, 40, Col.Hex("f2efe6")); Fill(wx, wy + 18, 54, 4, Col.Hex("f2efe6"));
+                }
+            Clip(x, y, w, h);
+        }
+
+        /// The yellow / green check pattern on an ambulance's side.
+        public void Battenburg(string name)
+        {
+            int w = 256, h = 64, x, y; if (!Alloc(name, w, h, out x, out y)) return;
+            for (int c = 0; c < 8; c++) for (int r = 0; r < 2; r++)
+                    Fill(x + c * 32, y + r * 32, 32, 32, (c + r) % 2 == 0 ? Col.Hex("1f9e45") : Col.Hex("ffd400"));
+        }
+
+        /// Blue road sign with a white H (hospital this way).
+        public void HSign(string name)
+        {
+            int s = 128, x, y; if (!Alloc(name, s, s, out x, out y)) return;
+            Fill(x, y, s, s, Col.Hex("1d4fb8"));
+            Frame(x + 6, y + 6, s - 12, s - 12, 5, Col.Hex("ffffff"));
+            Text("H", x + 20, y + 20, s - 40, s - 40, Col.Hex("ffffff"), 0.6, Align.Centre);
         }
 
         public void Mattress(string name)

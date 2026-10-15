@@ -20,6 +20,7 @@ namespace LundunGreybox
         public List<DressBox> colliders = new List<DressBox>();
         public List<BusStopInfo> busStops = new List<BusStopInfo>();
         public List<StationInfo> stations = new List<StationInfo>();
+        public List<PlaceInfo> places = new List<PlaceInfo>();
         public DressAtlas atlas;
         public List<string> log = new List<string>();
         public Dictionary<string, int> counts = new Dictionary<string, int>();
@@ -156,6 +157,7 @@ namespace LundunGreybox
             D.atlas = A;
             foreach (LampInfo l in lampList) Claim(new V2(l.x, l.z), 1.2);
 
+            DressPlaces();                  // R7: hospitals, police stations, safehouses (first, so nothing else lands on them)
             List<ParkPlan> plans = PlanParks();
             DressParks(plans);
             DressEstateCage();
@@ -216,7 +218,9 @@ namespace LundunGreybox
             { "leaf1", "3f6b2a" }, { "leaf2", "2f5a24" }, { "leaf3", "557d33" }, { "yellow", "f2c200" }, { "navy", "1b2766" },
             { "glass", "1d2833" }, { "concrete", "8d8a84" }, { "tile", "d8d4c8" }, { "estatebin", "4c5a4f" }, { "lid", "2c332e" },
             { "bag", "111111" }, { "metal", "8e9496" }, { "gold", "c9a24a" }, { "pubgreen", "1f3b2c" }, { "tactile", "b5524a" },
-            { "cagegreen", "2e4a33" }, { "pit", "2a241e" }, { "slab", "9a968e" }, { "orange", "d96a1b" } };
+            { "cagegreen", "2e4a33" }, { "pit", "2a241e" }, { "slab", "9a968e" }, { "orange", "d96a1b" },
+            { "hospwall", "e9e6dc" }, { "nhsblue", "1d5fb0" }, { "ambyellow", "f2d21b" }, { "bluelight", "3a7bff" }, { "bluelamp", "2f6bff" },
+            { "safegreen", "3cff7a" }, { "lawn", "3e6b2e" }, { "drive", "6f6a62" }, { "stucco", "efe9dc" }, { "modernwall", "7c8187" }, { "brick", "7a3b2c" } };
 
         static Dictionary<string, string> districtCode = new Dictionary<string, string>
         { { "D_KNIGHT", "SW3" }, { "D_CANARY", "E14" }, { "D_CANARY_PEN", "E14" }, { "D_GILMOR", "SE17" }, { "D_PECKAM", "SE15" } };
@@ -239,6 +243,12 @@ namespace LundunGreybox
             for (int i = 0; i < Ads.Length; i++) { string[] d = Ads[i]; a.Billboard("ad_" + i, d[0], d[1], Col.Hex(d[2]), Col.Hex(d[3]), Col.Hex(d[4]), Col.Hex(d[5])); }
             for (int i = 0; i < Tags.Length; i++) a.Graffiti("tag_" + i, Tags[i], i);
             a.ChainLink("chainlink"); a.Railing("railing"); a.Stairwell("stairs");
+            a.OfficeWindows("officewin"); a.HomeWindows("homewin"); a.Battenburg("battenburg"); a.HSign("sign_H");
+            a.Sign("sign_AE", 640, 80, "EMERGENCY  A&E", Col.Hex("c8102e"), Col.Hex("ffffff"), new Col(0, 0, 0, 0), 0.5);
+            a.Sign("sign_POLICE", 640, 80, "POLICE", Col.Hex("1b2766"), Col.Hex("ffffff"), new Col(0, 0, 0, 0), 0.5);
+            foreach (PlaceSite ps in PlaceSpecs())
+                if (ps.kind == "hospital") a.Sign("sign_" + ps.id, 640, 80, ps.name.ToUpperInvariant(), Col.Hex("1d5fb0"), Col.Hex("ffffff"), new Col(0, 0, 0, 0), 0.48);
+                else if (ps.kind == "police") a.Sign("sign_" + ps.id, 640, 80, ps.name.ToUpperInvariant(), Col.Hex("10183d"), Col.Hex("ffffff"), Col.Hex("2f6bff"), 0.48);
             a.Shutter("shutter"); a.ShopWindow("shopwin"); a.PubWindow("pubwin"); a.Pitch("pitch"); a.Mattress("mattress");
             return a;
         }

@@ -33,6 +33,7 @@ public class WastedSystem : MonoBehaviour
     IEnumerator WastedSequence()
     {
         bool onFoot = !vehicleSystem.IsDriving;
+        Vector3 diedAt = vehicleSystem.PlayerTarget.position;
         Transform body = playerHealth.Body;
         Animator anim = body.GetComponentInChildren<Animator>();
 
@@ -69,7 +70,9 @@ public class WastedSystem : MonoBehaviour
 
         WantedSystem.Instance.ClearWanted();
         PoliceAI.ClearAll();                               // fresh start outside the hospital
-        vehicleSystem.RespawnPlayer(hospital.position, hospital.rotation);
+        Vector3 wakeAt = hospital.position; Quaternion wakeRot = hospital.rotation;
+        LundunPlaces.Pick("hospital", diedAt, ref wakeAt, ref wakeRot);     // R7: the nearest hospital
+        vehicleSystem.RespawnPlayer(wakeAt, wakeRot);
         playerHealth.ResetHealth();
         vehicleSystem.LockControls(false);
         yield return new WaitForSecondsRealtime(0.5f);

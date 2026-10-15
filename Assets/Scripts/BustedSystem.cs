@@ -72,6 +72,7 @@ public class BustedSystem : MonoBehaviour
     IEnumerator BustedSequence()
     {
         busted = true;
+        Vector3 arrestedAt = vehicleSystem.PlayerTarget.position;
         arrestMeter.gameObject.SetActive(false);
         vehicleSystem.LockControls(true);
 
@@ -104,7 +105,9 @@ public class BustedSystem : MonoBehaviour
         bigText.SetActive(false);
         WantedSystem.Instance.ClearWanted();
         PoliceAI.ClearAll();                                    // no cops waiting outside the station
-        vehicleSystem.RespawnPlayer(policeStation.position, policeStation.rotation);
+        Vector3 releaseAt = policeStation.position; Quaternion releaseRot = policeStation.rotation;
+        LundunPlaces.Pick("police", arrestedAt, ref releaseAt, ref releaseRot);   // R7: the nearest police station
+        vehicleSystem.RespawnPlayer(releaseAt, releaseRot);
         vehicleSystem.LockControls(false);
         progress = 0f;
         yield return new WaitForSecondsRealtime(0.5f);

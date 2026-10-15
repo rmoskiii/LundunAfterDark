@@ -41,8 +41,15 @@ public class LundunNavigation : MonoBehaviour
         {
             World = JsonUtility.FromJson<LundunWorldData>(worldJson.text);
             graph = new LundunRoadGraph(World);
+            LundunPlaces places = FindAnyObjectByType<LundunPlaces>();
             foreach (LwPoi p in World.pois)
+            {
+                if (places != null && (p.id == "POI_SAFEHOUSE" || p.id == "POI_HOSPITAL" || p.id == "POI_POLICE")) continue;   // replaced by R7 places
                 Destinations.Add(new Destination { id = p.id, name = p.name, kind = p.kind, position = new Vector3(p.x, 0f, p.z) });
+            }
+            if (places != null)
+                foreach (LundunPlaces.Place pl in places.Places)
+                    Destinations.Add(new Destination { id = pl.id, name = pl.name, kind = pl.kind, position = pl.door });
         }
         else Debug.LogWarning("[Lundun] LundunNavigation has no world JSON — GPS off.");
         if (waypointBeam != null) waypointBeam.gameObject.SetActive(false);

@@ -51,6 +51,7 @@ public class LundunWorldRuntime : MonoBehaviour
 
     void ReturnCar()
     {
+        if (LundunPlaces.Instance != null && LundunPlaces.Instance.ParkKestrelHome()) return;   // R7: back to the safehouse driveway
         if (carRespawn == null) return;
         Rigidbody rb = playerCar.GetComponent<Rigidbody>();
         if (rb != null) { rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }

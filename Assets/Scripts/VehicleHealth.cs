@@ -31,6 +31,11 @@ public class VehicleHealth : MonoBehaviour
     private ParticleSystem fire;
     private float fuse;
 
+    // what the wreck switched off / darkened, so Repair() can undo it (R7: the Kestrel comes home)
+    private readonly List<MonoBehaviour> wreckDisabled = new List<MonoBehaviour>();
+    private readonly List<Light> wreckLights = new List<Light>();
+    private readonly List<KeyValuePair<Material, Color>> wreckColours = new List<KeyValuePair<Material, Color>>();
+
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
@@ -78,15 +83,15 @@ public class VehicleHealth : MonoBehaviour
 
         // Switch off driving, AI, sirens, lights: it's a wreck now
         foreach (MonoBehaviour mb in GetComponentsInChildren<MonoBehaviour>())
-            if (mb != this) mb.enabled = false;
+            if (mb != this && mb.enabled) { mb.enabled = false; wreckDisabled.Add(mb); }
         foreach (AudioSource a in GetComponentsInChildren<AudioSource>()) a.Stop();
-        foreach (Light l in GetComponentsInChildren<Light>()) l.enabled = false;
+        foreach (Light l in GetComponentsInChildren<Light>()) if (l.enabled) { l.enabled = false; wreckLights.Add(l); }
 
         // Burnt look
         foreach (Renderer r in GetComponentsInChildren<Renderer>())
         {
             if (r is ParticleSystemRenderer) continue;
-            foreach (Material m in r.materials) m.color = m.color * 0.12f;
+            foreach (Material m in r.materials) { wreckColours.Add(new KeyValuePair<Material, Color>(m, m.color)); m.color = m.color * 0.12f; }
         }
 
         // Pop the wreck into the air
@@ -141,6 +146,22 @@ public class VehicleHealth : MonoBehaviour
             CrimeSystem.Report(CrimeType.DestroyPoliceCar, centre);
             Destroy(gameObject, 30f);
         }
+    }
+
+    /// Good as new: undoes the wreck (or just the damage), puts out fire and smoke.
+    public void Repair()
+    {
+        foreach (MonoBehaviour mb in wreckDisabled) if (mb != null) mb.enabled = true;
+        foreach (Light l in wreckLights) if (l != null) l.enabled = true;
+        foreach (KeyValuePair<Material, Color> kv in wreckColours) if (kv.Key != null) kv.Key.color = kv.Value;
+        wreckDisabled.Clear(); wreckLights.Clear(); wreckColours.Clear();
+        if (smoke != null) { Destroy(smoke.gameObject); smoke = null; }
+        if (fire != null) { Destroy(fire.gameObject); fire = null; }
+        IsWrecked = false;
+        IsBurning = false;
+        Current = maxHealth;
+        fuse = fuseTime;
+        if (rb != null) { rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }
     }
 
     float Falloff(Vector3 point, Vector3 centre)

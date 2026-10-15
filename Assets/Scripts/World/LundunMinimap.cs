@@ -65,10 +65,21 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
         if (hudRoot != null) hudBasePos = hudRoot.anchoredPosition;
         radiusM = onFootRadius;
 
+        LundunPlaces places = LundunPlaces.Instance;
+        if (places != null)
+            foreach (LundunPlaces.Place p in places.Places)
+            {
+                Transform t = places.Marker(p.id);
+                if (t == null) continue;
+                if (p.kind == "safehouse") AddStatic(t, new Color(0.25f, 0.9f, 0.45f), "S", 28, true, 1f);
+                else if (p.kind == "hospital") AddStatic(t, new Color(0.95f, 0.25f, 0.3f), "H", 26, false, 1f);
+                else if (p.kind == "police") AddStatic(t, new Color(0.25f, 0.5f, 1f), "P", 26, false, 1f);
+            }
         if (poiGroup != null)
             foreach (Transform t in poiGroup)
             {
                 string id = t.name;
+                if (places != null && (id == "POI_SAFEHOUSE" || id == "POI_HOSPITAL" || id == "POI_POLICE")) continue;
                 if (id == "POI_SAFEHOUSE") AddStatic(t, new Color(0.25f, 0.9f, 0.45f), "S", 30, true, 1f);
                 else if (id == "POI_HOSPITAL") AddStatic(t, new Color(0.95f, 0.25f, 0.3f), "H", 26, false, 1f);
                 else if (id == "POI_POLICE") AddStatic(t, new Color(0.25f, 0.5f, 1f), "P", 26, false, 1f);

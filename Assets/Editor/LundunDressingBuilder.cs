@@ -88,8 +88,27 @@ public static class LundunDressingBuilder
                 g.AddComponent<BoxCollider>().size = new Vector3((float)c.sx, (float)c.sy, (float)c.sz);
             }
 
-            // 4. clear the park trees standing where the stations and cages now go (only those meshes are swapped)
+            // 4. clear the park trees standing where the stations and cages now go, and the buildings standing on
+            //    the hospital / police / safehouse plots (only those meshes are swapped; nothing else moves)
             int treeBlocks = RefreshParkTrees(world, ref container);
+            int buildingBlocks = RefreshBuildings(world, ref container);
+
+            // 4b. hospitals, police stations, safehouses: where James appears, where the Kestrel parks, map markers
+            LundunPlaces places = root.AddComponent<LundunPlaces>();
+            LundunPlaces.Place[] list = new LundunPlaces.Place[r.places.Count];
+            for (int i = 0; i < list.Length; i++)
+            {
+                PlaceInfo pi = r.places[i];
+                list[i] = new LundunPlaces.Place { id = pi.id, kind = pi.kind, name = pi.name,
+                    door = new Vector3((float)pi.doorX, 0f, (float)pi.doorZ), doorYaw = (float)pi.doorYaw,
+                    hasCar = pi.hasCar, car = new Vector3((float)pi.carX, 0f, (float)pi.carZ), carYaw = (float)pi.carYaw };
+                GameObject m = new GameObject("Place_" + pi.id);         // map marker (the minimap follows these)
+                m.transform.SetParent(root.transform, false);
+                m.transform.SetPositionAndRotation(list[i].door, Quaternion.Euler(0f, list[i].doorYaw, 0f));
+            }
+            GameObject carRoot = GameObject.Find("Car");
+            places.SetData(list, carRoot != null ? carRoot.transform : null);
+            if (carRoot == null) Debug.LogWarning("[Lundun] No root object called 'Car' — the Kestrel won't come home to safehouses.");
 
             // 5. the runtime bit: glow by time of day, blinking beacons, bus stops, draw distance
             LundunDressing rt = root.AddComponent<LundunDressing>();
@@ -103,7 +122,7 @@ public static class LundunDressingBuilder
             EditorSceneManager.MarkSceneDirty(scene);
             Selection.activeGameObject = root;
             Debug.Log("[Lundun] City dressed. " + string.Join("\n", r.log.ToArray()) +
-"\n" + prefabParts + " prefab blocks merged, " + treeBlocks + " park tree blocks refreshed. Stations: " + string.Join(", ", names) +
+"\n" + prefabParts + " prefab blocks merged, " + treeBlocks + " park tree blocks and " + buildingBlocks + " building blocks refreshed. Places: " + r.places.Count + ". Stations: " + string.Join(", ", names) +
                       "\nNext: Lundun → 3  Bake Navigation (so people walk round the new things), Cmd+S, Play.");
         }
         catch (Exception e)
@@ -272,6 +291,33 @@ public static class LundunDressingBuilder
                 SerializedProperty ig = so.FindProperty("m_IgnoreFromBuild");
                 if (ig != null) { ig.boolValue = true; so.ApplyModifiedPropertiesWithoutUndo(); }
             }
+            GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.OccludeeStatic);
+            n++;
+        }
+        return n;
+    }
+
+    /// Swaps World/Buildings for the new set (the same buildings, minus the ones on the R7 plots).
+    static int RefreshBuildings(GreyboxResult world, ref Mesh container)
+    {
+        GameObject w = GameObject.Find("World");
+        Transform group = w != null ? w.transform.Find("Buildings") : null;
+        if (group == null) { Debug.LogWarning("[Lundun] World/Buildings not found — buildings not refreshed (run Lundun → 1 first)."); return 0; }
+        foreach (MeshData md in world.meshes)
+            if (md.group == "Buildings" && AssetDatabase.LoadAssetAtPath<Material>("Assets/World/Materials/" + md.material + ".mat") == null)
+            { Debug.LogWarning("[Lundun] Building material " + md.material + " missing — buildings not refreshed. Run Lundun → 1 once, then 13 again."); return 0; }
+        for (int i = group.childCount - 1; i >= 0; i--) Object.DestroyImmediate(group.GetChild(i).gameObject);
+        int n = 0;
+        foreach (MeshData md in world.meshes)
+        {
+            if (md.group != "Buildings" || md.tri.Count == 0) continue;
+            Mesh mesh = ToMesh(md);
+            container = SaveMesh(mesh, container);
+            GameObject go = new GameObject(md.name);
+            go.transform.SetParent(group, false);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/World/Materials/" + md.material + ".mat");
+            if (md.collider) go.AddComponent<MeshCollider>().sharedMesh = mesh;
             GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.OccludeeStatic);
             n++;
         }

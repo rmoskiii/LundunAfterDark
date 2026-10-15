@@ -924,6 +924,9 @@ namespace LundunGreybox
                 }
             }
 
+            int cleared = ClearPlots(R);                                       // R7: room for hospitals, police stations, safehouses
+            if (cleared > 0) R.log.Add("  " + cleared + " buildings cleared for hospitals / police stations / safehouses");
+
             // meshes: one per district material variant per 200 m chunk
             Dictionary<string, MeshData> chunks = new Dictionary<string, MeshData>();
             foreach (BuildingInfo b in R.buildings)
