@@ -56,6 +56,9 @@ public static class LundunPeopleBuilder
             // 1. import settings
             EditorUtility.DisplayProgressBar("Lundun", "Setting up characters…", 0.1f);
             foreach (string p in chars) SetupCharacter(p);
+            // the animations borrow the skeleton of a character with the same bone names
+            // (Mixamo "Without Skin" files have no T-pose of their own)
+            List<Avatar> skeletons = LundunSkeletons.InFolder(CharDir);
             Dictionary<string, AnimationClip> clips = new Dictionary<string, AnimationClip>();
             List<string> missing = new List<string>();
             for (int i = 0; i < Clips.GetLength(0); i++)
@@ -65,7 +68,7 @@ public static class LundunPeopleBuilder
                 if (path == null) path = Clips[i, 1];
                 if (string.IsNullOrEmpty(path) || !File.Exists(path)) { missing.Add(key); continue; }
                 EditorUtility.DisplayProgressBar("Lundun", "Setting up " + key + "…", 0.2f + 0.3f * i / Clips.GetLength(0));
-                AnimationClip c = SetupAnimation(path, key, Looping.Contains(key), Moving.Contains(key));
+                AnimationClip c = SetupAnimation(path, key, Looping.Contains(key), Moving.Contains(key), skeletons);
                 if (c != null) clips[key] = c; else missing.Add(key);
             }
             if (!clips.ContainsKey("Anim_Walk")) { Dialog("No walk animation found (Anim_Walk.fbx). Can't build people without it."); return; }
@@ -156,14 +159,17 @@ public static class LundunPeopleBuilder
         return best;
     }
 
-    static AnimationClip SetupAnimation(string path, string key, bool loop, bool moving)
+    static AnimationClip SetupAnimation(string path, string key, bool loop, bool moving, List<Avatar> skeletons)
     {
         // your existing NPC animations (fallbacks) are used as they are — never re-imported, so Prototype keeps working
         if (!path.StartsWith(AnimDir)) return FirstClip(path);
         ModelImporter mi = AssetImporter.GetAtPath(path) as ModelImporter;
         if (mi == null) return null;
         mi.animationType = ModelImporterAnimationType.Human;
+        // Mixamo "Without Skin" files carry their own T-pose: they get their own avatar.
+        // (Borrowing a character's avatar fails: Unity needs identical bone lengths, and Mixamo characters differ.)
         mi.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
+        mi.sourceAvatar = null;
         mi.importAnimation = true;
         ModelImporterClipAnimation[] defs = mi.defaultClipAnimations;
         if (defs == null || defs.Length == 0) return null;

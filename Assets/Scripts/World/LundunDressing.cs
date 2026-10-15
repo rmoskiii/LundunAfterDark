@@ -16,6 +16,10 @@ public class LundunDressing : MonoBehaviour
     [SerializeField] private Material belishaGlobe;
     [SerializeField] private string[] stationNames = new string[0];
     [SerializeField] private Vector3[] stationPositions = new Vector3[0];
+    [SerializeField] private Vector4[] bikeDocks = new Vector4[0];        // R9: x, z, along-the-kerb x, z
+    [SerializeField] private Vector4[] bikeDocksOut = new Vector4[0];     //     towards the road x, z
+    [SerializeField] private Mesh bikeFrame, bikeWheel;
+    [SerializeField] private Material bikeMaterial;
 
     [Header("Look")]
     [SerializeField] private float dayGlow = 0.35f;
@@ -37,6 +41,11 @@ public class LundunDressing : MonoBehaviour
     public string[] StationNames { get { return stationNames; } }
     public Vector3[] StationPositions { get { return stationPositions; } }
 
+    public void SetBikes(Vector4[] docks, Vector4[] docksOut, Mesh frame, Mesh wheel, Material mat)
+    {
+        bikeDocks = docks; bikeDocksOut = docksOut; bikeFrame = frame; bikeWheel = wheel; bikeMaterial = mat;
+    }
+
     public void SetData(Vector4[] stops, Material glow, Material globe, string[] names, Vector3[] stations)
     {
         busStops = stops; glowMaterial = glow; belishaGlobe = globe; stationNames = names; stationPositions = stations;
@@ -45,6 +54,20 @@ public class LundunDressing : MonoBehaviour
     void Awake()
     {
         Instance = this;
+        // R8: the Underground as fast travel between these entrances
+        if (stationNames.Length > 1)
+        {
+            LundunTube tube = GetComponent<LundunTube>();
+            if (tube == null) tube = gameObject.AddComponent<LundunTube>();
+            tube.Init(stationNames, stationPositions);
+        }
+        // R9: Lundun Cycles
+        if (bikeDocks.Length > 0 && bikeFrame != null && bikeWheel != null)
+        {
+            LundunBikes bikes = GetComponent<LundunBikes>();
+            if (bikes == null) bikes = gameObject.AddComponent<LundunBikes>();
+            bikes.Init(bikeDocks, bikeDocksOut, bikeFrame, bikeWheel, bikeMaterial);
+        }
         // runtime copies, so playing never edits the material files
         if (glowMaterial != null) glowRuntime = new Material(glowMaterial);
         if (belishaGlobe != null) { globeRuntime = new Material(belishaGlobe); globeRuntime.EnableKeyword("_EMISSION"); }

@@ -47,6 +47,10 @@ public class LundunNavigation : MonoBehaviour
                 if (places != null && (p.id == "POI_SAFEHOUSE" || p.id == "POI_HOSPITAL" || p.id == "POI_POLICE")) continue;   // replaced by R7 places
                 Destinations.Add(new Destination { id = p.id, name = p.name, kind = p.kind, position = new Vector3(p.x, 0f, p.z) });
             }
+            LundunDressing dressing = FindAnyObjectByType<LundunDressing>();
+            if (dressing != null)
+                for (int i = 0; i < dressing.StationNames.Length && i < dressing.StationPositions.Length; i++)
+                    Destinations.Add(new Destination { id = "TUBE_" + i, name = TitleCase(dressing.StationNames[i]) + " Station", kind = "tube", position = dressing.StationPositions[i] });
             if (places != null)
                 foreach (LundunPlaces.Place pl in places.Places)
                     Destinations.Add(new Destination { id = pl.id, name = pl.name, kind = pl.kind, position = pl.door });
@@ -57,6 +61,14 @@ public class LundunNavigation : MonoBehaviour
     }
 
     void OnDestroy() { if (Instance == this) Instance = null; }
+
+    static string TitleCase(string s)
+    {
+        System.Text.StringBuilder b = new System.Text.StringBuilder();
+        bool start = true;
+        foreach (char c in s) { b.Append(start ? char.ToUpperInvariant(c) : char.ToLowerInvariant(c)); start = c == ' '; }
+        return b.ToString();
+    }
 
     void Start() { vehicles = FindAnyObjectByType<VehicleSystem>(); }
 

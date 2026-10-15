@@ -110,6 +110,20 @@ public static class LundunDressingBuilder
             places.SetData(list, carRoot != null ? carRoot.transform : null);
             if (carRoot == null) Debug.LogWarning("[Lundun] No root object called 'Car' — the Kestrel won't come home to safehouses.");
 
+            // 4c. Lundun Cycles: the hire bike's meshes, and where the docks are
+            MeshData bf, bw;
+            Generator.HireBikeMeshes(out bf, out bw);
+            Mesh bikeFrame = ToMesh(bf), bikeWheel = ToMesh(bw);
+            container = SaveMesh(bikeFrame, container);
+            container = SaveMesh(bikeWheel, container);
+            Vector4[] docks = new Vector4[r.bikeDocks.Count], docksOut = new Vector4[r.bikeDocks.Count];
+            for (int i = 0; i < docks.Length; i++)
+            {
+                BikeDockInfo k = r.bikeDocks[i];
+                docks[i] = new Vector4((float)k.x, (float)k.z, (float)k.alongX, (float)k.alongZ);
+                docksOut[i] = new Vector4((float)k.outX, (float)k.outZ, 0f, 0f);
+            }
+
             // 5. the runtime bit: glow by time of day, blinking beacons, bus stops, draw distance
             LundunDressing rt = root.AddComponent<LundunDressing>();
             Vector4[] stops = new Vector4[r.busStops.Count];
@@ -117,6 +131,7 @@ public static class LundunDressingBuilder
             string[] names = new string[r.stations.Count]; Vector3[] spots = new Vector3[r.stations.Count];
             for (int i = 0; i < names.Length; i++) { names[i] = r.stations[i].name; spots[i] = new Vector3((float)r.stations[i].x, 0f, (float)r.stations[i].z); }
             rt.SetData(stops, glow, globe, names, spots);
+            rt.SetBikes(docks, docksOut, bikeFrame, bikeWheel, solid);
 
             AssetDatabase.SaveAssets();
             EditorSceneManager.MarkSceneDirty(scene);

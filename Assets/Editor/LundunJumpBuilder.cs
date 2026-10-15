@@ -49,7 +49,7 @@ public static class LundunJumpBuilder
         foreach (string key in Keys)
         {
             string p = FindAnim(key);
-            AnimationClip c = p != null ? Setup(p, key) : null;
+            AnimationClip c = p != null ? Setup(p, key, null) : null;
             if (c != null) clips[key] = c; else missing.Add(key);
         }
         AnimationClip old = FirstClip(OldJump);
@@ -181,12 +181,15 @@ public static class LundunJumpBuilder
         return m;
     }
 
-    static AnimationClip Setup(string path, string key)
+    /// skeleton = James's own avatar. Mixamo "Without Skin" files have no T-pose, so an avatar made from the
+    /// file itself uses the first frame (crouched / mid-air) as its reference and the body ends up in the ground.
+    static AnimationClip Setup(string path, string key, Avatar skeleton)
     {
         ModelImporter mi = AssetImporter.GetAtPath(path) as ModelImporter;
         if (mi == null) return null;
         mi.animationType = ModelImporterAnimationType.Human;
-        mi.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
+        if (skeleton != null) { mi.avatarSetup = ModelImporterAvatarSetup.CopyFromOther; mi.sourceAvatar = skeleton; }
+        else { mi.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel; mi.sourceAvatar = null; }
         mi.importAnimation = true;
         ModelImporterClipAnimation[] defs = mi.defaultClipAnimations;
         if (defs == null || defs.Length == 0) return null;
@@ -196,9 +199,11 @@ public static class LundunJumpBuilder
         c.lockRootRotation = true; c.keepOriginalOrientation = true;
         c.lockRootPositionXZ = false; c.keepOriginalPositionXZ = true;    // forward travel is the physics' job
         bool onGround = key == "Anim_LandSoft" || key == "Anim_LandHard" || key == "Anim_Roll";
-        // take-off / fall: the up-and-down comes from the physics, so the clip's own rise is dropped;
-        // landings: keep the crouch, measured from the feet so they stay on the ground
-        c.lockRootHeightY = onGround; c.keepOriginalPositionY = false; c.heightFromFeet = onGround;
+        // Height is always baked into the pose (otherwise Unity drops the hips to the root = half in the ground).
+        // take-off / fall: measured from the original pose; landings: from the feet, so they stay on the ground
+        c.lockRootHeightY = true;
+        c.keepOriginalPositionY = true;      // Mixamo clips are authored with the floor at 0: keep their own height
+        c.heightFromFeet = false;
         mi.clipAnimations = new[] { c };
         mi.SaveAndReimport();
         return FirstClip(path);

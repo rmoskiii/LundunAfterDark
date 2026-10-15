@@ -99,7 +99,7 @@ public class LundunPlaces : MonoBehaviour
         if (Instance == null) return false;
         Place p = Instance.NearestOf(kind, from);
         if (p == null) return false;
-        pos = p.door + Vector3.up * 0.1f;
+        pos = Ground(p.door);
         rot = Quaternion.Euler(0f, p.doorYaw, 0f);
         return true;
     }
@@ -116,7 +116,7 @@ public class LundunPlaces : MonoBehaviour
         if (vh != null) vh.Repair();
         Rigidbody rb = kestrel.GetComponent<Rigidbody>();
         Quaternion rot = Quaternion.Euler(0f, s.carYaw, 0f);
-        Vector3 pos = s.car + Vector3.up * 0.6f;
+        Vector3 pos = Ground(s.car) + Vector3.up * 0.5f;
         if (rb != null) { rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; rb.position = pos; rb.rotation = rot; }
         kestrel.SetPositionAndRotation(pos, rot);
         return true;
@@ -151,9 +151,19 @@ public class LundunPlaces : MonoBehaviour
     {
         CharacterController cc = player.GetComponent<CharacterController>();
         if (cc != null) cc.enabled = false;
-        player.SetPositionAndRotation(pos + Vector3.up * 0.1f, Quaternion.Euler(0f, yaw, 0f));
+        player.SetPositionAndRotation(Ground(pos), Quaternion.Euler(0f, yaw, 0f));
         if (cc != null) cc.enabled = true;
     }
 
     static float Flat(Vector3 v) { v.y = 0f; return v.magnitude; }
+
+    /// The real ground height here (pavements, the old high street's raised kerbs…), plus a hair.
+    public static Vector3 Ground(Vector3 at)
+    {
+        int mask = ~LayerMask.GetMask("Player", "NPC", "Vehicle", "UI");
+        RaycastHit[] hits = Physics.RaycastAll(new Vector3(at.x, at.y + 4f, at.z), Vector3.down, 12f, mask, QueryTriggerInteraction.Ignore);
+        float best = float.MinValue;
+        foreach (RaycastHit h in hits) if (h.point.y > best && h.point.y < at.y + 1.5f) best = h.point.y;
+        return new Vector3(at.x, best > float.MinValue ? best + 0.05f : at.y + 0.1f, at.z);
+    }
 }

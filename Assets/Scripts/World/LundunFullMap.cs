@@ -188,7 +188,7 @@ public class LundunFullMap : MonoBehaviour
         if (nav != null)
         {
             List<LundunNavigation.Destination> order = new List<LundunNavigation.Destination>();
-            foreach (string kind in new[] { "safehouse", "hospital", "police", "landmark", "mission" })
+            foreach (string kind in new[] { "safehouse", "hospital", "police", "tube", "landmark", "mission" })
                 foreach (LundunNavigation.Destination d in nav.Destinations) if (d.kind == kind) order.Add(d);
 
             foreach (LundunNavigation.Destination d in order)
@@ -199,6 +199,7 @@ public class LundunFullMap : MonoBehaviour
                     case "safehouse": col = new Color(0.25f, 0.9f, 0.45f); letter = "S"; break;
                     case "hospital": col = new Color(0.95f, 0.25f, 0.3f); letter = "H"; break;
                     case "police": col = new Color(0.25f, 0.5f, 1f); letter = "P"; break;
+                    case "tube": col = new Color(0.16f, 0.22f, 0.6f); letter = "U"; size = 26; break;
                     case "mission": col = new Color(1f, 0.82f, 0.2f, 0.6f); letter = d.id.Substring(1, 1); break;
                     default: col = new Color(0.9f, 0.9f, 0.9f, 0.8f); letter = ""; size = 14; break;
                 }

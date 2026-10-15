@@ -75,6 +75,12 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
                 else if (p.kind == "hospital") AddStatic(t, new Color(0.95f, 0.25f, 0.3f), "H", 26, false, 1f);
                 else if (p.kind == "police") AddStatic(t, new Color(0.25f, 0.5f, 1f), "P", 26, false, 1f);
             }
+        LundunBikes bikes = LundunBikes.Instance;
+        if (bikes != null && bikes.Markers != null)
+            foreach (Transform t in bikes.Markers) AddStatic(t, new Color(0f, 0.64f, 0.64f), "B", 18, false, 0.9f);
+        LundunTube tube = LundunTube.Instance;
+        if (tube != null && tube.Markers != null)
+            foreach (Transform t in tube.Markers) AddStatic(t, new Color(0.11f, 0.15f, 0.4f), "U", 24, false, 1f);
         if (poiGroup != null)
             foreach (Transform t in poiGroup)
             {

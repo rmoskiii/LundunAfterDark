@@ -64,10 +64,7 @@ public class NPCBrain : MonoBehaviour
         if (state == State.Wander) Wander();
         else Flee();
 
-        if (animator != null)
-        {
-            animator.SetFloat("Speed", agent.velocity.magnitude, 0.1f, Time.deltaTime);
-        }
+        LundunAnim.Float(animator, "Speed", agent.velocity.magnitude, 0.1f);
     }
 
     void Wander()
