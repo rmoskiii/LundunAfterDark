@@ -99,7 +99,7 @@ public class LundunPlaces : MonoBehaviour
         if (Instance == null) return false;
         Place p = Instance.NearestOf(kind, from);
         if (p == null) return false;
-        pos = Ground(p.door);
+        pos = Ground(p.door) + Vector3.up * PlayerFeet();
         rot = Quaternion.Euler(0f, p.doorYaw, 0f);
         return true;
     }
@@ -112,7 +112,7 @@ public class LundunPlaces : MonoBehaviour
         Place p = Instance != null ? Instance.NearestOf(kind, from) : null;
         if (p != null)
         {
-            pos = Ground(p.door);
+            pos = Ground(p.door) + Vector3.up * PlayerFeet();
             rot = Quaternion.Euler(0f, p.doorYaw, 0f);
             return p.name;
         }
@@ -121,9 +121,9 @@ public class LundunPlaces : MonoBehaviour
             GameObject g = GameObject.Find(markerName);
             if (g != null) marker = g.transform;
         }
-        if (marker != null) { pos = Ground(marker.position); rot = Quaternion.Euler(0f, marker.eulerAngles.y, 0f); return null; }
+        if (marker != null) { pos = Ground(marker.position) + Vector3.up * PlayerFeet(); rot = Quaternion.Euler(0f, marker.eulerAngles.y, 0f); return null; }
         Debug.LogWarning("[Lundun] No " + kind + " or " + markerName + " found: respawning where it happened.");
-        pos = Ground(new Vector3(from.x, Mathf.Max(from.y, 0f), from.z));
+        pos = Ground(new Vector3(from.x, Mathf.Max(from.y, 0f), from.z)) + Vector3.up * PlayerFeet();
         rot = Quaternion.identity;
         return null;
     }
@@ -175,11 +175,22 @@ public class LundunPlaces : MonoBehaviour
     {
         CharacterController cc = player.GetComponent<CharacterController>();
         if (cc != null) cc.enabled = false;
-        player.SetPositionAndRotation(Ground(pos), Quaternion.Euler(0f, yaw, 0f));
+        player.SetPositionAndRotation(Ground(pos) + Vector3.up * FeetOffset(player), Quaternion.Euler(0f, yaw, 0f));
         if (cc != null) cc.enabled = true;
     }
 
     static float Flat(Vector3 v) { v.y = 0f; return v.magnitude; }
+
+    /// How far James's root sits above his feet. His capsule is centred on the root (about 1 m up),
+    /// so anything that puts him "on the ground" adds this, or he ends up half under the road.
+    public static float FeetOffset(Transform person)
+    {
+        CharacterController cc = person != null ? person.GetComponent<CharacterController>() : null;
+        if (cc == null) return 0f;
+        return Mathf.Max(0f, (cc.height * 0.5f - cc.center.y) * person.lossyScale.y);
+    }
+
+    static float PlayerFeet() { return PlayerHealth.Instance != null ? FeetOffset(PlayerHealth.Instance.Body) : 0f; }
 
     /// The real ground height here (pavements, the old high street's raised kerbs…), plus a hair.
     public static Vector3 Ground(Vector3 at)

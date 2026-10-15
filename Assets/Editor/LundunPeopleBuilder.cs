@@ -116,6 +116,7 @@ public static class LundunPeopleBuilder
             bool james = AddPlayerReactions(scene, clips.ContainsKey("Anim_Punch_reaction") ? clips["Anim_Punch_reaction"] : null,
                                             clips.ContainsKey("Anim_Punch") ? clips["Anim_Punch"] : null);
             AssetDatabase.SaveAssets();
+            LundunPeopleSizes.Fix();            // everyone the same height (some Mixamo downloads come in oversized)
             LundunPeopleCheck.Check();          // print what Unity now sees, straight away
             Debug.Log("[Lundun] People built: " + made.Count + " characters, " + officers + " police officer prefab(s) upgraded, James's punch reaction " + (james ? "added." : "NOT added (see warning).") +
                       (missing.Count > 0 ? "  Missing animations (those moves are skipped): " + string.Join(", ", missing.ToArray()) : "  All animations found.") +

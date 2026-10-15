@@ -22,6 +22,7 @@ public class VehicleHealth : MonoBehaviour
     [SerializeField] private AudioClip explosionSound;
 
     public float Current { get; private set; }
+    public float Max => maxHealth;
     public bool IsBurning { get; private set; }
     public bool IsWrecked { get; private set; }
 

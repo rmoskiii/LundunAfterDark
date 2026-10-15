@@ -146,7 +146,12 @@ public class LundunAngryDriver : MonoBehaviour
         if (hand == null) return;
         gunProp = Instantiate(GunModel, hand);
         gunProp.name = "DriverGun";
-        gunProp.transform.localPosition = new Vector3(0.05f, 0.08f, 0.02f);
+        // the gun stays its real size even on a person whose prefab is scaled (Lundun → Fix People Sizes)
+        // (undoes only the person's own scale, so everyone at normal size is exactly as before)
+        float s = transform.localScale.y;
+        if (s < 0.0001f) s = 1f;
+        gunProp.transform.localScale = GunModel.transform.localScale / s;
+        gunProp.transform.localPosition = new Vector3(0.05f, 0.08f, 0.02f) / s;
         gunProp.transform.localRotation = Quaternion.Euler(0f, 90f, 90f);
         gunRest = gunProp.transform.localRotation;
         foreach (Collider c in gunProp.GetComponentsInChildren<Collider>()) Destroy(c);

@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// One Lundun Cycles hire bike (R9). Joystick up = pedal, down = brake, left/right = steer.
-/// James sits on it (his legs pedal and his hands reach the bars through his Humanoid muscles),
+/// James sits on it (hips on the saddle, feet on the turning pedals, hands on the grips),
 /// the bike leans into corners, and a car hitting you (or you hitting a wall hard) knocks him off.
 /// Spawned and recycled by LundunBikes.
 [RequireComponent(typeof(CharacterController))]
@@ -21,15 +21,20 @@ public class LundunBike : MonoBehaviour
     [SerializeField] private float carHitSpeed = 5f;          // a car moving this fast into you = off you come
     [SerializeField] private float wallCrashSpeed = 6.5f;     // riding into a wall this fast = off you come
 
-    [Header("Rider pose (Humanoid muscles, −1..1)")]
+    [Header("Rider (positions on the bike: x right, y up, z forward, metres)")]
     [SerializeField] private Vector3 seatOffset = new Vector3(0f, 0.02f, -0.18f);   // where James's feet-origin sits
-    [SerializeField] private float legForward = 0.55f;
-    [SerializeField] private float legPump = 0.22f;
-    [SerializeField] private float kneeBend = -0.45f;
-    [SerializeField] private float kneePump = 0.35f;
-    [SerializeField] private float leanForward = 0.35f;
-    [SerializeField] private float armsForward = 0.55f;
-    [SerializeField] private float elbows = 0.6f;
+    [Tooltip("Where his hips go: just above the saddle")]
+    [SerializeField] private Vector3 hipsOnBike = new Vector3(0f, 1.0f, -0.2f);
+    [Tooltip("Middle of the pedal cranks")]
+    [SerializeField] private Vector3 crankCentre = new Vector3(0f, 0.30f, -0.02f);
+    [SerializeField] private float crankRadius = 0.16f;
+    [SerializeField] private float pedalWidth = 0.14f;
+    [Tooltip("Ankle height above the pedal")]
+    [SerializeField] private float ankleAbovePedal = 0.07f;
+    [Tooltip("Right handlebar grip (the left one is mirrored)")]
+    [SerializeField] private Vector3 rightGrip = new Vector3(0.30f, 1.04f, 0.27f);
+    [Tooltip("Lean his back forward (degrees)")]
+    [SerializeField] private float leanForward = 18f;
 
     public bool Ridden { get { return rider != null; } }
     public float Speed { get { return speed; } }
@@ -39,14 +44,15 @@ public class LundunBike : MonoBehaviour
     private Transform body, frontWheel, backWheel;
     private Transform rider;
     private Animator riderAnim;
-    private HumanPoseHandler poseHandler;
-    private HumanPose pose;
-    private int[] mLegFB = new int[2], mKnee = new int[2], mArmFB = new int[2], mArmDU = new int[2], mElbow = new int[2];
-    private int mSpine = -1, mChest = -1;
+    // the rider's bones (found through his Humanoid avatar, so any Mixamo rig works)
+    private Transform bHips, bSpine;
+    private Transform[] bThigh = new Transform[2], bShin = new Transform[2], bFoot = new Transform[2];
+    private Transform[] bArm = new Transform[2], bForearm = new Transform[2], bHand = new Transform[2];
     private InputAction move;
     private float speed, yaw, lean, wheelAngle, crank, vertical;
     private static readonly Collider[] hits = new Collider[8];
     private int vehicleMask;
+    private float riderFeet;          // James's root sits this far above his feet (his capsule is centred on it)
 
     /// Builds the visible bike from the meshes made by Lundun → 13.
     public void Build(Mesh frame, Mesh wheel, Material mat)
@@ -80,29 +86,30 @@ public class LundunBike : MonoBehaviour
     {
         rider = james;
         Crashed = false;
+        riderFeet = LundunPlaces.FeetOffset(james);
         CharacterController jc = james.GetComponent<CharacterController>();
         if (jc != null) jc.enabled = false;
         PlayerController pc = james.GetComponent<PlayerController>();
         if (pc != null) pc.enabled = false;
         james.SetParent(body, false);
-        james.localPosition = seatOffset;
+        james.localPosition = seatOffset + Vector3.up * riderFeet;     // seatOffset is where his FEET go
         james.localRotation = Quaternion.identity;
         riderAnim = james.GetComponentInChildren<Animator>();
+        bHips = null;
         if (riderAnim != null && riderAnim.isHuman && riderAnim.avatar != null)
         {
-            poseHandler = new HumanPoseHandler(riderAnim.avatar, riderAnim.transform);
-            string[] names = HumanTrait.MuscleName;
+            bHips = riderAnim.GetBoneTransform(HumanBodyBones.Hips);
+            bSpine = riderAnim.GetBoneTransform(HumanBodyBones.Spine);
             for (int s = 0; s < 2; s++)
             {
-                string side = s == 0 ? "Left" : "Right";
-                mLegFB[s] = System.Array.IndexOf(names, side + " Upper Leg Front-Back");
-                mKnee[s] = System.Array.IndexOf(names, side + " Lower Leg Stretch");
-                mArmFB[s] = System.Array.IndexOf(names, side + " Arm Front-Back");
-                mArmDU[s] = System.Array.IndexOf(names, side + " Arm Down-Up");
-                mElbow[s] = System.Array.IndexOf(names, side + " Forearm Stretch");
+                bool left = s == 0;
+                bThigh[s] = riderAnim.GetBoneTransform(left ? HumanBodyBones.LeftUpperLeg : HumanBodyBones.RightUpperLeg);
+                bShin[s] = riderAnim.GetBoneTransform(left ? HumanBodyBones.LeftLowerLeg : HumanBodyBones.RightLowerLeg);
+                bFoot[s] = riderAnim.GetBoneTransform(left ? HumanBodyBones.LeftFoot : HumanBodyBones.RightFoot);
+                bArm[s] = riderAnim.GetBoneTransform(left ? HumanBodyBones.LeftUpperArm : HumanBodyBones.RightUpperArm);
+                bForearm[s] = riderAnim.GetBoneTransform(left ? HumanBodyBones.LeftLowerArm : HumanBodyBones.RightLowerArm);
+                bHand[s] = riderAnim.GetBoneTransform(left ? HumanBodyBones.LeftHand : HumanBodyBones.RightHand);
             }
-            mSpine = System.Array.IndexOf(names, "Spine Front-Back");
-            mChest = System.Array.IndexOf(names, "Chest Front-Back");
         }
         if (move == null) move = InputSystem.actions.FindAction("Move");
         yaw = transform.eulerAngles.y;
@@ -114,10 +121,10 @@ public class LundunBike : MonoBehaviour
         Transform james = rider;
         if (james == null) return null;
         rider = null;
-        poseHandler = null;
+        bHips = null;
         james.SetParent(null, true);
         Vector3 side = transform.right * (thrown ? 1.4f : 0.9f);
-        Vector3 at = transform.position + side + Vector3.up * 0.15f;
+        Vector3 at = transform.position + side + Vector3.up * (0.15f + riderFeet);
         james.SetPositionAndRotation(at, Quaternion.Euler(0f, transform.eulerAngles.y, 0f));
         CharacterController jc = james.GetComponent<CharacterController>();
         if (jc != null) jc.enabled = true;
@@ -186,27 +193,68 @@ public class LundunBike : MonoBehaviour
     }
 
     // ------------------------------------------------------------------ the rider's pose (after the Animator has run)
+    // Hips onto the saddle, back leant forward, then each leg bent so its foot sits on its (turning) pedal and each arm
+    // bent so its hand sits on its grip. Done with bone positions, so it works on any Humanoid rig.
     void LateUpdate()
     {
-        if (rider == null || poseHandler == null) return;
-        poseHandler.GetHumanPose(ref pose);
-        float pump = Mathf.Abs(speed) > 0.2f ? 1f : 0f;
+        if (rider == null || bHips == null) return;
+        Transform b = body;
+
+        // 1. sit down: hips over the saddle
+        bHips.position = b.TransformPoint(hipsOnBike);
+
+        // 2. lean forward over the bars
+        if (bSpine != null) bSpine.rotation = Quaternion.AngleAxis(leanForward, b.right) * bSpine.rotation;
+
         for (int s = 0; s < 2; s++)
         {
-            float ph = crank + s * Mathf.PI;
-            Set(mLegFB[s], legForward + legPump * pump * Mathf.Sin(ph));
-            Set(mKnee[s], kneeBend + kneePump * pump * Mathf.Cos(ph));
-            Set(mArmFB[s], armsForward);
-            Set(mArmDU[s], 0.05f);
-            Set(mElbow[s], elbows);
+            float side = s == 0 ? -1f : 1f;                      // left, right
+
+            // 3. legs: the pedals go round with the crank, half a turn apart
+            float ph = crank + (s == 0 ? 0f : Mathf.PI);
+            Vector3 pedal = crankCentre + new Vector3(side * pedalWidth, -Mathf.Cos(ph) * crankRadius, Mathf.Sin(ph) * crankRadius);
+            Vector3 ankle = b.TransformPoint(pedal + Vector3.up * ankleAbovePedal);
+            Vector3 kneePole = b.forward + b.up * 0.3f + b.right * (side * 0.15f);       // knees forward, a touch out
+            if (bThigh[s] != null && bShin[s] != null && bFoot[s] != null) TwoBone(bThigh[s], bShin[s], bFoot[s], ankle, kneePole);
+            if (bFoot[s] != null)
+            {
+                // foot pointing forward along the bike
+                bFoot[s].rotation = Quaternion.FromToRotation(FootForward(s), b.forward) * bFoot[s].rotation;
+            }
+
+            // 4. arms: hands on the grips, elbows down and out
+            Vector3 grip = b.TransformPoint(new Vector3(side * Mathf.Abs(rightGrip.x), rightGrip.y, rightGrip.z));
+            Vector3 elbowPole = -b.up * 0.6f + b.right * (side * 0.6f) - b.forward * 0.3f;
+            if (bArm[s] != null && bForearm[s] != null && bHand[s] != null) TwoBone(bArm[s], bForearm[s], bHand[s], grip, elbowPole);
         }
-        Set(mSpine, leanForward);
-        Set(mChest, leanForward * 0.5f);
-        poseHandler.SetHumanPose(ref pose);
     }
 
-    void Set(int muscle, float v)
+    /// The direction the foot bone currently points (ankle → toes), whatever axis the rig uses.
+    Vector3 FootForward(int s)
     {
-        if (muscle >= 0 && pose.muscles != null && muscle < pose.muscles.Length) pose.muscles[muscle] = Mathf.Clamp(v, -1f, 1f);
+        Transform f = bFoot[s];
+        if (f.childCount > 0) { Vector3 d = f.GetChild(0).position - f.position; d.y = 0f; if (d.sqrMagnitude > 1e-6f) return d.normalized; }
+        Vector3 fwd = body.forward; return fwd;
+    }
+
+    /// Two-bone IK: bends upper → lower → end so the end lands on target, the middle joint bending towards pole.
+    static void TwoBone(Transform upper, Transform lower, Transform end, Vector3 target, Vector3 pole)
+    {
+        Vector3 a = upper.position, m = lower.position, e = end.position;
+        float la = (m - a).magnitude, lb = (e - m).magnitude;
+        if (la < 1e-4f || lb < 1e-4f) return;
+        Vector3 toT = target - a;
+        float d = Mathf.Clamp(toT.magnitude, Mathf.Abs(la - lb) + 0.001f, la + lb - 0.001f);
+        Vector3 dir = toT.sqrMagnitude > 1e-8f ? toT.normalized : (e - a).normalized;
+        Vector3 bend = Vector3.ProjectOnPlane(pole, dir);
+        if (bend.sqrMagnitude < 1e-6f) bend = Vector3.ProjectOnPlane(m - a, dir);
+        bend.Normalize();
+        float cosA = Mathf.Clamp((la * la + d * d - lb * lb) / (2f * la * d), -1f, 1f);
+        float ang = Mathf.Acos(cosA);
+        Vector3 joint = a + dir * (Mathf.Cos(ang) * la) + bend * (Mathf.Sin(ang) * la);
+        upper.rotation = Quaternion.FromToRotation(m - a, joint - a) * upper.rotation;
+        m = lower.position; e = end.position;
+        Vector3 endAt = a + dir * d;
+        lower.rotation = Quaternion.FromToRotation(e - m, endAt - m) * lower.rotation;
     }
 }

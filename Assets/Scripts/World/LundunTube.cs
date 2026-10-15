@@ -135,7 +135,7 @@ public class LundunTube : MonoBehaviour
         // move James to the top of the other station's steps, a couple of metres out
         Transform player = PlayerHealth.Instance.Body;
         Vector3 outDir = facing[to] * Vector3.forward;
-        Vector3 pos = LundunPlaces.Ground(tops[to] + outDir * 2.5f);
+        Vector3 pos = LundunPlaces.Ground(tops[to] + outDir * 2.5f) + Vector3.up * LundunPlaces.FeetOffset(player);
         CharacterController cc = player.GetComponent<CharacterController>();
         if (cc != null) cc.enabled = false;
         player.SetPositionAndRotation(pos, facing[to]);
