@@ -13,6 +13,8 @@ public class LundunBikes : MonoBehaviour
     [SerializeField] private float bikeReach = 2.4f;
     [SerializeField] private float clearAbandonedBeyond = 80f;
     [SerializeField] private float crashDamagePerMs = 2.5f;
+    [Tooltip("Bike button, measured from the bottom-right corner (1920x1080 layout)")]
+    [SerializeField] private Vector2 buttonPosition = new Vector2(-220f, 690f);
 
     private Vector3[] dockCentre, dockAlong, dockOut;
     private Transform[] markers;
@@ -182,15 +184,16 @@ public class LundunBikes : MonoBehaviour
         buttonGo = new GameObject("BikeButton", typeof(RectTransform));
         buttonGo.transform.SetParent(cg.transform, false);
         RectTransform rt = (RectTransform)buttonGo.transform;
-        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f); rt.pivot = new Vector2(0.5f, 0f);
-        rt.anchoredPosition = new Vector2(0f, 370f); rt.sizeDelta = new Vector2(380f, 110f);
+        // right-hand side, above the GET IN / jump buttons, so it never covers James on the bike
+        rt.anchorMin = rt.anchorMax = new Vector2(1f, 0f); rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = buttonPosition; rt.sizeDelta = new Vector2(260f, 100f);
         Image img = buttonGo.AddComponent<Image>(); img.color = new Color(0f, 0.55f, 0.55f, 0.92f);
         Button b = buttonGo.AddComponent<Button>(); b.targetGraphic = img; b.onClick.AddListener(OnButton);
         GameObject tg = new GameObject("Text", typeof(RectTransform));
         tg.transform.SetParent(buttonGo.transform, false);
         RectTransform trt = (RectTransform)tg.transform; trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one; trt.offsetMin = trt.offsetMax = Vector2.zero;
         buttonText = tg.AddComponent<TextMeshProUGUI>();
-        buttonText.fontSize = 38; buttonText.alignment = TextAlignmentOptions.Center; buttonText.color = Color.white;
+        buttonText.fontSize = 34; buttonText.alignment = TextAlignmentOptions.Center; buttonText.color = Color.white;
         buttonText.fontStyle = FontStyles.Bold; buttonText.raycastTarget = false; buttonText.richText = true;
         buttonGo.SetActive(false);
     }

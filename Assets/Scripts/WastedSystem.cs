@@ -68,14 +68,21 @@ public class WastedSystem : MonoBehaviour
         if (greyscaleVolume != null) greyscaleVolume.weight = 0f;
         if (anim != null) anim.speed = 1f;
 
-        WantedSystem.Instance.ClearWanted();
-        PoliceAI.ClearAll();                               // fresh start outside the hospital
-        Vector3 wakeAt = hospital.position; Quaternion wakeRot = hospital.rotation;
-        LundunPlaces.Pick("hospital", diedAt, ref wakeAt, ref wakeRot);     // R7: the nearest hospital
-        vehicleSystem.RespawnPlayer(wakeAt, wakeRot);
+        // Each step on its own, so one problem can never leave you stuck on a black screen
+        string wokeAt = null;
+        try { WantedSystem.Instance.ClearWanted(); } catch (System.Exception e) { Debug.LogException(e); }
+        try { PoliceAI.ClearAll(); } catch (System.Exception e) { Debug.LogException(e); }   // fresh start outside the hospital
+        try
+        {
+            // the nearest hospital to where you died
+            wokeAt = LundunPlaces.RespawnSpot("hospital", "SP_WASTED", hospital, diedAt, out Vector3 wakeAt, out Quaternion wakeRot);
+            vehicleSystem.RespawnPlayer(wakeAt, wakeRot);
+        }
+        catch (System.Exception e) { Debug.LogException(e); }
         playerHealth.ResetHealth();
         vehicleSystem.LockControls(false);
         yield return new WaitForSecondsRealtime(0.5f);
+        if (wokeAt != null && LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(wokeAt);
 
         for (float t = 1f; t > 0f; t -= Time.unscaledDeltaTime)
         {

@@ -1,17 +1,23 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.OnScreen;
 
 [RequireComponent(typeof(CharacterController))]
 public class PlayerController : MonoBehaviour
 {
-    [SerializeField] private AnimationCurve speedCurve = new AnimationCurve(
-        new Keyframe(0f, 0f),
-        new Keyframe(0.5f, 4f),
-        new Keyframe(0.85f, 8f),
-        new Keyframe(1f, 14f));
-
-    [SerializeField] private float sprintThreshold = 0.85f;
-    [SerializeField] private float keyboardWalkStrength = 0.6f;
+    [Header("Walk and run")]
+    [Tooltip("Walking pace (m/s), for a small push of the joystick")]
+    [SerializeField] private float walkSpeed = 1.8f;
+    [Tooltip("Full running pace (m/s), joystick pushed right out")]
+    [SerializeField] private float runSpeed = 7.5f;
+    [Tooltip("Joystick pushed up to this much (0-1) = walking")]
+    [Range(0.1f, 0.9f)] [SerializeField] private float walkZone = 0.55f;
+    [Tooltip("Joystick pushed this much (0-1) or more = full run. Between the two, walk speeds up into the run")]
+    [Range(0.2f, 1f)] [SerializeField] private float runZone = 0.8f;
+    [Tooltip("Ignore tiny joystick wobbles below this")]
+    [SerializeField] private float stickDeadzone = 0.08f;
+    [Tooltip("How far the on-screen joystick knob travels (pixels). More travel = easier to hold a walk. 0 = leave as set on the joystick")]
+    [SerializeField] private float joystickTravel = 130f;
     [SerializeField] private float turnSpeed = 1080f;
     [SerializeField] private float gravity = -20f;
     [SerializeField] private float jumpHeight = 1.5f;
@@ -65,6 +71,9 @@ public class PlayerController : MonoBehaviour
         sprintAction = InputSystem.actions.FindAction("Sprint");
         jumpAction = InputSystem.actions.FindAction("Jump");
         cam = Camera.main.transform;
+        if (joystickTravel > 0f)
+            foreach (OnScreenStick stick in FindObjectsByType<OnScreenStick>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                stick.movementRange = joystickTravel;
         groundMask = ~((1 << gameObject.layer) | LayerMask.GetMask("NPC"));
     }
 
@@ -84,11 +93,12 @@ public class PlayerController : MonoBehaviour
 
         if (usingKeyboard && strength > 0f)
         {
-            strength = sprintAction.IsPressed() ? 1f : keyboardWalkStrength;
+            // keyboard: walk, hold Shift (Sprint) to run
+            strength = sprintAction != null && sprintAction.IsPressed() ? 1f : walkZone * 0.5f;
         }
 
-        float speed = speedCurve.Evaluate(strength);
-        IsSprinting = strength >= sprintThreshold;
+        float speed = SpeedFor(strength);
+        IsSprinting = speed >= runSpeed * 0.95f;
 
         Vector3 camForward = cam.forward;
         camForward.y = 0f;
@@ -173,6 +183,16 @@ public class PlayerController : MonoBehaviour
             if (grounded && verticalVelocity <= 0f) Land();
         }
         wasGrounded = grounded;
+    }
+
+    /// Joystick push (0-1) → speed: a small push walks, pushing further speeds up into a run.
+    float SpeedFor(float strength)
+    {
+        if (strength < stickDeadzone) return 0f;
+        if (strength <= walkZone) return walkSpeed;
+        if (strength >= runZone) return runSpeed;
+        float t = (strength - walkZone) / Mathf.Max(0.01f, runZone - walkZone);
+        return Mathf.Lerp(walkSpeed, runSpeed, t * t * (3f - 2f * t));
     }
 
     void StartAir()

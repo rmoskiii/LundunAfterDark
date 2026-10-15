@@ -104,6 +104,30 @@ public class LundunPlaces : MonoBehaviour
         return true;
     }
 
+    /// Where to wake up after WASTED ("hospital") or BUSTED ("police"): the nearest one of that kind to where it happened.
+    /// Never fails: falls back to the old spawn marker (inspector link, then the SP_ object by name), then to where it happened.
+    /// Returns the place's name for the on-screen message (null if it had to fall back).
+    public static string RespawnSpot(string kind, string markerName, Transform marker, Vector3 from, out Vector3 pos, out Quaternion rot)
+    {
+        Place p = Instance != null ? Instance.NearestOf(kind, from) : null;
+        if (p != null)
+        {
+            pos = Ground(p.door);
+            rot = Quaternion.Euler(0f, p.doorYaw, 0f);
+            return p.name;
+        }
+        if (marker == null)
+        {
+            GameObject g = GameObject.Find(markerName);
+            if (g != null) marker = g.transform;
+        }
+        if (marker != null) { pos = Ground(marker.position); rot = Quaternion.Euler(0f, marker.eulerAngles.y, 0f); return null; }
+        Debug.LogWarning("[Lundun] No " + kind + " or " + markerName + " found: respawning where it happened.");
+        pos = Ground(new Vector3(from.x, Mathf.Max(from.y, 0f), from.z));
+        rot = Quaternion.identity;
+        return null;
+    }
+
     /// Put the Kestrel back on home's driveway, repaired. Returns false if there's nowhere to put it.
     public bool ParkKestrelHome() { return ParkKestrel(home); }
 
