@@ -43,7 +43,7 @@ public class LundunTrafficCar : MonoBehaviour
     private static int seedCounter;
     private List<int> route;            // fixed loop of nodes (buses); null = wander at random
     private int routeIndex;
-    private float sinceStop, stopUntil;
+    private float sinceStop, stopUntil, ignoreStopsUntil;
 
     public bool IsBus { get { return isBus; } }
 
@@ -154,9 +154,23 @@ public class LundunTrafficCar : MonoBehaviour
         float speed = car.Speed;
         if (isBus)
         {
-            sinceStop += Mathf.Max(0f, speed) * Time.deltaTime;
+            LundunDressing dressing = LundunDressing.Instance;
             if (Time.time < stopUntil) want = 0f;
-            else if (sinceStop > stopEvery && toEnd > 30f && s > 20f) { stopUntil = Time.time + stopFor; sinceStop = 0f; want = 0f; }
+            else if (dressing != null && dressing.BusStopCount > 0)
+            {
+                // pull in at the real shelters (Lundun → 13): ease off, stop alongside, wait, move on
+                float ahead;
+                if (Time.time > ignoreStopsUntil && dressing.StopAhead(transform.position, transform.forward, out ahead))
+                {
+                    want = Mathf.Min(want, Mathf.Max(1.2f, ahead * 0.5f));
+                    if (ahead < 1.5f) { stopUntil = Time.time + stopFor; ignoreStopsUntil = stopUntil + 8f; want = 0f; }
+                }
+            }
+            else
+            {
+                sinceStop += Mathf.Max(0f, speed) * Time.deltaTime;
+                if (sinceStop > stopEvery && toEnd > 30f && s > 20f) { stopUntil = Time.time + stopFor; sinceStop = 0f; want = 0f; }
+            }
         }
         float look = brakeLookBase + Mathf.Max(0f, speed) * 1.2f;
         Vector3 front = transform.position + transform.forward * 2.8f + Vector3.up * 0.6f;

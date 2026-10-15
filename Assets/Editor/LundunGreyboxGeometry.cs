@@ -192,7 +192,7 @@ namespace LundunGreybox
         }
     }
 
-    public static class Generator
+    public static partial class Generator
     {
         // ----- tuning -----
         const double RiverHalf = 35, WallOuter = 39, GroundEdge = 37;
@@ -748,6 +748,8 @@ namespace LundunGreybox
             MeshData grass = new MeshData("ParkGrass", "Parks", "Park", false) { navIgnore = true };
             MeshData trunks = new MeshData("TreeTrunks", "Parks", "Trunk", true) { navIgnore = true };
             MeshData leaves = new MeshData("TreeCanopies", "Parks", "Leaves", false) { navIgnore = true };
+            List<ParkPlan> plans = PlanParks();        // room kept clear for the Underground entrance + football cage (R5)
+            parkTrees = new List<V2>();
             foreach (LwPoly park in W.parks)
             {
                 List<V2> poly = Pts(park.polygon);
@@ -768,6 +770,8 @@ namespace LundunGreybox
                     double yaw = rng.NextDouble() * Math.PI;
                     V2 d = new V2(Math.Sin(yaw), Math.Cos(yaw));
                     double h = 5 + rng.NextDouble() * 4, r = 1.6 + rng.NextDouble() * 1.4;
+                    if (InReserved(q, plans, r + 1)) continue;   // same random numbers drawn either way, so buildings don't move
+                    parkTrees.Add(q);
                     trunks.Box(q, d, 0.2, 0.2, 0, h * 0.5, false, 0.1, 0, false);
                     leaves.Box(q, d, r, r, h * 0.4, h, true, 0.1, 0, false);
                 }
