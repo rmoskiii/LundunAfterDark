@@ -19,6 +19,8 @@ public class LundunPopulation : MonoBehaviour
     [SerializeField] private GameObject[] pedestrianPrefabs;
     [Tooltip("Pistol model for armed drivers (set by Lundun → 12  Build People)")]
     [SerializeField] private GameObject gunModel;
+    [Tooltip("Given to any person who turns up without an animator controller (set by Lundun → 12)")]
+    [SerializeField] private RuntimeAnimatorController peopleController;
     [Tooltip("How strongly districts prefer their own look (Ped_Suit_* in Knightsbury, Ped_Street_* on the estate / Peckam, Ped_Work_* at the warehouses)")]
     [SerializeField, Range(0f, 1f)] private float districtFlavour = 0.6f;
     [SerializeField] private float spawnNearest = 45f;
@@ -238,7 +240,11 @@ public class LundunPopulation : MonoBehaviour
         GameObject go = Instantiate(prefab, transform);
         go.SetActive(false);
         go.name = prefab.name + "_" + peds.Count;
-        foreach (Animator a in go.GetComponentsInChildren<Animator>(true)) a.cullingMode = AnimatorCullingMode.CullCompletely;   // off-screen = no animation work
+        foreach (Animator a in go.GetComponentsInChildren<Animator>(true))
+        {
+            a.cullingMode = AnimatorCullingMode.CullCompletely;   // off-screen = no animation work
+            if (a.runtimeAnimatorController == null && peopleController != null) a.runtimeAnimatorController = peopleController;
+        }
         Ped np = new Ped { go = go, health = go.GetComponent<Health>(), renderers = go.GetComponentsInChildren<Renderer>(true) };
         peds.Add(np);
         return np;

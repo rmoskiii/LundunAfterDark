@@ -56,9 +56,6 @@ public static class LundunPeopleBuilder
             // 1. import settings
             EditorUtility.DisplayProgressBar("Lundun", "Setting up characters…", 0.1f);
             foreach (string p in chars) SetupCharacter(p);
-            // the animations borrow the skeleton of a character with the same bone names
-            // (Mixamo "Without Skin" files have no T-pose of their own)
-            List<Avatar> skeletons = LundunSkeletons.InFolder(CharDir);
             Dictionary<string, AnimationClip> clips = new Dictionary<string, AnimationClip>();
             List<string> missing = new List<string>();
             for (int i = 0; i < Clips.GetLength(0); i++)
@@ -68,7 +65,7 @@ public static class LundunPeopleBuilder
                 if (path == null) path = Clips[i, 1];
                 if (string.IsNullOrEmpty(path) || !File.Exists(path)) { missing.Add(key); continue; }
                 EditorUtility.DisplayProgressBar("Lundun", "Setting up " + key + "…", 0.2f + 0.3f * i / Clips.GetLength(0));
-                AnimationClip c = SetupAnimation(path, key, Looping.Contains(key), Moving.Contains(key), skeletons);
+                AnimationClip c = SetupAnimation(path, key, Looping.Contains(key), Moving.Contains(key));
                 if (c != null) clips[key] = c; else missing.Add(key);
             }
             if (!clips.ContainsKey("Anim_Walk")) { Dialog("No walk animation found (Anim_Walk.fbx). Can't build people without it."); return; }
@@ -102,15 +99,24 @@ public static class LundunPeopleBuilder
             {
                 SerializedObject so = new SerializedObject(pop);
                 SerializedProperty arr = so.FindProperty("pedestrianPrefabs");
+                if (made.Count == 0)
+                {
+                    // nothing usable: keep the city alive with your original, working NPC
+                    Debug.LogWarning("[Lundun] None of the Mixamo characters came in as a valid Humanoid — using your original NPC prefab for now.");
+                    made.Add(template);
+                }
                 arr.arraySize = made.Count;
                 for (int i = 0; i < made.Count; i++) arr.GetArrayElementAtIndex(i).objectReferenceValue = made[i];
                 so.FindProperty("gunModel").objectReferenceValue = AssetDatabase.LoadAssetAtPath<GameObject>(GunPath);
+                SerializedProperty pc = so.FindProperty("peopleController");
+                if (pc != null) pc.objectReferenceValue = ctrl;
                 so.ApplyModifiedPropertiesWithoutUndo();
                 EditorSceneManager.MarkSceneDirty(scene);
             }
             bool james = AddPlayerReactions(scene, clips.ContainsKey("Anim_Punch_reaction") ? clips["Anim_Punch_reaction"] : null,
                                             clips.ContainsKey("Anim_Punch") ? clips["Anim_Punch"] : null);
             AssetDatabase.SaveAssets();
+            LundunPeopleCheck.Check();          // print what Unity now sees, straight away
             Debug.Log("[Lundun] People built: " + made.Count + " characters, " + officers + " police officer prefab(s) upgraded, James's punch reaction " + (james ? "added." : "NOT added (see warning).") +
                       (missing.Count > 0 ? "  Missing animations (those moves are skipped): " + string.Join(", ", missing.ToArray()) : "  All animations found.") +
                       (pop == null ? "  (No LundunPopulation in the scene — run Lundun → 8 first.)" : "  Press Play."));
@@ -123,11 +129,11 @@ public static class LundunPeopleBuilder
     {
         ModelImporter mi = AssetImporter.GetAtPath(path) as ModelImporter;
         if (mi == null) return;
-        bool changed = false;
-        if (mi.animationType != ModelImporterAnimationType.Human) { mi.animationType = ModelImporterAnimationType.Human; changed = true; }
-        if (mi.avatarSetup != ModelImporterAvatarSetup.CreateFromThisModel) { mi.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel; changed = true; }
-        if (mi.importAnimation) { mi.importAnimation = false; changed = true; }
-        if (changed) mi.SaveAndReimport();
+        // Humanoid with the bones actually mapped (a script has to do this itself — see LundunSkeletons)
+        LundunSkeletons.ConfigureHumanoid(mi, path);
+        mi.importAnimation = false;
+        mi.SaveAndReimport();
+        if (!LundunSkeletons.AvatarOk(path)) Debug.LogWarning("[Lundun] " + path + " still isn't a valid Humanoid — check its Rig tab (Configure…).");
         // Mixamo hides its textures inside the FBX: pull them out so the materials show
         string texDir = Path.GetDirectoryName(path).Replace('\\', '/') + "/Textures";
         EnsureFolder(texDir);
@@ -159,17 +165,14 @@ public static class LundunPeopleBuilder
         return best;
     }
 
-    static AnimationClip SetupAnimation(string path, string key, bool loop, bool moving, List<Avatar> skeletons)
+    static AnimationClip SetupAnimation(string path, string key, bool loop, bool moving)
     {
         // your existing NPC animations (fallbacks) are used as they are — never re-imported, so Prototype keeps working
         if (!path.StartsWith(AnimDir)) return FirstClip(path);
         ModelImporter mi = AssetImporter.GetAtPath(path) as ModelImporter;
         if (mi == null) return null;
-        mi.animationType = ModelImporterAnimationType.Human;
-        // Mixamo "Without Skin" files carry their own T-pose: they get their own avatar.
-        // (Borrowing a character's avatar fails: Unity needs identical bone lengths, and Mixamo characters differ.)
-        mi.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
-        mi.sourceAvatar = null;
+        // its own Humanoid avatar, bones mapped (Mixamo "Without Skin" files are in T-pose)
+        if (!LundunSkeletons.ConfigureHumanoid(mi, path)) return null;
         mi.importAnimation = true;
         ModelImporterClipAnimation[] defs = mi.defaultClipAnimations;
         if (defs == null || defs.Length == 0) return null;
@@ -199,8 +202,18 @@ public static class LundunPeopleBuilder
     // ------------------------------------------------------------------ animator
     static AnimatorController BuildController(Dictionary<string, AnimationClip> clips)
     {
-        AssetDatabase.DeleteAsset(ControllerPath);
-        AnimatorController ctrl = AnimatorController.CreateAnimatorControllerAtPath(ControllerPath);
+        // Rebuilt in place (never deleted), so every prefab that points at it keeps pointing at it.
+        AnimatorController ctrl = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
+        if (ctrl == null) ctrl = AnimatorController.CreateAnimatorControllerAtPath(ControllerPath);
+        else
+        {
+            foreach (AnimatorControllerParameter p in ctrl.parameters) ctrl.RemoveParameter(p);
+            while (ctrl.layers.Length > 1) ctrl.RemoveLayer(ctrl.layers.Length - 1);
+            AnimatorStateMachine old = ctrl.layers[0].stateMachine;
+            foreach (AnimatorStateTransition t in old.anyStateTransitions) old.RemoveAnyStateTransition(t);
+            foreach (ChildAnimatorState cs in old.states) old.RemoveState(cs.state);
+            foreach (Object o in AssetDatabase.LoadAllAssetsAtPath(ControllerPath)) if (o is BlendTree) Object.DestroyImmediate(o, true);
+        }
         ctrl.AddParameter("Speed", AnimatorControllerParameterType.Float);
         ctrl.AddParameter("AimMove", AnimatorControllerParameterType.Float);   // while aiming: + forwards, − backing off
         ctrl.AddParameter("Die", AnimatorControllerParameterType.Trigger);
@@ -330,9 +343,12 @@ public static class LundunPeopleBuilder
         if (model == null) return null;
         Avatar avatar = null;
         foreach (Object o in AssetDatabase.LoadAllAssetsAtPath(modelPath)) if (o is Avatar) avatar = (Avatar)o;
-        if (avatar == null || !avatar.isHuman) { Debug.LogWarning("[Lundun] " + modelPath + " didn't come in as a Humanoid — skipped. Re-download it as FBX for Unity, T-pose, with skin."); return null; }
+        if (avatar == null || !avatar.isHuman || !avatar.isValid) { Debug.LogWarning("[Lundun] " + modelPath + " didn't come in as a Humanoid — skipped. Re-download it as FBX for Unity, T-pose, with skin."); return null; }
 
         GameObject p = (GameObject)PrefabUtility.InstantiatePrefab(model);
+        // a standalone prefab (not a linked copy of the model file), so re-importing the model can't knock the
+        // animator controller or skeleton off it
+        PrefabUtility.UnpackPrefabInstance(p, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
         string name = Path.GetFileNameWithoutExtension(modelPath);
         p.name = name.StartsWith("Ped_") ? name : "Ped_" + name;
         foreach (Transform t in p.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = template.layer;
@@ -342,7 +358,7 @@ public static class LundunPeopleBuilder
         a.runtimeAnimatorController = ctrl;
         a.avatar = avatar;
         a.applyRootMotion = false;
-        a.cullingMode = AnimatorCullingMode.CullCompletely;
+        a.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
 
         // the same brain, health, collider and navigation as your NPC
         Copy<NavMeshAgent>(template, p);

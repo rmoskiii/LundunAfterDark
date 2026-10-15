@@ -242826,6 +242826,7 @@ MonoBehaviour:
   - {fileID: 1081486493960518602, guid: 555fa0db656f8433c92402e2a4420444, type: 3}
   - {fileID: 2977350835935725219, guid: 9a35adb18fb1947ff8ba202bf7eb2456, type: 3}
   gunModel: {fileID: 919132149155446097, guid: 4e5b6d888017f4edcb1fa30a1785ea0d, type: 3}
+  peopleController: {fileID: 9100000, guid: b739af1d210644ac7901de75b167cb44, type: 2}
   districtFlavour: 0.6
   spawnNearest: 45
   spawnFarthest: 110

@@ -187,9 +187,7 @@ public static class LundunJumpBuilder
     {
         ModelImporter mi = AssetImporter.GetAtPath(path) as ModelImporter;
         if (mi == null) return null;
-        mi.animationType = ModelImporterAnimationType.Human;
-        if (skeleton != null) { mi.avatarSetup = ModelImporterAvatarSetup.CopyFromOther; mi.sourceAvatar = skeleton; }
-        else { mi.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel; mi.sourceAvatar = null; }
+        if (!LundunSkeletons.ConfigureHumanoid(mi, path)) return null;        // its own avatar, bones mapped
         mi.importAnimation = true;
         ModelImporterClipAnimation[] defs = mi.defaultClipAnimations;
         if (defs == null || defs.Length == 0) return null;
