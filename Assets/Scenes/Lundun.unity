@@ -278323,6 +278323,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1817636845}
   - component: {fileID: 1817636844}
+  - component: {fileID: 1817636846}
   m_Layer: 0
   m_Name: LundunRuntime
   m_TagString: Untagged
@@ -278364,6 +278365,26 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1817636846
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1817636843}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 164767c812bbe47afa61fa0ea68a27b2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LundunGraphics
+  startScale: 0.9
+  minScale: 0.7
+  maxScale: 1
+  step: 0.05
+  adaptive: 1
+  lowerAbove: 0.85
+  raiseBelow: 0.55
+  showStats: 1
 --- !u!1 &1817995090
 GameObject:
   m_ObjectHideFlags: 0
@@ -331031,50 +331052,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d9e4098338360477f9a9b03c79ec2927, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
-  speedCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 0.5
-      value: 4
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 0.83907473
-      value: 5.485714
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 1.3118134
-      value: 7.9164314
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  sprintThreshold: 0.9
-  keyboardWalkStrength: 0.6
+  walkSpeed: 1.8
+  runSpeed: 7.5
+  walkZone: 0.55
+  runZone: 0.8
+  stickDeadzone: 0.08
+  joystickTravel: 130
   turnSpeed: 1080
   gravity: -20
   jumpHeight: 1.5
@@ -331825,6 +331808,17 @@ MonoBehaviour:
   regenPerSecond: 20
   healthBar: {fileID: 2092826095}
   damageFlash: {fileID: 1458561465}
+  hitSwell: 2.2
+  swellTime: 0.45
+  chunkHold: 0.6
+  chunkDrainPerSecond: 0.5
+  healthyColour: {r: 0.2, g: 0.8, b: 0.2, a: 1}
+  hurtColour: {r: 1, g: 0.72, b: 0.1, a: 1}
+  dangerColour: {r: 0.9, g: 0.12, b: 0.1, a: 1}
+  carColour: {r: 1, g: 0.55, b: 0.1, a: 1}
+  heartbeatBelow: 0.5
+  heartbeatStrength: 0.45
+  shakePerDamage: 0.008
 --- !u!114 &2129053058
 MonoBehaviour:
   m_ObjectHideFlags: 0
