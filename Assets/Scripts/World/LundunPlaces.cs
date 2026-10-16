@@ -29,6 +29,8 @@ public class LundunPlaces : MonoBehaviour
 
     public Place[] Places { get { return places; } }
     public Place Home { get { return home; } }
+    /// James's own car (the Kestrel).
+    public Transform Kestrel { get { return kestrel; } }
 
     public void SetData(Place[] list, Transform car) { places = list; kestrel = car; }
 

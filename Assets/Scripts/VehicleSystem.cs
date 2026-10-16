@@ -36,6 +36,8 @@ public class VehicleSystem : MonoBehaviour
     public Transform PlayerTarget => currentCar != null ? currentCar.transform : player.transform;
 
     public bool IsDriving => currentCar != null;
+    /// The car close enough to get into right now (null if none). Read by the HUD for its ENTER / STEAL label.
+    public CarController NearbyCar => nearbyCar;
 
     // How fast the player is going, on foot or in a car
     public float PlayerSpeed

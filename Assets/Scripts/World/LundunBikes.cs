@@ -166,10 +166,10 @@ public class LundunBikes : MonoBehaviour
     {
         if (buttonGo == null) return;
         buttonGo.SetActive(offer != Offer.None);
-        if (offer == Offer.Hire) buttonText.text = "HIRE A BIKE\n<size=70%>Lundun Cycles</size>";
+        if (offer == Offer.Hire) buttonText.text = "HIRE";
         else if (offer == Offer.Ride) buttonText.text = "RIDE";
         else if (offer == Offer.GetOff) buttonText.text = "GET OFF";
-        else if (offer == Offer.Dock) buttonText.text = "DOCK BIKE";
+        else if (offer == Offer.Dock) buttonText.text = "DOCK";
     }
 
     void BuildButton()

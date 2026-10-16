@@ -83645,6 +83645,7 @@ GameObject:
   - component: {fileID: 503536109}
   - component: {fileID: 503536108}
   - component: {fileID: 503536107}
+  - component: {fileID: 503536111}
   m_Layer: 5
   m_Name: Canvas
   m_TagString: Untagged
@@ -83748,6 +83749,33 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
+--- !u!114 &503536111
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 503536106}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c41af574e7be746b0a0ffdd807386118, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LundunHud
+  font: {fileID: 12800000, guid: d10d71e6bda534b24a3cdaefedf801b5, type: 3}
+  fill: {r: 0.04, g: 0.06, b: 0.11, a: 0.55}
+  rim: {r: 1, g: 1, b: 1, a: 0.32}
+  iconColour: {r: 1, g: 1, b: 1, a: 0.95}
+  fireRim: {r: 1, g: 0.36, b: 0.28, a: 0.9}
+  pillFill: {r: 0.03, g: 0.05, b: 0.09, a: 0.84}
+  carAccent: {r: 1, g: 0.66, b: 0.18, a: 1}
+  bikeAccent: {r: 0.1, g: 0.72, b: 0.68, a: 1}
+  tubeAccent: {r: 0.16, g: 0.24, b: 0.62, a: 1}
+  pillRight: -130
+  pillHeight: 96
+  pillGap: 16
+  pillLowestY: 520
+  safeMargin: 12
+  statsOnByDefault: 0
 --- !u!1 &503798294
 GameObject:
   m_ObjectHideFlags: 0

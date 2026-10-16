@@ -173,6 +173,7 @@ public class PlayerHealth : MonoBehaviour
         swell = Mathf.Max(swell, Mathf.Lerp(0.5f, 1f, size));
         whiten = 1f;
         chunkUntil = Time.unscaledTime + chunkHold;
+        if (size > 0.5f) LundunHaptics.Heavy(); else LundunHaptics.Medium();
         if (cam != null) cam.AddShake(Mathf.Min(0.2f, amount * shakePerDamage));
     }
 
