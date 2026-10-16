@@ -32489,6 +32489,8 @@ GameObject:
   - component: {fileID: 195145383}
   - component: {fileID: 195145382}
   - component: {fileID: 195145381}
+  - component: {fileID: 195145384}
+  - component: {fileID: 195145385}
   m_Layer: 0
   m_Name: LundunLighting
   m_TagString: Untagged
@@ -33530,6 +33532,149 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &195145384
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 195145380}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fa4b015d9600444888df4b24245768cb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LundunAtmosphere
+  night:
+    temperature: 4
+    tint: 2
+    colorFilter: {r: 0.97, g: 0.97, b: 1, a: 1}
+    shadows: {r: 0.4, g: 0.5, b: 0.57, a: 1}
+    highlights: {r: 0.64, g: 0.5, b: 0.35, a: 1}
+    splitBalance: -15
+    vignette: 0.3
+    bloomThreshold: 0.75
+    bloomScatter: 0.72
+    bloomTint: {r: 1, g: 0.82, b: 0.62, a: 1}
+    fogColor: {r: 0.17, g: 0.13, b: 0.14, a: 1}
+    fogDensity: 0.008
+    fogFalloff: 0.05
+    fogHeight: 0
+    fogStart: 15
+    fogStrength: 0.85
+    fogOnSky: 0.35
+  dawn:
+    temperature: 6
+    tint: 6
+    colorFilter: {r: 1, g: 0.97, b: 0.96, a: 1}
+    shadows: {r: 0.49, g: 0.48, b: 0.58, a: 1}
+    highlights: {r: 0.6, g: 0.53, b: 0.47, a: 1}
+    splitBalance: 0
+    vignette: 0.22
+    bloomThreshold: 0.88
+    bloomScatter: 0.68
+    bloomTint: {r: 1, g: 0.88, b: 0.8, a: 1}
+    fogColor: {r: 0.74, g: 0.63, b: 0.62, a: 1}
+    fogDensity: 0.014
+    fogFalloff: 0.08
+    fogHeight: 0
+    fogStart: 20
+    fogStrength: 0.85
+    fogOnSky: 0.45
+  day:
+    temperature: -4
+    tint: 0
+    colorFilter: {r: 1, g: 1, b: 1, a: 1}
+    shadows: {r: 0.47, g: 0.5, b: 0.56, a: 1}
+    highlights: {r: 0.55, g: 0.53, b: 0.49, a: 1}
+    splitBalance: 0
+    vignette: 0.16
+    bloomThreshold: 1
+    bloomScatter: 0.6
+    bloomTint: {r: 1, g: 1, b: 1, a: 1}
+    fogColor: {r: 0.68, g: 0.73, b: 0.8, a: 1}
+    fogDensity: 0.004
+    fogFalloff: 0.05
+    fogHeight: 0
+    fogStart: 35
+    fogStrength: 0.7
+    fogOnSky: 0.5
+  dusk:
+    temperature: 14
+    tint: 5
+    colorFilter: {r: 1, g: 0.95, b: 0.92, a: 1}
+    shadows: {r: 0.52, g: 0.46, b: 0.6, a: 1}
+    highlights: {r: 0.64, g: 0.5, b: 0.39, a: 1}
+    splitBalance: -5
+    vignette: 0.24
+    bloomThreshold: 0.82
+    bloomScatter: 0.7
+    bloomTint: {r: 1, g: 0.84, b: 0.72, a: 1}
+    fogColor: {r: 0.62, g: 0.45, b: 0.47, a: 1}
+    fogDensity: 0.007
+    fogFalloff: 0.05
+    fogHeight: 0
+    fogStart: 25
+    fogStrength: 0.8
+    fogOnSky: 0.45
+  volume: {fileID: 832575518}
+  fogFeatures:
+  - {fileID: -455146675966592063, guid: 65bc7dbf4170f435aa868c779acfb082, type: 2}
+  - {fileID: -8799164762647326563, guid: f288ae1f4751b564a96ac7587541f7a2, type: 2}
+  fogMaterial: {fileID: 2100000, guid: 59fc5b62828ce43ff8fe5ec7078f55a7, type: 2}
+  lampHalos: 1
+  haloCount: 24
+  haloSize: 2.8
+  haloRange: 120
+  haloStrength: 0.55
+  haloColour: {r: 1, g: 0.74, b: 0.42, a: 1}
+  previewHour: -1
+--- !u!114 &195145385
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 195145380}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5809ff05f0f14143a43fe04fe7db8a3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LundunWeather
+  clearHours: {x: 2, y: 6}
+  cloudyHours: {x: 1.5, y: 4}
+  drizzleHours: {x: 0.6, y: 2}
+  rainHours: {x: 0.5, y: 1.5}
+  heavyHours: {x: 0.3, y: 0.8}
+  blendHours: 0.3
+  surfaces:
+  - material: {fileID: 2100000, guid: bf18fe1e1dc284ebab0162ba45fd6d73, type: 2}
+    wetSmoothness: 0.86
+    darken: 0.38
+  - material: {fileID: 2100000, guid: 6c54ef251d56248fd9d5246384d2e882, type: 2}
+    wetSmoothness: 0.72
+    darken: 0.3
+  - material: {fileID: 2100000, guid: 21488f69755d74329a0ffab70b65e906, type: 2}
+    wetSmoothness: 0.6
+    darken: 0.15
+  - material: {fileID: 2100000, guid: eec9d6662c03c45a695d135ff58b1e18, type: 2}
+    wetSmoothness: 0.6
+    darken: 0.25
+  - material: {fileID: 2100000, guid: 22b0c7dc6b0854d4895d7bd3ad50fcf1, type: 2}
+    wetSmoothness: 0.45
+    darken: 0.12
+  soakHours: 0.4
+  dryHours: 2.5
+  rainMaterial: {fileID: 2100000, guid: b18b1b144e5d644cd9f164aec4652ce7, type: 2}
+  maxDrops: 2500
+  heavyDropsPerSecond: 2200
+  fallSpeed: 17
+  rainBox: {x: 34, y: 34, z: 1}
+  rainVolume: 0.5
+  streakCount: 16
+  streakRange: 75
+  streakStrength: 0.6
+  streakColour: {r: 1, g: 0.6, b: 0.28, a: 1}
+  devButton: 1
 --- !u!1 &195404153
 GameObject:
   m_ObjectHideFlags: 0

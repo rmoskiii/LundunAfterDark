@@ -34,6 +34,9 @@ public class LundunLampLights : MonoBehaviour
     private float next;
 
     public void SetLamps(Vector3[] positions) { lamps = positions; }
+    /// Every lamp head (built lamps + the high street's), for the glow halos (V3a).
+    public IReadOnlyList<Vector3> Positions { get { return all; } }
+    public Color Colour { get { return colour; } }
 
     void Start()
     {

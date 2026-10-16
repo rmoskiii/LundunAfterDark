@@ -27,6 +27,9 @@ public class LundunLighting : MonoBehaviour
     [SerializeField] private float lampGlowStrength = 2.5f;
 
     public LightingLook Current { get; private set; }
+    /// V3b: the weather adjusts each look before it's shown (overcast, rain). Only used while playing.
+    public delegate void LookModifier(ref LightingLook look);
+    public static LookModifier Modify;
     /// Set by LundunClock: the clock decides the look while playing.
     public bool DrivenByClock { get; set; }
     private bool appliedInPlay;
@@ -43,6 +46,7 @@ public class LundunLighting : MonoBehaviour
 
     public void Apply(LightingLook l)
     {
+        if (Application.isPlaying && Modify != null) Modify(ref l);
         Current = l;
         if (sun != null)
         {
