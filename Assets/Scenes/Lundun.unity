@@ -330258,6 +330258,7 @@ MonoBehaviour:
   mapHeight: 1500
   openMetresTall: 700
   closestMetresTall: 120
+  streetNamesBelow: 560
 --- !u!114 &2119579349
 MonoBehaviour:
   m_ObjectHideFlags: 0

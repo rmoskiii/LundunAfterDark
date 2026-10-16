@@ -69,6 +69,45 @@ public static class LundunHudArt
         Seg(p, V(0.58f, 0.52f), V(0.58f, 0.82f), 0.09f), Seg(p, V(0.68f, 0.48f), V(0.68f, 0.7f), 0.09f),
         Seg(p, V(0.3f, 0.4f), V(0.2f, 0.56f), 0.09f)));
 
+    // V2b: full map
+    public static Sprite Close => Get("i_close", 128, p => Min(
+        Seg(p, V(0.26f, 0.26f), V(0.74f, 0.74f), 0.1f), Seg(p, V(0.26f, 0.74f), V(0.74f, 0.26f), 0.1f)));
+    public static Sprite Plus => Get("i_plus", 128, p => Min(
+        Seg(p, V(0.22f, 0.5f), V(0.78f, 0.5f), 0.1f), Seg(p, V(0.5f, 0.22f), V(0.5f, 0.78f), 0.1f)));
+    public static Sprite Minus => Get("i_minus", 128, p => Seg(p, V(0.22f, 0.5f), V(0.78f, 0.5f), 0.1f));
+    public static Sprite Locate => Get("i_locate", 128, p => Min(
+        RingD(p, C, 0.24f, 0.07f), Circle(p, C, 0.09f),
+        Seg(p, V(0.5f, 0.08f), V(0.5f, 0.22f), 0.07f), Seg(p, V(0.5f, 0.78f), V(0.5f, 0.92f), 0.07f),
+        Seg(p, V(0.08f, 0.5f), V(0.22f, 0.5f), 0.07f), Seg(p, V(0.78f, 0.5f), V(0.92f, 0.5f), 0.07f)));
+    /// Map pin: a teardrop with a hole, point at the bottom centre.
+    public static Sprite Pin => Get("i_pin", 128, p => Sub(
+        Min(Circle(p, V(0.5f, 0.64f), 0.27f), Round(Poly(p, V(0.5f, 0.06f), V(0.27f, 0.52f), V(0.73f, 0.52f)), 0.01f)),
+        Circle(p, V(0.5f, 0.64f), 0.1f)));
+    public static Sprite List => Get("i_list", 128, p => Min(
+        Circle(p, V(0.22f, 0.72f), 0.06f), Circle(p, V(0.22f, 0.5f), 0.06f), Circle(p, V(0.22f, 0.28f), 0.06f),
+        Seg(p, V(0.38f, 0.72f), V(0.82f, 0.72f), 0.09f), Seg(p, V(0.38f, 0.5f), V(0.82f, 0.5f), 0.09f), Seg(p, V(0.38f, 0.28f), V(0.82f, 0.28f), 0.09f)));
+
+    /// Soft dark fade (opaque at the top, clear at the bottom), stretched behind headers.
+    public static Sprite FadeDown
+    {
+        get
+        {
+            if (cache.TryGetValue("fadeDown", out Sprite s) && s != null) return s;
+            Texture2D tex = new Texture2D(4, 128, TextureFormat.RGBA32, false);
+            tex.wrapMode = TextureWrapMode.Clamp; tex.filterMode = FilterMode.Bilinear;
+            Color32[] px = new Color32[4 * 128];
+            for (int y = 0; y < 128; y++)
+            {
+                float a = Mathf.SmoothStep(0f, 1f, y / 127f);            // row 0 = bottom
+                for (int x = 0; x < 4; x++) px[y * 4 + x] = new Color32(255, 255, 255, (byte)(a * 255f));
+            }
+            tex.SetPixels32(px); tex.Apply(false, true);
+            s = Sprite.Create(tex, new Rect(0, 0, 4, 128), new Vector2(0.5f, 0.5f), 100f);
+            cache["fadeDown"] = s;
+            return s;
+        }
+    }
+
     // ------------------------------------------------------------------ drawing
     static readonly Vector2 C = new Vector2(0.5f, 0.5f);
     static Vector2 V(float x, float y) { return new Vector2(x, y); }

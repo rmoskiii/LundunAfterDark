@@ -25,6 +25,9 @@ namespace LundunGreybox
         static readonly byte[] Street = { 186, 192, 198 };
         static readonly byte[] Arterial = { 226, 230, 234 };
         static readonly byte[] Ring = { 222, 186, 104 };
+        static readonly byte[] HospitalPlot = { 112, 66, 72 };
+        static readonly byte[] PolicePlot = { 60, 80, 124 };
+        static readonly byte[] SafePlot = { 56, 98, 70 };
 
         static MapImage img;
 
@@ -58,6 +61,18 @@ namespace LundunGreybox
                 double hl = bd.len / 2, hd = bd.dep / 2;
                 Polygon(new List<V2> { bd.c - f * hl - l * hd, bd.c + f * hl - l * hd, bd.c + f * hl + l * hd, bd.c - f * hl + l * hd }, Building);
             }
+
+            // V2b: hospitals, police stations and safehouses (their plots), tinted so they read on the map
+            try
+            {
+                foreach (PlaceSite s in Generator.MapPlaces())
+                {
+                    if (!s.ok) continue;
+                    byte[] tint = s.kind == "hospital" ? HospitalPlot : s.kind == "police" ? PolicePlot : SafePlot;
+                    Polygon(new List<V2> { s.Corner(-s.len / 2, 0), s.Corner(s.len / 2, 0), s.Corner(s.len / 2, s.depth), s.Corner(-s.len / 2, s.depth) }, tint);
+                }
+            }
+            catch (Exception) { /* no places planned: draw the map without them */ }
 
             // roads: pavements first, then carriageways from minor to major so big roads sit on top
             Dictionary<string, LwRoadClass> cls = new Dictionary<string, LwRoadClass>();
