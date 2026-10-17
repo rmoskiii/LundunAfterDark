@@ -103,6 +103,15 @@ public class LundunGraphics : MonoBehaviour
         else if (underCount >= 5) { SetScale(urp.renderScale + step); underCount = 0; }
     }
 
+    /// V5 quality setting: the range the resolution may move in, and where it starts.
+    public void SetLimits(float min, float max, float start)
+    {
+        minScale = Mathf.Clamp(min, 0.5f, 1f); maxScale = Mathf.Clamp(max, minScale, 1f);
+        startScale = Mathf.Clamp(start, minScale, maxScale);
+        if (urp != null) urp.renderScale = startScale;
+        overCount = underCount = 0;
+    }
+
     void SetScale(float s)
     {
         s = Mathf.Clamp(Mathf.Round(s / step) * step, minScale, maxScale);

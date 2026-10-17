@@ -68,6 +68,8 @@ public class LundunWeather : MonoBehaviour
     public float Rain { get; private set; }
     /// 0..1, how wet the roads are.
     public float Wetness { get; private set; }
+    /// V5 quality setting: fewer raindrops on Battery.
+    public float DropScale { get; set; } = 1f;
 
     private float cloudTarget, rainTarget, hoursLeft, lastHour = -1f;
     private ParticleSystem rain;
@@ -299,7 +301,7 @@ public class LundunWeather : MonoBehaviour
             Transform ct = cam.transform;
             Vector3 fwd = ct.forward; fwd.y = 0f;
             rain.transform.position = ct.position + fwd.normalized * 9f + Vector3.up * 13f;
-            rainEmission.rateOverTime = heavyDropsPerSecond * Rain * Rain;
+            rainEmission.rateOverTime = heavyDropsPerSecond * Rain * Rain * DropScale;
         }
         if (rainAudio != null)
         {

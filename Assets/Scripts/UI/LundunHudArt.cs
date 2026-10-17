@@ -87,6 +87,10 @@ public static class LundunHudArt
         Circle(p, V(0.22f, 0.72f), 0.06f), Circle(p, V(0.22f, 0.5f), 0.06f), Circle(p, V(0.22f, 0.28f), 0.06f),
         Seg(p, V(0.38f, 0.72f), V(0.82f, 0.72f), 0.09f), Seg(p, V(0.38f, 0.5f), V(0.82f, 0.5f), 0.09f), Seg(p, V(0.38f, 0.28f), V(0.82f, 0.28f), 0.09f)));
 
+    // V5: pause menu
+    public static Sprite Pause => Get("i_pause", 128, p => Min(
+        RBox(p, V(0.36f, 0.5f), V(0.08f, 0.26f), 0.05f), RBox(p, V(0.64f, 0.5f), V(0.08f, 0.26f), 0.05f)));
+
     /// Soft dark fade (opaque at the top, clear at the bottom), stretched behind headers.
     public static Sprite FadeDown
     {

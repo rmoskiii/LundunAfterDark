@@ -189,6 +189,7 @@ public class LundunHud : MonoBehaviour
 
         SetStats(PlayerPrefs.GetInt(StatsKey, statsOnByDefault ? 1 : 0) == 1);
         ApplySafeArea();
+        if (GetComponent<LundunSettings>() == null) gameObject.AddComponent<LundunSettings>();      // V5: pause menu + settings
     }
 
     void ApplyFont(Transform root)
@@ -316,6 +317,17 @@ public class LundunHud : MonoBehaviour
     }
 
     // ------------------------------------------------------------------ performance numbers
+    /// V5: after the UI size changes, fit everything to the safe area again.
+    public void Relayout() { Canvas.ForceUpdateCanvases(); ApplySafeArea(); }
+
+    public bool StatsShown { get { return PlayerPrefs.GetInt(StatsKey, statsOnByDefault ? 1 : 0) == 1; } }
+
+    public void ShowStats(bool on)
+    {
+        PlayerPrefs.SetInt(StatsKey, on ? 1 : 0); PlayerPrefs.Save();
+        SetStats(on);
+    }
+
     void ToggleStats()
     {
         bool on = PlayerPrefs.GetInt(StatsKey, statsOnByDefault ? 1 : 0) != 1;
