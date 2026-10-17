@@ -97,7 +97,7 @@ namespace LundunGreybox
                 u += lens[i];
             }
             if (roofFlat)
-                Quad(new P3(p0, y1, 0.004, 0.004), new P3(p1, y1, 0.004, 0.004), new P3(p2, y1, 0.004, 0.004), new P3(p3, y1, 0.004, 0.004), 0, 1, 0);
+                Quad(new P3(p0, y1, SurfaceArt.RoofU, SurfaceArt.RoofV), new P3(p1, y1, SurfaceArt.RoofU, SurfaceArt.RoofV), new P3(p2, y1, SurfaceArt.RoofU, SurfaceArt.RoofV), new P3(p3, y1, SurfaceArt.RoofU, SurfaceArt.RoofV), 0, 1, 0);   // V4: a clean bit of wall
             else
                 Quad(new P3(p0, y1), new P3(p1, y1), new P3(p2, y1), new P3(p3, y1), 0, 1, 0);
             if (bottom) Quad(new P3(p0, y0), new P3(p1, y0), new P3(p2, y0), new P3(p3, y0), 0, -1, 0);
@@ -609,17 +609,22 @@ namespace LundunGreybox
             if (c.Count < 2) return;
             c = Densify(c, 20);
             List<V2> inn = Line.Offset(c, s * ri.w / 2), outr = Line.Offset(c, s * (ri.w / 2 + ri.pave));
+            double tile = SurfaceArt.PavingTileM, kv = 0.012, ov = ri.pave / tile;
+            double[] ch = new double[c.Count];
+            for (int i = 1; i < c.Count; i++) ch[i] = ch[i - 1] + V2.Dist(c[i - 1], c[i]);
             for (int i = 0; i + 1 < c.Count; i++)
             {
                 V2 side = (c[i + 1] - c[i]).Norm.Left * s;      // points away from the road
-                m.Quad(new P3(inn[i], yTop), new P3(inn[i + 1], yTop), new P3(outr[i + 1], yTop), new P3(outr[i], yTop), 0, 1, 0);
-                m.Quad(new P3(inn[i], yRoad - 0.02), new P3(inn[i + 1], yRoad - 0.02), new P3(inn[i + 1], yTop), new P3(inn[i], yTop), -side.x, 0, -side.z);
-                m.Quad(new P3(outr[i], -0.02), new P3(outr[i + 1], -0.02), new P3(outr[i + 1], yTop), new P3(outr[i], yTop), side.x, 0, side.z);
+                double u0 = (a + ch[i]) / tile, u1 = (a + ch[i + 1]) / tile;
+                m.Quad(new P3(inn[i], yTop, u0, 0), new P3(inn[i + 1], yTop, u1, 0), new P3(outr[i + 1], yTop, u1, ov), new P3(outr[i], yTop, u0, ov), 0, 1, 0);
+                m.Quad(new P3(inn[i], yRoad - 0.02, u0, kv), new P3(inn[i + 1], yRoad - 0.02, u1, kv), new P3(inn[i + 1], yTop, u1, kv), new P3(inn[i], yTop, u0, kv), -side.x, 0, -side.z);
+                m.Quad(new P3(outr[i], -0.02, u0, ov), new P3(outr[i + 1], -0.02, u1, ov), new P3(outr[i + 1], yTop, u1, ov), new P3(outr[i], yTop, u0, ov), side.x, 0, side.z);
             }
             V2 d0 = (c[1] - c[0]).Norm, d1 = (c[c.Count - 1] - c[c.Count - 2]).Norm;
-            m.Quad(new P3(inn[0], -0.02), new P3(outr[0], -0.02), new P3(outr[0], yTop), new P3(inn[0], yTop), -d0.x, 0, -d0.z);
+            m.Quad(new P3(inn[0], -0.02, a / tile, kv), new P3(outr[0], -0.02, a / tile, kv), new P3(outr[0], yTop, a / tile, kv), new P3(inn[0], yTop, a / tile, kv), -d0.x, 0, -d0.z);
             int e = c.Count - 1;
-            m.Quad(new P3(inn[e], -0.02), new P3(outr[e], -0.02), new P3(outr[e], yTop), new P3(inn[e], yTop), d1.x, 0, d1.z);
+            double ue = (a + ch[e]) / tile;
+            m.Quad(new P3(inn[e], -0.02, ue, kv), new P3(outr[e], -0.02, ue, kv), new P3(outr[e], yTop, ue, kv), new P3(inn[e], yTop, ue, kv), d1.x, 0, d1.z);
         }
 
         // ------------------------------------------------------------------ junctions
