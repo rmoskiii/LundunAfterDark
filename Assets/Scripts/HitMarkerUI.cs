@@ -40,6 +40,14 @@ public class HitMarkerUI : MonoBehaviour
         if (audioSource != null && clip != null) audioSource.PlayOneShot(clip);
     }
 
+    /// G1: headshot — gold, a little bigger.
+    public void ShowHeadshot(bool isKill)
+    {
+        Show(isKill);
+        foreach (Image line in lines) line.color = isKill ? killColour : new Color(1f, 0.82f, 0.2f);
+        transform.localScale = Vector3.one * (isKill ? 1.6f : 1.25f);
+    }
+
     void Update()
     {
         if (timer > 0f)

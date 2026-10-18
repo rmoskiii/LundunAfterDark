@@ -164,7 +164,10 @@ public class LundunAimAssist : MonoBehaviour
     }
 
     /// Where a shot from the camera should go: straight ahead, or onto a hostile you only just missed.
-    public Vector3 ShotDirection(Vector3 origin, Vector3 forward)
+    public Vector3 ShotDirection(Vector3 origin, Vector3 forward) { return ShotDirection(origin, forward, 1f); }
+
+    /// G1: scale = how forgiving this weapon is (spray / shotgun a little more, carbine a little less).
+    public Vector3 ShotDirection(Vector3 origin, Vector3 forward, float scale)
     {
         if (!Active()) return forward;
         int s = (int)strength;
@@ -176,7 +179,7 @@ public class LundunAimAssist : MonoBehaviour
             Vector3 to = aim - origin;
             float d = to.magnitude;
             if (d < 1f || d > range) continue;
-            float cone = Mathf.Atan2(MagnetRadiusM[s], d) * Mathf.Rad2Deg;
+            float cone = Mathf.Atan2(MagnetRadiusM[s] * scale, d) * Mathf.Rad2Deg;
             float ratio = Vector3.Angle(forward, to) / Mathf.Max(0.01f, cone);
             if (ratio >= bestRatio) continue;
             if (Physics.Raycast(origin, to / d, d - 0.6f, losMask, QueryTriggerInteraction.Ignore)) continue;

@@ -48,6 +48,12 @@ public class PlayerCombat : MonoBehaviour
 
     private InputAction fireAction;
     private PlayerController player;
+    // G1: weapons (fists, pistol, SMG, carbine, shotgun)
+    private LundunWeapons weapons;
+    private bool triggerWasDown;
+    private float tapBufferedUntil;
+    private readonly Dictionary<Health, ShotHit> shotHits = new Dictionary<Health, ShotHit>();
+    class ShotHit { public float damage; public bool head; public RaycastHit hit; }
     private Transform cam;
     private float nextFireTime;
     private float nextPunchTime;
@@ -60,10 +66,13 @@ public class PlayerCombat : MonoBehaviour
         player = GetComponent<PlayerController>();
         if (player == null) player = GetComponentInParent<PlayerController>();
         cam = Camera.main.transform;
+        weapons = GetComponent<LundunWeapons>();
+        if (weapons == null) weapons = gameObject.AddComponent<LundunWeapons>();
     }
 
     void Update()
     {
+        if (weapons != null) { WeaponUpdate(); return; }        // G1
         if (!WantsToFire()) return;
 
         // someone right in front of James: fists, not bullets
@@ -78,6 +87,164 @@ public class PlayerCombat : MonoBehaviour
         {
             nextFireTime = Time.time + 1f / fireRate;
             Shoot();
+        }
+    }
+
+    // ------------------------------------------------------------------ G1: weapons
+    void WeaponUpdate()
+    {
+        bool wants = WantsToFire();
+        bool manual = wants && fireAction.IsPressed();
+        bool pressedNow = wants && !triggerWasDown;
+        triggerWasDown = wants;
+        bool buffered = Time.time <= tapBufferedUntil;
+        if (!wants && !buffered) return;
+
+        LundunWeapons.Weapon w = weapons.Current;
+
+        // fists: the fire button throws punches (auto-fire only punches someone actually in reach)
+        if (weapons.IsFists)
+        {
+            if (!wants || !weapons.Ready || Time.time < nextPunchTime) return;
+            Health target = FindPunchTarget();
+            if (target == null && !manual) return;
+            nextPunchTime = Time.time + 1f / punchRate;
+            if (target != null) Punch(target);
+            else Whiff();
+            return;
+        }
+
+        // someone right in front of James: fists, not bullets (as before)
+        if (wants)
+        {
+            Health close = FindPunchTarget();
+            if (close != null)
+            {
+                if (Time.time >= nextPunchTime) { nextPunchTime = Time.time + 1f / punchRate; Punch(close); }
+                return;
+            }
+        }
+
+        // semi-auto and pump: one shot per tap (a tap during the cooldown is remembered for a moment)
+        bool semi = !w.automatic;
+        if (!weapons.Ready || Time.time < nextFireTime)
+        {
+            if (semi && pressedNow) tapBufferedUntil = Time.time + 0.15f;
+            return;
+        }
+        bool autoFiring = wants && !manual;                     // A3 auto-fire: semi weapons fire at their tap rate
+        if (semi && !(pressedNow || buffered || autoFiring)) return;
+        tapBufferedUntil = 0f;
+        if (!weapons.TakeRound()) return;                      // empty: reloading
+        nextFireTime = Time.time + 1f / Mathf.Max(0.1f, w.fireRate);
+        ShootWeapon(w);
+    }
+
+    /// A punch at thin air (fists, nobody in reach).
+    void Whiff()
+    {
+        LundunPlayerReact.Act("Punch", 0.7f);
+        if (cameraFollow != null) cameraFollow.AddShake(shakeAmount * 0.3f);
+    }
+
+    void ShootWeapon(LundunWeapons.Weapon w)
+    {
+        GunshotFired?.Invoke(transform.position);
+        CrimeSystem.Report(CrimeType.Gunfire, transform.position);
+        PlayWeaponFeedback(w);
+
+        // aim assist: a near-miss on a threat still lands (A1), a bit more forgiving for spray / shotgun
+        Vector3 centre = LundunAimAssist.Instance != null ? LundunAimAssist.Instance.ShotDirection(cam.position, cam.forward, w.assist) : cam.forward;
+        LundunAimAssist.NotifyShot();
+        weapons.NotifyShot();
+
+        float spread = weapons.SpreadNow;
+        int pellets = Mathf.Max(1, w.pellets);
+        shotHits.Clear();
+        int impacts = 0;
+        for (int i = 0; i < pellets; i++)
+        {
+            float cone = pellets > 1 ? w.pelletCone : spread;
+            Vector3 dir = Scatter(centre, cone);
+            Vector3 end = cam.position + dir * w.range;
+            if (Physics.Raycast(cam.position, dir, out RaycastHit hit, w.range, hitMask, QueryTriggerInteraction.Ignore))
+            {
+                end = hit.point;
+                Health health = hit.collider.GetComponentInParent<Health>();
+                if (health == null || impacts < 3)
+                {
+                    GameObject fx = health != null ? bloodImpactPrefab : surfaceImpactPrefab;
+                    if (fx != null && impacts < 4) { Instantiate(fx, hit.point, Quaternion.LookRotation(hit.normal)); impacts++; }
+                }
+                VehicleHealth vehicle = hit.collider.GetComponentInParent<VehicleHealth>();
+                if (vehicle != null) vehicle.TakeDamage(weapons.DamageAt(hit.distance) * vehicleDamageMultiplier);
+                if (health != null && !health.IsDead)
+                {
+                    bool head = IsHeadshot(health, hit.point);
+                    float dmg = weapons.DamageAt(hit.distance) * (head ? w.headshot : 1f);
+                    if (!shotHits.TryGetValue(health, out ShotHit sh)) { sh = new ShotHit { hit = hit }; shotHits[health] = sh; }
+                    sh.damage += dmg;
+                    sh.head |= head;
+                }
+            }
+            if (pellets == 1 || i % 2 == 0) SpawnTracer(end);
+        }
+
+        // each person hit takes the whole shot at once (one crime report, one hit marker)
+        foreach (KeyValuePair<Health, ShotHit> kv in shotHits) ApplyShot(kv.Key, kv.Value, centre, w);
+    }
+
+    void ApplyShot(Health health, ShotHit sh, Vector3 dir, LundunWeapons.Weapon w)
+    {
+        if (health == null || health.IsDead) return;
+        float push = w.kind == LundunWeapons.Kind.Shotgun ? 2.2f : 1f;     // the shotgun knocks people back
+        health.TakeDamage(sh.damage, sh.hit.point, dir * impactForce * push);
+
+        if (health.GetComponent<NPCBrain>() != null)
+            CrimeSystem.Report(health.IsDead ? CrimeType.KillPedestrian : CrimeType.AssaultPedestrian, sh.hit.point);
+
+        if (hitMarker != null)
+        {
+            if (sh.head) hitMarker.ShowHeadshot(health.IsDead);
+            else hitMarker.Show(health.IsDead);
+        }
+        if (sh.head || health.IsDead) LundunHaptics.Light();
+        SpawnBloodDecals(sh.hit);
+    }
+
+    /// Head = the top of a person (about 1.45 m and up from their feet).
+    static bool IsHeadshot(Health h, Vector3 point)
+    {
+        if (h.GetComponent<NPCBrain>() == null && h.GetComponent<PoliceOfficer>() == null) return false;
+        return point.y - h.transform.position.y >= 1.45f;
+    }
+
+    /// A direction somewhere inside a cone (degrees across) round the centre, bunched towards the middle.
+    static Vector3 Scatter(Vector3 centre, float coneDegrees)
+    {
+        if (coneDegrees <= 0.001f) return centre;
+        Vector2 r = Random.insideUnitCircle;
+        r *= Mathf.Lerp(0.6f, 1f, Random.value);
+        float half = coneDegrees * 0.5f;
+        Quaternion q = Quaternion.LookRotation(centre);
+        return q * Quaternion.Euler(-r.y * half, r.x * half, 0f) * Vector3.forward;
+    }
+
+    void PlayWeaponFeedback(LundunWeapons.Weapon w)
+    {
+        if (muzzleFlash != null) muzzleFlash.Flash();
+        if (gunAudio != null && gunshotClip != null)
+        {
+            gunAudio.pitch = w.pitch * Random.Range(0.95f, 1.05f);
+            gunAudio.PlayOneShot(gunshotClip, w.volume);
+            if (w.kind == LundunWeapons.Kind.Shotgun) gunAudio.PlayOneShot(gunshotClip, 0.6f);   // a heavier boom
+        }
+        if (cameraFollow != null)
+        {
+            Vector2 kick = weapons.Recoil();
+            float steady = LundunAim.Aiming ? 0.7f : 1f;             // steadier aimed in
+            cameraFollow.AddRecoil(kick.x * steady, kick.y * steady);
+            cameraFollow.AddShake(w.shake);
         }
     }
 

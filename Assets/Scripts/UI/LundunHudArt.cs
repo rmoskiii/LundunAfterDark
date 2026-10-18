@@ -102,6 +102,41 @@ public static class LundunHudArt
         Line(p, 0.09f, V(0.24f, 0.26f), V(0.46f, 0.5f), V(0.24f, 0.74f)),
         Line(p, 0.09f, V(0.52f, 0.26f), V(0.74f, 0.5f), V(0.52f, 0.74f))));
 
+    // G1: weapons (side-on silhouettes, pointing right; original shapes)
+    public static Sprite Fist => Get("w_fist", 128, p => Sub(Min(
+        RBox(p, V(0.54f, 0.52f), V(0.24f, 0.17f), 0.08f),
+        RBox(p, V(0.34f, 0.38f), V(0.12f, 0.08f), 0.06f),
+        RBox(p, V(0.6f, 0.3f), V(0.12f, 0.12f), 0.05f)),
+        Min(Seg(p, V(0.47f, 0.6f), V(0.47f, 0.7f), 0.025f), Seg(p, V(0.58f, 0.6f), V(0.58f, 0.7f), 0.025f), Seg(p, V(0.69f, 0.6f), V(0.69f, 0.7f), 0.025f))));
+    public static Sprite Pistol => Get("w_pistol", 128, p => Sub(Min(
+        RBox(p, V(0.53f, 0.62f), V(0.3f, 0.075f), 0.02f),
+        Round(Poly(p, V(0.27f, 0.57f), V(0.45f, 0.57f), V(0.4f, 0.24f), V(0.24f, 0.24f)), 0.02f),
+        RingD(p, V(0.5f, 0.5f), 0.065f, 0.03f)),
+        Circle(p, V(0.82f, 0.63f), 0.02f)));
+    public static Sprite Smg => Get("w_smg", 128, p => Min(
+        RBox(p, V(0.5f, 0.6f), V(0.27f, 0.085f), 0.02f),
+        Seg(p, V(0.76f, 0.62f), V(0.94f, 0.62f), 0.045f),
+        Round(Poly(p, V(0.36f, 0.53f), V(0.46f, 0.53f), V(0.42f, 0.3f), V(0.33f, 0.3f)), 0.015f),
+        Round(Poly(p, V(0.55f, 0.53f), V(0.63f, 0.53f), V(0.64f, 0.25f), V(0.57f, 0.25f)), 0.015f),
+        Line(p, 0.04f, V(0.24f, 0.62f), V(0.08f, 0.6f), V(0.08f, 0.48f))));
+    public static Sprite Carbine => Get("w_carbine", 128, p => Min(
+        RBox(p, V(0.45f, 0.57f), V(0.21f, 0.075f), 0.02f),
+        Seg(p, V(0.64f, 0.59f), V(0.97f, 0.59f), 0.04f),
+        RBox(p, V(0.74f, 0.57f), V(0.1f, 0.05f), 0.02f),
+        Round(Poly(p, V(0.25f, 0.63f), V(0.04f, 0.6f), V(0.04f, 0.45f), V(0.25f, 0.51f)), 0.015f),
+        Round(Poly(p, V(0.44f, 0.5f), V(0.52f, 0.5f), V(0.57f, 0.28f), V(0.49f, 0.27f)), 0.015f),
+        Round(Poly(p, V(0.31f, 0.5f), V(0.38f, 0.5f), V(0.35f, 0.32f), V(0.28f, 0.33f)), 0.015f),
+        RBox(p, V(0.43f, 0.68f), V(0.08f, 0.025f), 0.01f)));
+    public static Sprite Shotgun => Get("w_shotgun", 128, p => Min(
+        Seg(p, V(0.36f, 0.61f), V(0.97f, 0.61f), 0.045f),
+        RBox(p, V(0.72f, 0.54f), V(0.11f, 0.04f), 0.02f),
+        RBox(p, V(0.33f, 0.57f), V(0.1f, 0.075f), 0.02f),
+        Round(Poly(p, V(0.24f, 0.62f), V(0.03f, 0.53f), V(0.03f, 0.4f), V(0.24f, 0.52f)), 0.02f)));
+    /// Reload: a circular arrow.
+    public static Sprite Reload => Get("i_reload", 128, p => Min(
+        Sub(RingD(p, C, 0.3f, 0.09f), Poly(p, C, V(1f, 0.85f), V(1f, 1f), V(0.7f, 1f))),
+        Round(Poly(p, V(0.66f, 0.92f), V(0.9f, 0.76f), V(0.64f, 0.64f)), 0.01f)));
+
     /// Soft dark fade (opaque at the top, clear at the bottom), stretched behind headers.
     public static Sprite FadeDown
     {
