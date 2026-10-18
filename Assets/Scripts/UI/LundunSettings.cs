@@ -12,6 +12,9 @@ using UnityEngine.UI;
 ///   • FRAME RATE 30 / 60 — 60 is smoother but hotter; resolution drops to hold it (the phone's own numbers are shown)
 ///   • UI SIZE   Small / Normal / Large
 ///   • HAPTICS   On / Off      • PERFORMANCE numbers  Hide / Show
+/// A3: a CONTROLS tab:
+///   • LOOK SPEED  how fast dragging turns the camera      • AIM SPEED  look speed while aimed in (AIM button)
+///   • AIM ASSIST  Off / Light / Standard / Strong          • FIRE  Manual / Auto (shoots by itself when the crosshair turns red)
 /// Added automatically by LundunHud. In the editor, Play never changes the project's render settings.
 [DefaultExecutionOrder(300)]
 public class LundunSettings : MonoBehaviour
@@ -22,6 +25,33 @@ public class LundunSettings : MonoBehaviour
     public enum Quality { Battery, Balanced, Best }
 
     const string QKey = "Lundun.Quality", FpsKey = "Lundun.Fps60", UiKey = "Lundun.UiSize", HapticsKey = "Lundun.Haptics";
+    const string LookKey = "Lundun.LookSpeed", AimKey = "Lundun.AimSpeed", AssistKey = "Lundun.AimAssist", AutoKey = "Lundun.AutoFire";
+
+    // ------------------------------------------------------------------ A3: control settings (read by the camera, aim and combat)
+    const float LookMin = 0.4f, LookMax = 2f, LookStep = 0.1f, AimMin = 0.3f, AimMax = 1f, AimStep = 0.05f;
+    static bool controlsLoaded;
+    static float lookSpeed = 1f, aimSpeed = 0.65f;
+    static int assistLevel = 2;
+    static bool autoFire;
+
+    static void LoadControls()
+    {
+        if (controlsLoaded) return;
+        controlsLoaded = true;
+        lookSpeed = Mathf.Clamp(PlayerPrefs.GetFloat(LookKey, 1f), LookMin, LookMax);
+        aimSpeed = Mathf.Clamp(PlayerPrefs.GetFloat(AimKey, 0.65f), AimMin, AimMax);
+        assistLevel = Mathf.Clamp(PlayerPrefs.GetInt(AssistKey, 2), 0, 3);
+        autoFire = PlayerPrefs.GetInt(AutoKey, 0) == 1;
+    }
+
+    /// Camera turn speed multiplier (1 = default).
+    public static float LookSpeed { get { LoadControls(); return lookSpeed; } }
+    /// Look speed while aimed in, relative to normal (0.65 = default).
+    public static float AimSpeed { get { LoadControls(); return aimSpeed; } }
+    /// 0 Off, 1 Light, 2 Standard (default), 3 Strong.
+    public static int AssistLevel { get { LoadControls(); return assistLevel; } }
+    /// Fire by itself when the crosshair is on a threat.
+    public static bool AutoFire { get { LoadControls(); return autoFire; } }
     static readonly float[] UiScales = { 0.88f, 1f, 1.14f };
     static readonly Color Ink = new Color(0.03f, 0.05f, 0.09f, 0.94f);
     static readonly Color Accent = new Color(1f, 0.66f, 0.18f);              // sodium amber
@@ -36,7 +66,10 @@ public class LundunSettings : MonoBehaviour
     private readonly Dictionary<CanvasScaler, Vector2> origRef = new Dictionary<CanvasScaler, Vector2>();
     private float prevTimeScale = 1f;
 
-    private GameObject canvasGo, menu;
+    private GameObject canvasGo, menu, displayTab, controlsTab;
+    private RectTransform panel;
+    private TextMeshProUGUI lookValue, aimValue;
+    private int tab;
     private RectTransform pauseButton;
     private TextMeshProUGUI fpsNote;
     private readonly Dictionary<string, List<Image>> groups = new Dictionary<string, List<Image>>();
@@ -62,6 +95,8 @@ public class LundunSettings : MonoBehaviour
         Fps60 = PlayerPrefs.GetInt(FpsKey, 0) == 1;
         UiSize = Mathf.Clamp(PlayerPrefs.GetInt(UiKey, 1), 0, 2);
         LundunHaptics.Enabled = PlayerPrefs.GetInt(HapticsKey, 1) == 1;
+        LoadControls();
+        if (LundunAimAssist.Instance != null) LundunAimAssist.Instance.Level = (LundunAimAssist.Strength)assistLevel;
 
         BuildUI();
         ApplyQuality(); ApplyFps(); ApplyUiSize();
@@ -101,6 +136,7 @@ public class LundunSettings : MonoBehaviour
         Time.timeScale = 0f;
         AudioListener.pause = true;
         menu.SetActive(true);
+        FitPanel();
         if (fpsNote != null) fpsNote.text = FpsNoteText();
         RefreshButtons();
     }
@@ -121,6 +157,46 @@ public class LundunSettings : MonoBehaviour
     void SetUi(int i) { UiSize = i; PlayerPrefs.SetInt(UiKey, i); PlayerPrefs.Save(); ApplyUiSize(); RefreshButtons(); }
     void SetHaptics(int i) { LundunHaptics.Enabled = i == 0; PlayerPrefs.SetInt(HapticsKey, i == 0 ? 1 : 0); PlayerPrefs.Save(); RefreshButtons(); LundunHaptics.Light(); }
     void SetStats(int i) { if (LundunHud.Instance != null) LundunHud.Instance.ShowStats(i == 1); RefreshButtons(); }
+
+    void SetTab(int i)
+    {
+        tab = i;
+        if (displayTab != null) displayTab.SetActive(i == 0);
+        if (controlsTab != null) controlsTab.SetActive(i == 1);
+        RefreshButtons();
+    }
+
+    void StepLook(int dir)
+    {
+        lookSpeed = Mathf.Clamp(Mathf.Round((lookSpeed + dir * LookStep) / LookStep) * LookStep, LookMin, LookMax);
+        PlayerPrefs.SetFloat(LookKey, lookSpeed); PlayerPrefs.Save(); RefreshButtons();
+    }
+
+    void StepAim(int dir)
+    {
+        aimSpeed = Mathf.Clamp(Mathf.Round((aimSpeed + dir * AimStep) / AimStep) * AimStep, AimMin, AimMax);
+        PlayerPrefs.SetFloat(AimKey, aimSpeed); PlayerPrefs.Save(); RefreshButtons();
+    }
+
+    void SetAssist(int i)
+    {
+        assistLevel = i; PlayerPrefs.SetInt(AssistKey, i); PlayerPrefs.Save();
+        if (LundunAimAssist.Instance != null) LundunAimAssist.Instance.Level = (LundunAimAssist.Strength)i;
+        RefreshButtons();
+    }
+
+    void SetFire(int i) { autoFire = i == 1; PlayerPrefs.SetInt(AutoKey, i); PlayerPrefs.Save(); RefreshButtons(); }
+
+    /// Large UI on a short screen: shrink the panel so it always fits.
+    void FitPanel()
+    {
+        if (panel == null || canvasGo == null) return;
+        Canvas.ForceUpdateCanvases();
+        float h = ((RectTransform)canvasGo.transform).rect.height;
+        float need = panel.sizeDelta.y + 40f;
+        float k = h > 0f ? Mathf.Min(1f, h / need) : 1f;
+        panel.localScale = new Vector3(k, k, 1f);
+    }
 
     void ApplyQuality()
     {
@@ -187,28 +263,36 @@ public class LundunSettings : MonoBehaviour
         RectTransform mr = (RectTransform)menu.transform; Stretch(mr);
         Image dim = menu.AddComponent<Image>(); dim.color = new Color(0f, 0.01f, 0.03f, 0.72f);       // blocks touches to the game
 
-        RectTransform panel = Rect("Panel", mr);
-        panel.sizeDelta = new Vector2(1000f, 860f);
+        panel = Rect("Panel", mr);
+        panel.sizeDelta = new Vector2(1000f, 850f);
         Image pi = panel.gameObject.AddComponent<Image>();
         pi.sprite = LundunHudArt.Panel; pi.type = Image.Type.Sliced; pi.pixelsPerUnitMultiplier = 0.35f; pi.color = Ink;
 
-        TextMeshProUGUI title = Text(panel, "PAUSED", 58, Color.white);
+        TextMeshProUGUI title = Text(panel, "PAUSED", 52, Color.white);
         title.characterSpacing = 18f;
-        Top(title.rectTransform, -34f, 70f);
+        Top(title.rectTransform, -26f, 64f);
 
-        float y = -140f;
-        Row(panel, "GRAPHICS", "quality", new[] { "BATTERY", "BALANCED", "BEST" }, SetQuality, ref y);
-        Row(panel, "FRAME RATE", "fps", new[] { "30 FPS", "60 FPS" }, SetFps, ref y);
-        fpsNote = Text(panel, "", 21, Dim);
-        fpsNote.alignment = TextAlignmentOptions.TopLeft;
-        fpsNote.textWrappingMode = TextWrappingModes.Normal;
-        RectTransform fn = fpsNote.rectTransform;
-        fn.anchorMin = fn.anchorMax = new Vector2(0f, 1f); fn.pivot = new Vector2(0f, 1f);
-        fn.anchoredPosition = new Vector2(330f, y + 14f); fn.sizeDelta = new Vector2(620f, 56f);
-        y -= 54f;
-        Row(panel, "UI SIZE", "ui", new[] { "SMALL", "NORMAL", "LARGE" }, SetUi, ref y);
-        Row(panel, "HAPTICS", "haptics", new[] { "ON", "OFF" }, SetHaptics, ref y);
-        Row(panel, "PERFORMANCE", "stats", new[] { "HIDE", "SHOW" }, SetStats, ref y);
+        // A3: two tabs, DISPLAY and CONTROLS
+        Tabs(panel, new[] { "DISPLAY", "CONTROLS" }, -104f);
+        displayTab = Rect("DisplayTab", panel).gameObject; Stretch((RectTransform)displayTab.transform);
+        controlsTab = Rect("ControlsTab", panel).gameObject; Stretch((RectTransform)controlsTab.transform);
+        RectTransform dt = (RectTransform)displayTab.transform, ct = (RectTransform)controlsTab.transform;
+
+        float y = -196f;
+        Row(dt, "GRAPHICS", "quality", new[] { "BATTERY", "BALANCED", "BEST" }, SetQuality, ref y);
+        Row(dt, "FRAME RATE", "fps", new[] { "30 FPS", "60 FPS" }, SetFps, ref y);
+        fpsNote = Note(dt, "", ref y);
+        Row(dt, "UI SIZE", "ui", new[] { "SMALL", "NORMAL", "LARGE" }, SetUi, ref y);
+        Row(dt, "HAPTICS", "haptics", new[] { "ON", "OFF" }, SetHaptics, ref y);
+        Row(dt, "PERFORMANCE", "stats", new[] { "HIDE", "SHOW" }, SetStats, ref y);
+
+        y = -196f;
+        lookValue = Stepper(ct, "LOOK SPEED", StepLook, ref y);
+        aimValue = Stepper(ct, "AIM SPEED", StepAim, ref y);
+        Row(ct, "AIM ASSIST", "assist", new[] { "OFF", "LIGHT", "STANDARD", "STRONG" }, SetAssist, ref y);
+        Row(ct, "FIRE", "fire", new[] { "MANUAL", "AUTO" }, SetFire, ref y);
+        Note(ct, "AIM SPEED is look speed while aimed in.  AUTO fires by itself when the crosshair turns red on a threat.", ref y);
+        controlsTab.SetActive(false);
 
         RectTransform resume = Rect("Resume", panel);
         resume.anchorMin = resume.anchorMax = new Vector2(0.5f, 0f); resume.pivot = new Vector2(0.5f, 0f);
@@ -222,14 +306,80 @@ public class LundunSettings : MonoBehaviour
         menu.SetActive(false);
     }
 
-    /// Label on the left, a segmented choice on the right.
-    void Row(RectTransform panel, string label, string key, string[] options, Action<int> pick, ref float y)
+    void Tabs(RectTransform panel, string[] names, float y)
     {
-        TextMeshProUGUI l = Text(panel, label, 28, Dim);
+        List<Image> list = new List<Image>();
+        float w = 260f, gap = 12f, x0 = -(names.Length * w + (names.Length - 1) * gap) * 0.5f;
+        for (int i = 0; i < names.Length; i++)
+        {
+            int idx = i;
+            RectTransform o = Rect("Tab_" + names[i], panel);
+            o.anchorMin = o.anchorMax = new Vector2(0.5f, 1f); o.pivot = new Vector2(0f, 1f);
+            o.anchoredPosition = new Vector2(x0 + i * (w + gap), y); o.sizeDelta = new Vector2(w, 60f);
+            Image img = o.gameObject.AddComponent<Image>();
+            img.sprite = LundunHudArt.Pill; img.type = Image.Type.Sliced; img.pixelsPerUnitMultiplier = 1.07f;
+            Button bt = o.gameObject.AddComponent<Button>(); bt.targetGraphic = img;
+            bt.onClick.AddListener(() => { SetTab(idx); LundunHaptics.Light(); });
+            o.gameObject.AddComponent<LundunPressFX>();
+            TextMeshProUGUI t = Text(o, names[i], 24, Color.white); Stretch(t.rectTransform); t.characterSpacing = 8f;
+            list.Add(img);
+        }
+        groups["tab"] = list;
+    }
+
+    TextMeshProUGUI Label(RectTransform parent, string label, float y)
+    {
+        TextMeshProUGUI l = Text(parent, label, 26, Dim);
         l.characterSpacing = 8f; l.alignment = TextAlignmentOptions.MidlineLeft;
         RectTransform lr = l.rectTransform;
         lr.anchorMin = lr.anchorMax = new Vector2(0f, 1f); lr.pivot = new Vector2(0f, 1f);
-        lr.anchoredPosition = new Vector2(56f, y); lr.sizeDelta = new Vector2(270f, 76f);
+        lr.anchoredPosition = new Vector2(56f, y); lr.sizeDelta = new Vector2(270f, RowH);
+        return l;
+    }
+
+    /// Small grey explanation line.
+    TextMeshProUGUI Note(RectTransform parent, string text, ref float y)
+    {
+        TextMeshProUGUI n = Text(parent, text, 21, Dim);
+        n.alignment = TextAlignmentOptions.TopLeft;
+        n.textWrappingMode = TextWrappingModes.Normal;
+        RectTransform r = n.rectTransform;
+        r.anchorMin = r.anchorMax = new Vector2(0f, 1f); r.pivot = new Vector2(0f, 1f);
+        r.anchoredPosition = new Vector2(330f, y + 14f); r.sizeDelta = new Vector2(620f, 56f);
+        y -= 50f;
+        return n;
+    }
+
+    /// Label, then  [ − ]  value  [ + ].
+    TextMeshProUGUI Stepper(RectTransform parent, string label, Action<int> step, ref float y)
+    {
+        Label(parent, label, y);
+        for (int i = 0; i < 2; i++)
+        {
+            int dir = i == 0 ? -1 : 1;
+            RectTransform o = Rect(dir < 0 ? "Less" : "More", parent);
+            o.anchorMin = o.anchorMax = new Vector2(0f, 1f); o.pivot = new Vector2(0f, 1f);
+            o.anchoredPosition = new Vector2(dir < 0 ? 330f : 330f + 620f - 140f, y); o.sizeDelta = new Vector2(140f, RowH);
+            Image img = o.gameObject.AddComponent<Image>();
+            img.sprite = LundunHudArt.Pill; img.type = Image.Type.Sliced; img.pixelsPerUnitMultiplier = 0.94f; img.color = new Color(1f, 1f, 1f, 0.08f);
+            Button bt = o.gameObject.AddComponent<Button>(); bt.targetGraphic = img;
+            bt.onClick.AddListener(() => { step(dir); LundunHaptics.Light(); });
+            o.gameObject.AddComponent<LundunPressFX>();
+            Img(o, dir < 0 ? LundunHudArt.Minus : LundunHudArt.Plus, Color.white, 34);
+        }
+        TextMeshProUGUI v = Text(parent, "", 34, Color.white);
+        RectTransform vr = v.rectTransform;
+        vr.anchorMin = vr.anchorMax = new Vector2(0f, 1f); vr.pivot = new Vector2(0f, 1f);
+        vr.anchoredPosition = new Vector2(330f + 150f, y); vr.sizeDelta = new Vector2(620f - 300f, RowH);
+        v.characterSpacing = 4f;
+        y -= RowGap;
+        return v;
+    }
+
+    /// Label on the left, a segmented choice on the right.
+    void Row(RectTransform panel, string label, string key, string[] options, Action<int> pick, ref float y)
+    {
+        Label(panel, label, y);
 
         List<Image> list = new List<Image>();
         float total = 620f, gap = 10f, w = (total - gap * (options.Length - 1)) / options.Length;
@@ -238,18 +388,20 @@ public class LundunSettings : MonoBehaviour
             int idx = i;
             RectTransform o = Rect("Opt_" + options[i], panel);
             o.anchorMin = o.anchorMax = new Vector2(0f, 1f); o.pivot = new Vector2(0f, 1f);
-            o.anchoredPosition = new Vector2(330f + i * (w + gap), y); o.sizeDelta = new Vector2(w, 76f);
+            o.anchoredPosition = new Vector2(330f + i * (w + gap), y); o.sizeDelta = new Vector2(w, RowH);
             Image img = o.gameObject.AddComponent<Image>();
             img.sprite = LundunHudArt.Pill; img.type = Image.Type.Sliced; img.pixelsPerUnitMultiplier = 0.84f;
             Button bt = o.gameObject.AddComponent<Button>(); bt.targetGraphic = img;
             bt.onClick.AddListener(() => { pick(idx); LundunHaptics.Light(); });
             o.gameObject.AddComponent<LundunPressFX>();
-            TextMeshProUGUI t = Text(o, options[i], 26, Color.white); Stretch(t.rectTransform); t.characterSpacing = 4f;
+            TextMeshProUGUI t = Text(o, options[i], options.Length > 3 ? 23 : 26, Color.white); Stretch(t.rectTransform); t.characterSpacing = options.Length > 3 ? 2f : 4f;
             list.Add(img);
         }
         groups[key] = list;
-        y -= 100f;
+        y -= RowGap;
     }
+
+    const float RowH = 70f, RowGap = 88f;
 
     void RefreshButtons()
     {
@@ -258,6 +410,11 @@ public class LundunSettings : MonoBehaviour
         Mark("ui", UiSize);
         Mark("haptics", LundunHaptics.Enabled ? 0 : 1);
         Mark("stats", LundunHud.Instance != null && LundunHud.Instance.StatsShown ? 1 : 0);
+        Mark("tab", tab);
+        Mark("assist", assistLevel);
+        Mark("fire", autoFire ? 1 : 0);
+        if (lookValue != null) lookValue.text = lookSpeed.ToString("0.0") + "×";
+        if (aimValue != null) aimValue.text = Mathf.RoundToInt(aimSpeed * 100f) + "%";
     }
 
     void Mark(string key, int selected)

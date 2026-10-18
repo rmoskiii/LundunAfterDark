@@ -55,6 +55,8 @@ public class PlayerController : MonoBehaviour
     private int groundMask;
 
     public bool IsSprinting { get; private set; }
+    /// A2: while aiming, James can't go faster than this (m/s). 0 = no cap.
+    public float SpeedCap { get; set; }
     /// In the air (jumped, or walked off something), until landing.
     public bool Airborne { get; private set; }
     public bool RunningJump { get; private set; }
@@ -98,6 +100,7 @@ public class PlayerController : MonoBehaviour
         }
 
         float speed = SpeedFor(strength);
+        if (SpeedCap > 0f) speed = Mathf.Min(speed, SpeedCap);
         IsSprinting = speed >= runSpeed * 0.95f;
 
         Vector3 camForward = cam.forward;

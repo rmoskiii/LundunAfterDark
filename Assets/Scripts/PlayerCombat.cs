@@ -80,7 +80,10 @@ public class PlayerCombat : MonoBehaviour
 
     bool WantsToFire()
     {
-        if (!fireAction.IsPressed()) return false;
+        // A3: FIRE = AUTO shoots by itself while the crosshair is red on a threat (the fire button still works too)
+        if (!fireAction.IsPressed())
+            return LundunSettings.AutoFire && Time.timeScale > 0f && LundunAimAssist.Instance != null
+                   && LundunAimAssist.Instance.AutoFireReady;
 
         InputDevice device = fireAction.activeControl?.device;
         if (device is Pointer && Cursor.lockState != CursorLockMode.Locked)
@@ -159,9 +162,12 @@ public class PlayerCombat : MonoBehaviour
         CrimeSystem.Report(CrimeType.Gunfire, transform.position);
         PlayGunFeedback();
 
-        Vector3 endPoint = cam.position + cam.forward * range;
+        // A1: a near-miss on a threat (cop chasing you, someone attacking you) still lands; civilians never
+        Vector3 dir = LundunAimAssist.Instance != null ? LundunAimAssist.Instance.ShotDirection(cam.position, cam.forward) : cam.forward;
+        LundunAimAssist.NotifyShot();
+        Vector3 endPoint = cam.position + dir * range;
 
-        if (Physics.Raycast(cam.position, cam.forward, out RaycastHit hit,
+        if (Physics.Raycast(cam.position, dir, out RaycastHit hit,
                             range, hitMask, QueryTriggerInteraction.Ignore))
         {
             endPoint = hit.point;
@@ -183,7 +189,8 @@ public class PlayerCombat : MonoBehaviour
 
         if (cameraFollow != null)
         {
-            cameraFollow.AddRecoil(recoilUp, Random.Range(-recoilSideways, recoilSideways));
+            float steady = LundunAim.Aiming ? 0.7f : 1f;             // A2: steadier aimed in
+            cameraFollow.AddRecoil(recoilUp * steady, Random.Range(-recoilSideways, recoilSideways) * steady);
             cameraFollow.AddShake(shakeAmount);
         }
     }

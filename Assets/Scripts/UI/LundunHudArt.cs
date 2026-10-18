@@ -91,6 +91,17 @@ public static class LundunHudArt
     public static Sprite Pause => Get("i_pause", 128, p => Min(
         RBox(p, V(0.36f, 0.5f), V(0.08f, 0.26f), 0.05f), RBox(p, V(0.64f, 0.5f), V(0.08f, 0.26f), 0.05f)));
 
+    // A2: aiming
+    /// Aim down sights: viewfinder corners round a dot.
+    public static Sprite Aim => Get("i_aim", 128, p => Min(
+        Line(p, 0.075f, V(0.2f, 0.4f), V(0.2f, 0.2f), V(0.4f, 0.2f)), Line(p, 0.075f, V(0.6f, 0.2f), V(0.8f, 0.2f), V(0.8f, 0.4f)),
+        Line(p, 0.075f, V(0.8f, 0.6f), V(0.8f, 0.8f), V(0.6f, 0.8f)), Line(p, 0.075f, V(0.4f, 0.8f), V(0.2f, 0.8f), V(0.2f, 0.6f)),
+        Circle(p, C, 0.08f)));
+    /// Next target: two chevrons pointing right.
+    public static Sprite Switch => Get("i_switch", 128, p => Min(
+        Line(p, 0.09f, V(0.24f, 0.26f), V(0.46f, 0.5f), V(0.24f, 0.74f)),
+        Line(p, 0.09f, V(0.52f, 0.26f), V(0.74f, 0.5f), V(0.52f, 0.74f))));
+
     /// Soft dark fade (opaque at the top, clear at the bottom), stretched behind headers.
     public static Sprite FadeDown
     {
