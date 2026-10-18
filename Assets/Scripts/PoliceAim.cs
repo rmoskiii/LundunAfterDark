@@ -39,9 +39,8 @@ public static class PoliceAim
             Vector3 blockedAt;
             if (Blocked(shooter, target, from, aim, out blockedAt)) return blockedAt;
 
-            // more stars = they shoot to kill
-            int stars = WantedSystem.Instance != null ? WantedSystem.Instance.Stars : 3;
-            float scale = 1f + 0.25f * Mathf.Max(0, stars - 3);
+            // W1: damage per level now comes from PoliceTiers (the callers pass it in)
+            float scale = 1f;
             VehicleHealth car = target.GetComponent<VehicleHealth>();
             if (car != null) car.TakeDamage(damageToCar * scale);
             else if (PlayerHealth.Instance != null) PlayerHealth.Instance.TakeDamage(damageOnFoot * scale);

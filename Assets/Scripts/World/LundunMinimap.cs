@@ -174,12 +174,26 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
         }
 
         // police: flashing red/blue cars, small blue dots for officers on foot
+        // W1b: everyday patrols (not chasing) show as plain blue, and only when they're close
         bool flash = Mathf.Repeat(Time.unscaledTime * 4f, 2f) < 1f;
         int used = 0;
+        const float patrolShowWithin = 90f;
         foreach (PoliceAI car in PoliceAI.Active)
-            if (car != null) PlaceDynamic(ref used, car.transform.position, flash ? wantedRed : wantedBlue, 16f, centre, ppm, camYaw, edge);
+        {
+            if (car == null) continue;
+            if (car.OnPatrol)
+            {
+                if ((car.transform.position - centre).sqrMagnitude < patrolShowWithin * patrolShowWithin)
+                    PlaceDynamic(ref used, car.transform.position, wantedBlue, 14f, centre, ppm, camYaw, edge);
+            }
+            else PlaceDynamic(ref used, car.transform.position, flash ? wantedRed : wantedBlue, 16f, centre, ppm, camYaw, edge);
+        }
         foreach (PoliceOfficer o in PoliceOfficer.Active)
-            if (o != null) PlaceDynamic(ref used, o.transform.position, wantedBlue, 9f, centre, ppm, camYaw, edge);
+        {
+            if (o == null) continue;
+            if (o.OnBeat && (o.transform.position - centre).sqrMagnitude > patrolShowWithin * patrolShowWithin) continue;
+            PlaceDynamic(ref used, o.transform.position, wantedBlue, 9f, centre, ppm, camYaw, edge);
+        }
         for (int i = used; i < dynamicPool.Count; i++) dynamicPool[i].rt.gameObject.SetActive(false);
 
         // border flashes while wanted

@@ -47,6 +47,7 @@ public class PlayerCombat : MonoBehaviour
     [SerializeField] private int maxDecals = 30;
 
     private InputAction fireAction;
+    private PlayerController player;
     private Transform cam;
     private float nextFireTime;
     private float nextPunchTime;
@@ -56,6 +57,8 @@ public class PlayerCombat : MonoBehaviour
     void Start()
     {
         fireAction = InputSystem.actions.FindAction("Attack");
+        player = GetComponent<PlayerController>();
+        if (player == null) player = GetComponentInParent<PlayerController>();
         cam = Camera.main.transform;
     }
 
@@ -80,6 +83,7 @@ public class PlayerCombat : MonoBehaviour
 
     bool WantsToFire()
     {
+        if (player != null && player.IsStunned) return false;              // W1: tased
         // A3: FIRE = AUTO shoots by itself while the crosshair is red on a threat (the fire button still works too)
         if (!fireAction.IsPressed())
             return LundunSettings.AutoFire && Time.timeScale > 0f && LundunAimAssist.Instance != null

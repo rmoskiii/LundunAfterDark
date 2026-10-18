@@ -55,6 +55,17 @@ public class PlayerController : MonoBehaviour
     private int groundMask;
 
     public bool IsSprinting { get; private set; }
+    /// W1: tased — can't move for a moment.
+    public bool IsStunned => Time.time < stunnedUntil;
+    /// Not straight after a Taser hit (no stun-lock).
+    public bool CanBeTased => Time.time >= tasedImmuneUntil;
+    private float stunnedUntil = -99f, tasedImmuneUntil = -99f;
+
+    public void Stun(float seconds, float immunityAfter)
+    {
+        stunnedUntil = Time.time + seconds;
+        tasedImmuneUntil = stunnedUntil + immunityAfter;
+    }
     /// A2: while aiming, James can't go faster than this (m/s). 0 = no cap.
     public float SpeedCap { get; set; }
     /// In the air (jumped, or walked off something), until landing.
@@ -120,7 +131,7 @@ public class PlayerController : MonoBehaviour
 
         bool grounded = controller.isGrounded;
         if (grounded) lastGroundedTime = Time.time;
-        if (jumpAction.WasPressedThisFrame()) jumpPressedTime = Time.time;
+        if (jumpAction.WasPressedThisFrame() && !IsStunned) jumpPressedTime = Time.time;
 
         if (grounded && verticalVelocity < 0f)
         {
@@ -157,6 +168,7 @@ public class PlayerController : MonoBehaviour
             airVelocity = Vector3.MoveTowards(airVelocity, wanted, airControl * 25f * Time.deltaTime);
             move = airVelocity;
         }
+        else if (IsStunned) move = Vector3.zero;                    // tased
         else if (rolling && Time.time < lockUntil)
         {
             rollVelocity = Vector3.MoveTowards(rollVelocity, Vector3.zero, 6f * Time.deltaTime);

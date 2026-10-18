@@ -1,16 +1,68 @@
+// W1: some tuning fields below are kept (so nothing in the prefabs/scene is lost) but the wanted level now drives
+// them through PoliceTiers. This hides the "assigned but never used" warnings for those.
+#pragma warning disable 0414
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
+/// W1: sight, speed, ramming and crew size come from the wanted level (PoliceTiers).
+/// Armed response cars (sent from 3★) carry armed officers; patrol cars don't.
 [RequireComponent(typeof(CarController))]
 public class PoliceAI : MonoBehaviour
 {
-    private enum State { Responding, Pursuing, Searching, Parked, Returning }
+    private enum State { Responding, Pursuing, Searching, Parked, Returning, Patrolling }
 
     // Every police car currently in the game (so other systems can find them)
     public static readonly List<PoliceAI> Active = new List<PoliceAI>();
     public bool CanSeeTarget { get; private set; }
     public bool OfficersOut => officers.Count > 0;
+    /// Armed response unit (set by PoliceDirector when it's sent).
+    public bool Armed { get; set; }
+    /// Heading off (wanted level cleared).
+    public bool IsLeaving => state == State.Returning;
+    /// W1b: an everyday patrol car (part of the traffic, no siren). Goes back to patrolling after a chase.
+    public bool IsPatrolCar { get; private set; }
+    public bool OnPatrol => state == State.Patrolling;
+    public PoliceOfficer OfficerPrefab => officerPrefab;
+    private float nextPatrolRoute;
+
+    /// Make this car an everyday patrol (call right after Instantiate).
+    public void StartPatrol()
+    {
+        IsPatrolCar = true;
+        state = State.Patrolling;
+        if (siren != null) siren.Stop();
+        nextPatrolRoute = 0f;
+    }
+
+    /// Called to a crime / joins the chase: lights and siren on.
+    public void Engage()
+    {
+        if (state != State.Patrolling) return;
+        state = State.Responding;
+        Lights(true);
+    }
+
+    void ResumePatrol()
+    {
+        state = State.Patrolling;
+        nextPatrolRoute = 0f;
+        Lights(false);
+    }
+
+    /// Beacons and siren on (responding) or off (just patrolling).
+    void Lights(bool on)
+    {
+        if (siren != null) { if (on && !siren.isPlaying) siren.Play(); else if (!on) siren.Stop(); }
+        foreach (BlinkingLight b in GetComponentsInChildren<BlinkingLight>(true))
+        {
+            b.CancelInvoke();
+            Renderer r = b.GetComponent<Renderer>();
+            if (on) b.InvokeRepeating("Toggle", Random.Range(0f, 0.6f), 0.6f);
+            else if (r != null) r.material.SetColor("_EmissionColor", Color.black);
+        }
+    }
+    private float lastSaw = -99f;
 
     [Header("Senses")]
     [SerializeField] private float sightRange = 45f;
@@ -54,6 +106,14 @@ public class PoliceAI : MonoBehaviour
         path = new NavMeshPath();
         bodyRenderer = GetComponentInChildren<Renderer>();
         destination = WantedSystem.Instance.LastKnownPosition;
+        if (IsPatrolCar) { destination = transform.position; StartCoroutine(LightsOffNextFrame()); }
+    }
+
+    // the beacons start blinking in their own Start: switch them off just after
+    System.Collections.IEnumerator LightsOffNextFrame()
+    {
+        yield return null;
+        if (state == State.Patrolling) Lights(false);
     }
 
     void Update()
@@ -61,12 +121,13 @@ public class PoliceAI : MonoBehaviour
         WantedSystem wanted = WantedSystem.Instance;
         officers.RemoveAll(o => o == null);
 
-        if (wanted.Stars == 0 && state != State.Returning && state != State.Parked)
+        if (wanted.Stars == 0 && state != State.Returning && state != State.Parked && state != State.Patrolling)
             StartReturning();
 
-        bool canSee = state != State.Returning && CanSeePlayer(wanted);
+        // W1b: only look for James while he's wanted (witnessing crimes is handled by WantedSystem)
+        bool canSee = state != State.Returning && wanted.Stars > 0 && CanSeePlayer(wanted);
         CanSeeTarget = canSee;
-        if (canSee) wanted.ReportSighting(wanted.PlayerTarget.position);
+        if (canSee) { lastSaw = Time.time; wanted.ReportSighting(wanted.PlayerTarget.position); }
 
         // ---------- Parked: officers are out on foot ----------
         if (state == State.Parked)
@@ -89,10 +150,23 @@ public class PoliceAI : MonoBehaviour
             return;
         }
 
-        if (canSee && state != State.Returning) state = State.Pursuing;
+        if (canSee && state != State.Returning)
+        {
+            if (state == State.Patrolling) { Lights(true); PoliceDirector.Adopt(this); }   // spotted him: joins the chase
+            state = State.Pursuing;
+        }
 
         switch (state)
         {
+            case State.Patrolling:
+                // drive a loop of the area at a steady pace, picking somewhere new now and then
+                if (Time.time >= nextPatrolRoute || FlatDistance(destination) < arriveDistance * 2f)
+                {
+                    nextPatrolRoute = Time.time + 45f;
+                    if (LundunPatrols.RoadPoint(transform.position, 80f, 220f, out Vector3 p)) destination = p;
+                }
+                break;
+
             case State.Responding:
                 destination = wanted.LastKnownPosition;
                 if (FlatDistance(destination) < arriveDistance)
@@ -136,6 +210,7 @@ public class PoliceAI : MonoBehaviour
 
     void StartReturning()
     {
+        if (IsPatrolCar) { ResumePatrol(); return; }      // W1b: patrols go back to their beat
         state = State.Returning;
         returnTimer = 0f;
         destination = transform.position + transform.forward * 80f;
@@ -155,7 +230,7 @@ public class PoliceAI : MonoBehaviour
     void DeployOfficers()
     {
         officersDeployedThisStop = true;
-        int count = WantedSystem.Instance.Stars >= 2 ? 2 : 1;
+        int count = Mathf.Clamp(PoliceTiers.For(WantedSystem.Instance.Stars).officersPerCar, 1, 2);
 
         for (int i = 0; i < count; i++)
         {
@@ -197,10 +272,11 @@ public class PoliceAI : MonoBehaviour
 
         Vector3 eye = transform.position + Vector3.up * 1.5f;
         Vector3 targetPoint = target.position + Vector3.up * 1f;
-        if ((targetPoint - eye).sqrMagnitude > sightRange * sightRange) return false;
 
-        // Anything on the blocker layers in between (a building) breaks line of sight
-        return !Physics.Linecast(eye, targetPoint, sightBlockers, QueryTriggerInteraction.Ignore);
+        // W1: limited range and field of view (out of the windscreen and side windows); buildings break line of sight
+        PoliceTiers.Tier tier = PoliceTiers.For(wanted.Stars);
+        bool tracking = Time.time - lastSaw < PoliceTiers.KeepTrackFor;
+        return PoliceTiers.Sees(eye, transform.forward, targetPoint, tier.carSightRange, tier.carSightCone, tracking, sightBlockers);
     }
 
     void Brake()
@@ -232,10 +308,13 @@ public class PoliceAI : MonoBehaviour
         float angle = Vector3.SignedAngle(transform.forward, toTarget, Vector3.up);
         float steer = Mathf.Clamp(angle / steerSharpness, -1f, 1f);
 
+        PoliceTiers.Tier tier = PoliceTiers.For(WantedSystem.Instance.Stars);
         float throttle = Mathf.Abs(angle) > 70f ? 0.4f : 1f;           // slow down for sharp turns
+        if (state != State.Returning) throttle = Mathf.Min(throttle, tier.carThrottle);   // W1: low stars drive less hard
+        if (state == State.Patrolling) throttle = Mathf.Min(throttle, 0.5f);               // W1b: just driving around
 
-        // At 2+ stars, if you're in a car, they don't ease off: they ram you
-        bool ram = WantedSystem.Instance.Stars >= 2
+        // W1: from 3 stars, if you're in a car, they don't ease off: they ram you
+        bool ram = tier.ram && WantedSystem.Instance.Stars > 0 && state != State.Patrolling
                 && WantedSystem.Instance.PlayerTarget.GetComponent<CarController>() != null;
         if (state == State.Pursuing && FlatDistance(destination) < 8f && !ram) throttle = 0.35f;
 

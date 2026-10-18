@@ -18,8 +18,10 @@ public static class LundunPeopleSizes
     [MenuItem("Lundun/Fix People Sizes", false, 61)]
     public static void Menu() { Fix(); }
 
-    /// Returns how many prefabs were resized.
-    public static int Fix()
+    /// Returns how many prefabs were resized. quiet = only log if something had to change.
+    public static int Fix() { return Fix(false); }
+
+    public static int Fix(bool quiet)
     {
         if (!AssetDatabase.IsValidFolder(PrefabDir)) { Debug.LogWarning("[Lundun] No " + PrefabDir + " folder — run Lundun → 12 first."); return 0; }
         GameObject template = AssetDatabase.LoadAssetAtPath<GameObject>(TemplatePath);
@@ -65,8 +67,8 @@ public static class LundunPeopleSizes
             finally { PrefabUtility.UnloadPrefabContents(root); }
         }
         AssetDatabase.SaveAssets();
-        sb.Append(changed == 0 ? "  Nothing needed changing." : "  " + changed + " prefab(s) resized.");
-        Debug.Log(sb.ToString());
+        sb.Append(changed == 0 ? "  Nothing needed changing." : "  " + changed + " prefab(s) resized — commit the changed prefab(s) in Assets/People/Prefabs.");
+        if (!quiet || changed > 0) Debug.Log(sb.ToString());
         return changed;
     }
 
