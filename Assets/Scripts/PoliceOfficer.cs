@@ -439,6 +439,8 @@ public class PoliceOfficer : MonoBehaviour
 
     void OnDied()
     {
+        // G2: armed officers drop their carbine (with some ammo) for James to pick up
+        if (Armed) LundunPickup.Spawn(LundunWeapons.Kind.Carbine, 60, transform.position);
         state = State.Dead;
         CrimeSystem.Report(CrimeType.KillOfficer, transform.position);
         Active.Remove(this);

@@ -239,6 +239,7 @@ public class LundunPopulation : MonoBehaviour
         if (prefab == null) return null;
         GameObject go = Instantiate(prefab, transform);
         go.SetActive(false);
+        LundunPeopleSizer.Normalize(go);                       // safety net: nobody at the wrong size
         go.name = prefab.name + "_" + peds.Count;
         foreach (Animator a in go.GetComponentsInChildren<Animator>(true))
         {

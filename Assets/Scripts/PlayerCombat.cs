@@ -50,8 +50,9 @@ public class PlayerCombat : MonoBehaviour
     private PlayerController player;
     // G1: weapons (fists, pistol, SMG, carbine, shotgun)
     private LundunWeapons weapons;
+    private AudioSource layerAudio;                    // the original recording under each gun's own sound (own source: pitch is per source)
     private bool triggerWasDown;
-    private float tapBufferedUntil;
+    private float tapBufferedUntil = -1f;              // -1 = no tap waiting (0 would count as a tap on the very first frame)
     private readonly Dictionary<Health, ShotHit> shotHits = new Dictionary<Health, ShotHit>();
     class ShotHit { public float damage; public bool head; public RaycastHit hit; }
     private Transform cam;
@@ -68,6 +69,19 @@ public class PlayerCombat : MonoBehaviour
         cam = Camera.main.transform;
         weapons = GetComponent<LundunWeapons>();
         if (weapons == null) weapons = gameObject.AddComponent<LundunWeapons>();
+        if (gunAudio != null)
+        {
+            GameObject g = new GameObject("GunLayer");
+            g.transform.SetParent(gunAudio.transform, false);
+            layerAudio = g.AddComponent<AudioSource>();
+            layerAudio.playOnAwake = false;
+            layerAudio.outputAudioMixerGroup = gunAudio.outputAudioMixerGroup;
+            layerAudio.spatialBlend = gunAudio.spatialBlend;
+            layerAudio.volume = gunAudio.volume;
+            layerAudio.minDistance = gunAudio.minDistance;
+            layerAudio.maxDistance = gunAudio.maxDistance;
+            layerAudio.rolloffMode = gunAudio.rolloffMode;
+        }
     }
 
     void Update()
@@ -97,7 +111,7 @@ public class PlayerCombat : MonoBehaviour
         bool manual = wants && fireAction.IsPressed();
         bool pressedNow = wants && !triggerWasDown;
         triggerWasDown = wants;
-        bool buffered = Time.time <= tapBufferedUntil;
+        bool buffered = tapBufferedUntil > 0f && Time.time <= tapBufferedUntil;
         if (!wants && !buffered) return;
 
         LundunWeapons.Weapon w = weapons.Current;
@@ -134,10 +148,11 @@ public class PlayerCombat : MonoBehaviour
         }
         bool autoFiring = wants && !manual;                     // A3 auto-fire: semi weapons fire at their tap rate
         if (semi && !(pressedNow || buffered || autoFiring)) return;
-        tapBufferedUntil = 0f;
-        if (!weapons.TakeRound()) return;                      // empty: reloading
+        tapBufferedUntil = -1f;
+        if (!weapons.TakeRound()) return;                      // empty: reloading (or a dry click)
         nextFireTime = Time.time + 1f / Mathf.Max(0.1f, w.fireRate);
         ShootWeapon(w);
+        weapons.AfterShot(w);
     }
 
     /// A punch at thin air (fists, nobody in reach).
@@ -187,7 +202,7 @@ public class PlayerCombat : MonoBehaviour
                     sh.head |= head;
                 }
             }
-            if (pellets == 1 || i % 2 == 0) SpawnTracer(end);
+            if (pellets == 1 || i % 2 == 0) SpawnTracer(end, w.tracerScale);
         }
 
         // each person hit takes the whole shot at once (one crime report, one hit marker)
@@ -232,12 +247,19 @@ public class PlayerCombat : MonoBehaviour
 
     void PlayWeaponFeedback(LundunWeapons.Weapon w)
     {
-        if (muzzleFlash != null) muzzleFlash.Flash();
-        if (gunAudio != null && gunshotClip != null)
+        if (muzzleFlash != null) muzzleFlash.Flash(w.flashSize);
+        if (gunAudio != null)
         {
-            gunAudio.pitch = w.pitch * Random.Range(0.95f, 1.05f);
-            gunAudio.PlayOneShot(gunshotClip, w.volume);
-            if (w.kind == LundunWeapons.Kind.Shotgun) gunAudio.PlayOneShot(gunshotClip, 0.6f);   // a heavier boom
+            // each gun's own sound (generated, or your own clip if set), with a little of the original recording underneath
+            AudioClip own = w.customShot != null ? w.customShot : LundunGunAudio.Shot(w.kind);
+            gunAudio.pitch = 1f;
+            if (own != null) gunAudio.PlayOneShot(own, w.volume);
+            AudioSource layer = layerAudio != null ? layerAudio : gunAudio;
+            if (gunshotClip != null && w.recordedLayer > 0f && layer != gunAudio)
+            {
+                layer.pitch = w.pitch;
+                layer.PlayOneShot(gunshotClip, w.volume * w.recordedLayer);
+            }
         }
         if (cameraFollow != null)
         {
@@ -444,7 +466,9 @@ public class PlayerCombat : MonoBehaviour
         }
     }
 
-    void SpawnTracer(Vector3 end)
+    void SpawnTracer(Vector3 end) { SpawnTracer(end, 1f); }
+
+    void SpawnTracer(Vector3 end, float widthScale)
     {
         if (tracerMaterial == null || muzzle == null) return;
 
@@ -454,8 +478,8 @@ public class PlayerCombat : MonoBehaviour
         line.positionCount = 2;
         line.SetPosition(0, muzzle.position);
         line.SetPosition(1, end);
-        line.startWidth = tracerWidth;
-        line.endWidth = tracerWidth * 0.5f;
+        line.startWidth = tracerWidth * widthScale;
+        line.endWidth = tracerWidth * 0.5f * widthScale;
         line.shadowCastingMode = ShadowCastingMode.Off;
 
         Destroy(tracer, tracerTime);

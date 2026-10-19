@@ -26,6 +26,7 @@ public class LundunSettings : MonoBehaviour
 
     const string QKey = "Lundun.Quality", FpsKey = "Lundun.Fps60", UiKey = "Lundun.UiSize", HapticsKey = "Lundun.Haptics";
     const string LookKey = "Lundun.LookSpeed", AimKey = "Lundun.AimSpeed", AssistKey = "Lundun.AimAssist", AutoKey = "Lundun.AutoFire";
+    const string LoadoutKey = "Lundun.TestLoadout";
 
     // ------------------------------------------------------------------ A3: control settings (read by the camera, aim and combat)
     const float LookMin = 0.4f, LookMax = 2f, LookStep = 0.1f, AimMin = 0.3f, AimMax = 1f, AimStep = 0.05f;
@@ -33,6 +34,7 @@ public class LundunSettings : MonoBehaviour
     static float lookSpeed = 1f, aimSpeed = 0.65f;
     static int assistLevel = 2;
     static bool autoFire;
+    static bool testLoadout = true;
 
     static void LoadControls()
     {
@@ -42,7 +44,11 @@ public class LundunSettings : MonoBehaviour
         aimSpeed = Mathf.Clamp(PlayerPrefs.GetFloat(AimKey, 0.65f), AimMin, AimMax);
         assistLevel = Mathf.Clamp(PlayerPrefs.GetInt(AssistKey, 2), 0, 3);
         autoFire = PlayerPrefs.GetInt(AutoKey, 0) == 1;
+        testLoadout = PlayerPrefs.GetInt(LoadoutKey, 1) == 1;
     }
+
+    /// G2: TEST = every weapon and unlimited spare ammo; NORMAL = fists + pistol and what you pick up, ammo runs out.
+    public static bool TestLoadout { get { LoadControls(); return testLoadout; } }
 
     /// Camera turn speed multiplier (1 = default).
     public static float LookSpeed { get { LoadControls(); return lookSpeed; } }
@@ -131,6 +137,7 @@ public class LundunSettings : MonoBehaviour
         if (IsOpen || menu == null) return;
         if (VehicleSystem.Locked || (PlayerHealth.Instance != null && PlayerHealth.Instance.IsDead)) return;
         if (LundunFullMap.Instance != null && LundunFullMap.Instance.IsOpen) return;
+        if (LundunWeapons.Instance != null) LundunWeapons.Instance.CloseWheel(false);     // G2: never stay in slow-mo
         IsOpen = true;
         prevTimeScale = Time.timeScale > 0f ? Time.timeScale : 1f;
         Time.timeScale = 0f;
@@ -186,6 +193,13 @@ public class LundunSettings : MonoBehaviour
     }
 
     void SetFire(int i) { autoFire = i == 1; PlayerPrefs.SetInt(AutoKey, i); PlayerPrefs.Save(); RefreshButtons(); }
+
+    void SetLoadout(int i)
+    {
+        testLoadout = i == 0; PlayerPrefs.SetInt(LoadoutKey, testLoadout ? 1 : 0); PlayerPrefs.Save();
+        if (LundunWeapons.Instance != null) LundunWeapons.Instance.SetTestMode(testLoadout);
+        RefreshButtons();
+    }
 
     /// Large UI on a short screen: shrink the panel so it always fits.
     void FitPanel()
@@ -291,7 +305,8 @@ public class LundunSettings : MonoBehaviour
         aimValue = Stepper(ct, "AIM SPEED", StepAim, ref y);
         Row(ct, "AIM ASSIST", "assist", new[] { "OFF", "LIGHT", "STANDARD", "STRONG" }, SetAssist, ref y);
         Row(ct, "FIRE", "fire", new[] { "MANUAL", "AUTO" }, SetFire, ref y);
-        Note(ct, "AIM SPEED is look speed while aimed in.  AUTO fires by itself when the crosshair turns red on a threat.", ref y);
+        Row(ct, "LOADOUT", "loadout", new[] { "TEST", "NORMAL" }, SetLoadout, ref y);
+        Note(ct, "AUTO fires by itself when the crosshair turns red.  TEST: every weapon, endless spare ammo.  NORMAL: fists, pistol and what you find.", ref y);
         controlsTab.SetActive(false);
 
         RectTransform resume = Rect("Resume", panel);
@@ -413,6 +428,7 @@ public class LundunSettings : MonoBehaviour
         Mark("tab", tab);
         Mark("assist", assistLevel);
         Mark("fire", autoFire ? 1 : 0);
+        Mark("loadout", testLoadout ? 0 : 1);
         if (lookValue != null) lookValue.text = lookSpeed.ToString("0.0") + "×";
         if (aimValue != null) aimValue.text = Mathf.RoundToInt(aimSpeed * 100f) + "%";
     }
