@@ -173,6 +173,9 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
             if (show) Place(carBlip, centre, ppm, camYaw, edge);
         }
 
+        // W2: the search area (where they think you are) and every hunting unit's field of view
+        DrawSearch(centre, ppm, camYaw, edge);
+
         // police: flashing red/blue cars, small blue dots for officers on foot
         // W1b: everyday patrols (not chasing) show as plain blue, and only when they're close
         bool flash = Mathf.Repeat(Time.unscaledTime * 4f, 2f) < 1f;
@@ -229,6 +232,108 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
         b.rt.sizeDelta = new Vector2(size, size);
         b.img.color = col;
         b.rt.anchoredPosition = off;
+    }
+
+    // ------------------------------------------------------------------ W2: search area and sight cones
+    private RectTransform searchArea, coneLayer;
+    private Image searchFill, searchRing;
+    private readonly List<Image> cones = new List<Image>();
+    static readonly Color ConeLooking = new Color(0.35f, 0.6f, 1f, 0.17f);
+    static readonly Color ConeSees = new Color(1f, 0.22f, 0.2f, 0.3f);
+
+    void BuildSearchLayers()
+    {
+        // behind every blip: search area first, then the cones
+        coneLayer = NewLayer("SightCones");
+        coneLayer.SetAsFirstSibling();
+        searchArea = NewLayer("SearchArea");
+        searchArea.SetAsFirstSibling();
+        searchArea.anchorMin = searchArea.anchorMax = new Vector2(0.5f, 0.5f);
+        searchFill = searchArea.gameObject.AddComponent<Image>();
+        searchFill.sprite = LundunHudArt.Disc; searchFill.raycastTarget = false;
+        GameObject r = new GameObject("Ring", typeof(RectTransform));
+        RectTransform rr = (RectTransform)r.transform; rr.SetParent(searchArea, false);
+        rr.anchorMin = Vector2.zero; rr.anchorMax = Vector2.one; rr.offsetMin = rr.offsetMax = Vector2.zero;
+        searchRing = r.AddComponent<Image>(); searchRing.sprite = LundunHudArt.RingThick; searchRing.raycastTarget = false;
+        searchArea.gameObject.SetActive(false);
+    }
+
+    RectTransform NewLayer(string name)
+    {
+        GameObject g = new GameObject(name, typeof(RectTransform));
+        RectTransform rt = (RectTransform)g.transform;
+        rt.SetParent(blipLayer, false);
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = Vector2.zero;
+        return rt;
+    }
+
+    void DrawSearch(Vector3 centre, float ppm, float camYaw, float edge)
+    {
+        if (searchArea == null) BuildSearchLayers();
+        WantedSystem w = WantedSystem.Instance;
+        int stars = w != null ? w.Stars : 0;
+
+        // the search area: shown while they're looking for you (not while they can see you)
+        bool showArea = stars > 0 && w.IsSearching;
+        if (searchArea.gameObject.activeSelf != showArea) searchArea.gameObject.SetActive(showArea);
+        if (showArea)
+        {
+            Vector3 p = w.LastKnownPosition;
+            searchArea.anchoredPosition = Rotate(new Vector2(p.x - centre.x, p.z - centre.z) * ppm, camYaw);
+            float d = w.SearchRadius * 2f * ppm;
+            searchArea.sizeDelta = new Vector2(d, d);
+            float pulse = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 3f);
+            bool red = Mathf.Repeat(Time.unscaledTime * 1.5f, 2f) < 1f;
+            Color c = red ? wantedRed : wantedBlue;
+            searchFill.color = new Color(c.r, c.g, c.b, 0.12f + 0.06f * pulse);
+            searchRing.color = new Color(c.r, c.g, c.b, 0.55f + 0.25f * pulse);
+        }
+
+        // sight cones for every unit hunting you (blue = looking, red = sees you)
+        int used = 0;
+        if (stars > 0)
+        {
+            PoliceTiers.Tier tier = PoliceTiers.For(stars);
+            foreach (PoliceOfficer o in PoliceOfficer.Active)
+                if (o != null && !o.IsDown)
+                    Cone(ref used, o.transform, tier.sightRange, tier.sightCone, o.SeesPlayer, centre, ppm, camYaw, edge);
+            foreach (PoliceAI car in PoliceAI.Active)
+                if (car != null && car.enabled && !car.IsLeaving && !car.OfficersOut)
+                    Cone(ref used, car.transform, tier.carSightRange, tier.carSightCone, car.CanSeeTarget, centre, ppm, camYaw, edge);
+        }
+        for (int i = used; i < cones.Count; i++) if (cones[i].gameObject.activeSelf) cones[i].gameObject.SetActive(false);
+    }
+
+    void Cone(ref int used, Transform unit, float range, float coneDeg, bool sees, Vector3 centre, float ppm, float camYaw, float edge)
+    {
+        Vector2 off = Rotate(new Vector2(unit.position.x - centre.x, unit.position.z - centre.z) * ppm, camYaw);
+        if (off.magnitude > edge + range * ppm) return;             // nowhere near the minimap
+        if (used >= cones.Count)
+        {
+            GameObject g = new GameObject("Cone", typeof(RectTransform));
+            g.transform.SetParent(coneLayer, false);
+            Image im = g.AddComponent<Image>();
+            im.sprite = LundunHudArt.Disc; im.raycastTarget = false;
+            im.type = Image.Type.Filled; im.fillMethod = Image.FillMethod.Radial360;
+            im.fillOrigin = (int)Image.Origin360.Top; im.fillClockwise = true;
+            RectTransform rt0 = (RectTransform)g.transform; rt0.anchorMin = rt0.anchorMax = new Vector2(0.5f, 0.5f);
+            cones.Add(im);
+        }
+        Image img = cones[used++];
+        if (!img.gameObject.activeSelf) img.gameObject.SetActive(true);
+        RectTransform rt = img.rectTransform;
+        rt.anchoredPosition = off;
+        float d = range * 2f * ppm;
+        rt.sizeDelta = new Vector2(d, d);
+        float cone = Mathf.Clamp(coneDeg, 5f, 360f);
+        img.fillAmount = cone / 360f;
+        // which way they face, on the minimap (degrees clockwise from up), then centre the wedge on it
+        Vector3 f = unit.forward;
+        Vector2 dir = Rotate(new Vector2(f.x, f.z), camYaw);
+        float facing = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
+        rt.localEulerAngles = new Vector3(0f, 0f, cone * 0.5f - facing);
+        img.color = sees ? ConeSees : ConeLooking;
     }
 
     /// Rotates a map offset (x = east, y = north) into minimap space for a camera facing camYaw.

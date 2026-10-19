@@ -42,6 +42,8 @@ public class PoliceOfficer : MonoBehaviour
 
     public bool IsChasing => state == State.Chase;
     public bool IsDown => state == State.Dead;
+    /// W2: this officer can see James right now (red sight cone on the minimap).
+    public bool SeesPlayer => sawLastFrame && state != State.Dead;
     /// W1b: an everyday foot patrol (no car). Walks a beat; when the chase is over, goes back to it.
     public bool IsPatrolOfficer { get; private set; }
     public bool OnBeat => state == State.Patrol;

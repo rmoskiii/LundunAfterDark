@@ -39,6 +39,7 @@ public class WantedSystem : MonoBehaviour
 
     private float heat;
     private float timeSinceSeen;
+    private float escapeClock;                 // W2: counts towards losing them (faster outside the search area)
     private bool escapeTimerRunning;
 
     class Report { public Health witness; public float heat; public Vector3 where; public float when, at; public CrimeType worst; }
@@ -80,6 +81,32 @@ public class WantedSystem : MonoBehaviour
     public Vector3 LastKnownPosition { get; private set; }
     public Transform PlayerTarget => vehicleSystem.PlayerTarget;
     public bool IsSearching => Stars > 0 && escapeTimerRunning && timeSinceSeen > 1f;
+
+    // ------------------------------------------------------------------ W2: evasion feedback
+    [Header("Search area (W2)")]
+    [Tooltip("Radius of the search area round where they last saw you, per star (1..5)")]
+    [SerializeField] private float[] searchRadius = { 60f, 80f, 110f, 140f, 180f };
+    [Tooltip("Losing them goes this much faster once you're outside the search area")]
+    [SerializeField] private float outsideSearchArea = 1.6f;
+
+    /// How big the search area is right now (metres).
+    public float SearchRadius => Stars <= 0 || searchRadius.Length == 0 ? 0f : searchRadius[Mathf.Clamp(Stars, 1, searchRadius.Length) - 1];
+    /// James is inside the area police are searching.
+    public bool InSearchArea
+    {
+        get
+        {
+            if (Stars == 0 || PlayerTarget == null) return false;
+            Vector3 d = PlayerTarget.position - LastKnownPosition; d.y = 0f;
+            return d.magnitude < SearchRadius;
+        }
+    }
+    /// 0 = just seen … 1 = lost them (for the escape bar).
+    public float EscapeProgress => Stars > 0 && escapeTimerRunning ? Mathf.Clamp01(escapeClock / Mathf.Max(0.1f, EscapeTime)) : 0f;
+    /// Police have started looking (they've seen you, or reached the reported spot).
+    public bool Hunting => Stars > 0 && escapeTimerRunning;
+    /// Seconds left to lose them at the current rate.
+    public float EscapeTimeLeft => Mathf.Max(0f, EscapeTime - escapeClock);
     private float EscapeTime => PoliceTiers.Instance != null ? PoliceTiers.For(Stars).escapeTime : baseEscapeTime + extraTimePerStar * (Stars - 1);
     /// Police have seen you in the last moment.
     public bool Seen => Stars > 0 && Time.time - lastSighting < 1f;
@@ -141,7 +168,7 @@ public class WantedSystem : MonoBehaviour
         heat += amount;
         LastKnownPosition = knownPosition;
         if (sighted) lastSighting = Time.time;
-        timeSinceSeen = 0f;
+        timeSinceSeen = 0f; escapeClock = 0f;
         // the escape clock only starts once police have seen you and lost you, or reached the spot and found
         // nobody (as before W1) — otherwise the stars could run out before the first car even arrived
         UpdateStars();
@@ -253,9 +280,15 @@ public class WantedSystem : MonoBehaviour
     // Police call this every frame they can see the player
     public void ReportSighting(Vector3 position)
     {
+        // W2: they'd lost you and now they've got you again
+        if (Stars > 0 && escapeTimerRunning && Time.time - lastSighting > 2f)
+        {
+            Toast("SPOTTED!");
+            LundunHaptics.Medium();
+        }
         lastSighting = Time.time;
         LastKnownPosition = position;
-        timeSinceSeen = 0f;
+        timeSinceSeen = 0f; escapeClock = 0f;
         escapeTimerRunning = true;
     }
 
@@ -271,7 +304,13 @@ public class WantedSystem : MonoBehaviour
         if (Stars == 0 || !escapeTimerRunning) return;
 
         timeSinceSeen += Time.deltaTime;
-        if (timeSinceSeen >= EscapeTime) ClearWanted();
+        escapeClock += Time.deltaTime * (InSearchArea ? 1f : outsideSearchArea);
+        if (escapeClock >= EscapeTime)
+        {
+            ClearWanted();
+            Toast("LOST THEM");
+            LundunHaptics.Medium();
+        }
     }
 
     void UpdateStars()
@@ -299,7 +338,7 @@ public class WantedSystem : MonoBehaviour
         if (Stars >= heatForStar.Length) return;
         heat = Mathf.Max(heat, heatForStar[Stars]);
         LastKnownPosition = PlayerTarget.position;
-        timeSinceSeen = 0f;
+        timeSinceSeen = 0f; escapeClock = 0f;
         UpdateStars();
         CrimeKnown?.Invoke(CrimeType.KillPedestrian, LastKnownPosition);
     }
@@ -311,7 +350,7 @@ public class WantedSystem : MonoBehaviour
     {
         heat = Mathf.Max(heat, heatForStar[Mathf.Clamp(n, 1, heatForStar.Length) - 1]);
         LastKnownPosition = PlayerTarget.position;
-        timeSinceSeen = 0f;
+        timeSinceSeen = 0f; escapeClock = 0f;
         escapeTimerRunning = false;
         UpdateStars();
         Debug.Log("[Lundun] Wanted level set to " + Stars + " star(s) for testing");
