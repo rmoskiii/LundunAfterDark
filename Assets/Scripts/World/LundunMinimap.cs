@@ -303,6 +303,43 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
                     Cone(ref used, car.transform, tier.carSightRange, tier.carSightCone, car.CanSeeTarget, centre, ppm, camYaw, edge);
         }
         for (int i = used; i < cones.Count; i++) if (cones[i].gameObject.activeSelf) cones[i].gameObject.SetActive(false);
+
+        // W3: helicopters — a bigger blip, and the spot where the searchlight lands (red when it has you)
+        int h = 0;
+        foreach (LundunHeli heli in LundunHeli.Active)
+        {
+            if (heli == null) continue;
+            while (heliMarks.Count <= h) heliMarks.Add(NewHeliMark());
+            Image foot = heliMarks[h], blip = foot.transform.GetChild(0).GetComponent<Image>();
+            foot.gameObject.SetActive(true);
+            Vector3 b = heli.BeamPoint, p = heli.transform.position;
+            ((RectTransform)foot.transform).anchoredPosition = Rotate(new Vector2(b.x - centre.x, b.z - centre.z) * ppm, camYaw);
+            float d = heli.BeamRadius * 2f * ppm;
+            ((RectTransform)foot.transform).sizeDelta = new Vector2(d, d);
+            foot.color = heli.SeesPlayer ? new Color(1f, 0.22f, 0.2f, 0.45f) : new Color(0.9f, 0.95f, 1f, 0.3f);
+            Vector2 hp = Rotate(new Vector2(p.x - centre.x, p.z - centre.z) * ppm, camYaw);
+            if (hp.magnitude > edge) hp = hp.normalized * edge;            // keep it on the rim when it's off the map
+            RectTransform br = blip.rectTransform;
+            br.anchoredPosition = hp - ((RectTransform)foot.transform).anchoredPosition;
+            br.localEulerAngles = new Vector3(0f, 0f, Time.unscaledTime * -720f);
+            h++;
+        }
+        for (int i = h; i < heliMarks.Count; i++) if (heliMarks[i].gameObject.activeSelf) heliMarks[i].gameObject.SetActive(false);
+    }
+
+    private readonly List<Image> heliMarks = new List<Image>();
+
+    Image NewHeliMark()
+    {
+        GameObject g = new GameObject("HeliBeam", typeof(RectTransform));
+        g.transform.SetParent(coneLayer, false);
+        RectTransform rt = (RectTransform)g.transform; rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+        Image foot = g.AddComponent<Image>(); foot.sprite = LundunHudArt.Disc; foot.raycastTarget = false;
+        GameObject b = new GameObject("HeliBlip", typeof(RectTransform));
+        b.transform.SetParent(g.transform, false);
+        RectTransform br = (RectTransform)b.transform; br.anchorMin = br.anchorMax = new Vector2(0.5f, 0.5f); br.sizeDelta = new Vector2(22f, 22f);
+        Image blip = b.AddComponent<Image>(); blip.sprite = LundunHudArt.Plus; blip.color = new Color(0.35f, 0.6f, 1f); blip.raycastTarget = false;
+        return foot;
     }
 
     void Cone(ref int used, Transform unit, float range, float coneDeg, bool sees, Vector3 centre, float ppm, float camYaw, float edge)

@@ -23,6 +23,10 @@ public static class LundunGunAudio
     public static AudioClip MagOut => Get("MagOut", LundunGunSynth.MakeMagOut);
     public static AudioClip MagIn => Get("MagIn", LundunGunSynth.MakeMagIn);
     public static AudioClip Shell => Get("Shell", LundunGunSynth.MakeShell);
+    /// G3: a spent case landing.
+    public static AudioClip Casing => Get("Casing", LundunGunSynth.MakeCasing);
+    /// W3: helicopter rotor loop.
+    public static AudioClip Rotor => Get("Rotor", LundunGunSynth.MakeRotor);
 
     /// Make them all now (call at start, so the first shot doesn't hitch).
     public static void Warm()

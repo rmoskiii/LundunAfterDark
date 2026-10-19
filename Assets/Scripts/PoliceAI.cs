@@ -26,6 +26,53 @@ public class PoliceAI : MonoBehaviour
     public PoliceOfficer OfficerPrefab => officerPrefab;
     private float nextPatrolRoute;
 
+    // ------------------------------------------------------------------ W3: roadblocks and the armed-response look
+    private float roadblockCrewWithin = -1f;
+    /// Parked across a road waiting for James (crew still inside).
+    public bool HoldingRoadblock => roadblockCrewWithin > 0f && state == State.Parked && !officersDeployedThisStop;
+
+    /// Park here as a roadblock: the crew gets out once James is within this distance (call right after Instantiate).
+    public void StartRoadblock(float crewOutWithin)
+    {
+        roadblockCrewWithin = crewOutWithin;
+        state = State.Parked;
+        officersDeployedThisStop = false;
+    }
+
+    /// Armed response cars: a yellow roof marker, black side bands and a push bar, so you can tell them apart.
+    void ApplyArmedLook()
+    {
+        Transform body = transform.Find("Body"), cabin = transform.Find("Cabin");
+        Renderer br = body != null ? body.GetComponent<Renderer>() : null;
+        if (br == null || br.sharedMaterial == null) return;
+        Material yellow = new Material(br.sharedMaterial) { name = "ARV_Yellow" };
+        yellow.SetTexture("_BaseMap", null); yellow.SetColor("_BaseColor", new Color(1f, 0.8f, 0.08f)); yellow.color = new Color(1f, 0.8f, 0.08f);
+        Material black = new Material(br.sharedMaterial) { name = "ARV_Black" };
+        black.SetTexture("_BaseMap", null); black.SetColor("_BaseColor", new Color(0.04f, 0.04f, 0.05f)); black.color = new Color(0.04f, 0.04f, 0.05f);
+        Vector3 bp = body.localPosition, bs = body.localScale;
+        if (cabin != null)
+        {
+            Vector3 cp = cabin.localPosition, cs = cabin.localScale;
+            Plate("ARV_Roof", new Vector3(cp.x, cp.y + cs.y * 0.5f + 0.025f, cp.z - cs.z * 0.18f), new Vector3(cs.x * 0.62f, 0.03f, cs.z * 0.42f), yellow);
+        }
+        float y = bp.y + bs.y * 0.3f;
+        Plate("ARV_BandL", new Vector3(bp.x - bs.x * 0.5f - 0.012f, y, bp.z), new Vector3(0.02f, bs.y * 0.16f, bs.z * 0.94f), black);
+        Plate("ARV_BandR", new Vector3(bp.x + bs.x * 0.5f + 0.012f, y, bp.z), new Vector3(0.02f, bs.y * 0.16f, bs.z * 0.94f), black);
+        Plate("ARV_PushBar", new Vector3(bp.x, bp.y - bs.y * 0.15f, bp.z + bs.z * 0.5f + 0.06f), new Vector3(bs.x * 0.7f, bs.y * 0.35f, 0.08f), black);
+    }
+
+    void Plate(string name, Vector3 localPos, Vector3 localScale, Material m)
+    {
+        GameObject g = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        Collider c = g.GetComponent<Collider>(); if (c != null) DestroyImmediate(c);
+        g.name = name;
+        g.transform.SetParent(transform, false);
+        g.transform.localPosition = localPos; g.transform.localScale = localScale; g.transform.localRotation = Quaternion.identity;
+        Renderer r = g.GetComponent<Renderer>(); r.sharedMaterial = m;
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        g.layer = gameObject.layer;
+    }
+
     /// Make this car an everyday patrol (call right after Instantiate).
     public void StartPatrol()
     {
@@ -107,6 +154,7 @@ public class PoliceAI : MonoBehaviour
         bodyRenderer = GetComponentInChildren<Renderer>();
         destination = WantedSystem.Instance.LastKnownPosition;
         if (IsPatrolCar) { destination = transform.position; StartCoroutine(LightsOffNextFrame()); }
+        if (Armed) ApplyArmedLook();                                    // W3
     }
 
     // the beacons start blinking in their own Start: switch them off just after
@@ -137,8 +185,9 @@ public class PoliceAI : MonoBehaviour
             // Wanted level dropped before anyone got out? Just drive off.
             if (wanted.Stars == 0 && !officersDeployedThisStop) { StartReturning(); return; }
 
-            // Once stopped, let the officers out (just once per stop)
-            if (!officersDeployedThisStop && Mathf.Abs(car.Speed) < 1f) DeployOfficers();
+            // Once stopped, let the officers out (just once per stop) — a roadblock crew waits until James is close (W3)
+            bool crewWaits = roadblockCrewWithin > 0f && FlatDistance(wanted.PlayerTarget.position) > roadblockCrewWithin;
+            if (!officersDeployedThisStop && Mathf.Abs(car.Speed) < 1f && !crewWaits) DeployOfficers();
 
             // Everyone back in (or dead)? Carry on.
             if (officersDeployedThisStop && officers.Count == 0)

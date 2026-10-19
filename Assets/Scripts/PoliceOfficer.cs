@@ -69,6 +69,35 @@ public class PoliceOfficer : MonoBehaviour
     {
         myCar = car;
         Armed = car != null && car.Armed;
+        if (Armed) ArmedLook();
+    }
+
+    /// W3: armed response officers wear dark tactical kit and carry a visible gun, so you can tell them apart.
+    void ArmedLook()
+    {
+        foreach (Renderer r in GetComponentsInChildren<Renderer>())
+        {
+            if (r is ParticleSystemRenderer || r is LineRenderer) continue;
+            foreach (Material m in r.materials)
+            {
+                Color c = m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor") : m.color;
+                Color dark = new Color(c.r * 0.32f, c.g * 0.34f, c.b * 0.4f, c.a);
+                if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", dark);
+                m.color = dark;
+            }
+        }
+        if (health != null) health.RefreshColour();
+        GameObject gun = LundunAngryDriver.GunModel;
+        if (gun == null || animator == null || !animator.isHuman) return;
+        Transform hand = animator.GetBoneTransform(HumanBodyBones.RightHand);
+        if (hand == null) return;
+        GameObject prop = Instantiate(gun, hand);
+        prop.name = "OfficerGun";
+        float s = transform.localScale.y; if (s < 0.0001f) s = 1f;
+        prop.transform.localScale = gun.transform.localScale / s;
+        prop.transform.localPosition = new Vector3(0.05f, 0.08f, 0.02f) / s;
+        prop.transform.localRotation = Quaternion.Euler(0f, 90f, 90f);
+        foreach (Collider c in prop.GetComponentsInChildren<Collider>()) Destroy(c);
     }
 
     // ------------------------------------------------------------------ W1b: foot patrols

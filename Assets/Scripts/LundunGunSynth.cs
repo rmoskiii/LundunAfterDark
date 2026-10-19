@@ -141,6 +141,56 @@ public static class LundunGunSynth
         return d;
     }
 
+    /// W3: helicopter rotor, a seamless 2-second loop: the "wop-wop" of the blades (5 a second),
+    /// a low engine drone and a faint turbine whine.
+    public static float[] MakeRotor()
+    {
+        int n = 2 * Rate, x = (int)(0.05f * Rate);
+        float[] raw = new float[n + x];              // a little extra, cross-faded into the start so the loop is seamless
+        Random r = new Random(77);
+        float lp = 0f, lp2 = 0f, a = A(380f), a2 = A(90f);
+        const float blades = 5f;                     // thumps per second (a whole number of cycles per loop)
+        for (int i = 0; i < raw.Length; i++)
+        {
+            float t = i / (float)Rate;
+            float white = (float)(r.NextDouble() * 2.0 - 1.0);
+            lp += (white - lp) * a;
+            lp2 += (white - lp2) * a2;
+            float ph = (t * blades) % 1f;                                   // 0..1 through each blade pass
+            float thump = (float)Math.Exp(-ph / 0.09f);                     // sharp attack, quick fade
+            float wop = lp * 3.2f * (0.15f + thump) + (float)Math.Sin(2 * Math.PI * 62f * t) * 0.45f * thump;
+            float drone = lp2 * 2.5f + (float)Math.Sin(2 * Math.PI * 41f * t) * 0.12f;
+            float whine = (float)Math.Sin(2 * Math.PI * 1840f * t) * 0.025f + (float)Math.Sin(2 * Math.PI * 2210f * t) * 0.015f;
+            raw[i] = wop + drone + whine;
+        }
+        float[] d = new float[n];
+        for (int i = 0; i < n; i++) d[i] = raw[i];
+        // the extra bit after the end continues naturally into sample 0: blend it over the start
+        for (int i = 0; i < x; i++) { float k = i / (float)x; d[i] = raw[i] * k + raw[n + i] * (1f - k); }
+        float max = 1e-6f;
+        foreach (float v in d) max = Math.Max(max, Math.Abs(v));
+        for (int i = 0; i < n; i++) d[i] = (float)Math.Tanh(d[i] / max * 1.3f) * 0.8f;
+        return d;
+    }
+
+    /// G3: a spent brass case hitting the pavement: a short bright metallic ting.
+    public static float[] MakeCasing()
+    {
+        float[] d = new float[(int)(0.16f * Rate)];
+        float[] partials = { 4150f, 6080f, 8320f, 10900f };
+        float[] levels = { 1f, 0.7f, 0.45f, 0.25f };
+        Random r = new Random(91);
+        for (int i = 0; i < d.Length; i++)
+        {
+            float t = i / (float)Rate, v = 0f;
+            for (int k = 0; k < partials.Length; k++) v += (float)Math.Sin(2 * Math.PI * partials[k] * t) * levels[k] * (float)Math.Exp(-t / (0.045f - k * 0.008f));
+            v += (float)(r.NextDouble() * 2 - 1) * (float)Math.Exp(-t / 0.0015f) * 0.8f;
+            d[i] = v;
+        }
+        Finish(d, 0.6f);
+        return d;
+    }
+
     static void Clack(float[] d, float at, float ringHz, float level, int seed)
     {
         Random r = new Random(seed);

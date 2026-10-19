@@ -40,6 +40,7 @@ public class LundunPlayerReact : MonoBehaviour
     {
         if (animator == null) { animator = GetComponent<Animator>(); layer = animator.GetLayerIndex(LayerName); }
         if (layer < 0) return;
+        if (LundunWeaponRig.Instance != null) LundunWeaponRig.Instance.Suspend(hold);    // G3: let the reaction move his arms
         LundunAnim.Trigger(animator, trigger);
         animator.SetLayerWeight(layer, 1f);
         holdUntil = Time.time + hold;

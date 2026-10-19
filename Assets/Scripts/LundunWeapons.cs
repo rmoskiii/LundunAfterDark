@@ -125,6 +125,17 @@ public class LundunWeapons : MonoBehaviour
     public Weapon Current => weapons[current];
     public bool IsFists => Current.kind == Kind.Fists;
     public bool Reloading => reloading;
+    /// G3: 0..1 through the current reload (shotgun: through loading the current shell).
+    public float ReloadProgress
+    {
+        get
+        {
+            if (!reloading) return 0f;
+            if (Current.shellByShell) return Mathf.Clamp01(1f - (nextShell - Time.time) / Mathf.Max(0.01f, Current.reloadTime));
+            return Mathf.Clamp01((Time.time - reloadStart) / Mathf.Max(0.01f, reloadEnd - reloadStart));
+        }
+    }
+    private LundunWeaponRig rig;
     public bool Ready => Time.time >= readyAt && !(reloading && !Current.shellByShell);
     /// Spread right now (degrees), for the shot and the crosshair.
     public float SpreadNow
@@ -232,6 +243,10 @@ public class LundunWeapons : MonoBehaviour
         LundunGunAudio.Warm();
         gun = FindAnyObjectByType<GunHold>();
         if (gun != null) gunScale = gun.transform.localScale;
+        // G3: James holds proper guns (both hands) — the old single blaster model stays hidden while the rig works
+        rig = GetComponent<LundunWeaponRig>();
+        if (rig == null) rig = gameObject.AddComponent<LundunWeaponRig>();
+        if (!rig.Ready) rig = null;
         GameObject ch = GameObject.Find("Crosshair");
         if (ch != null) { crosshair = (RectTransform)ch.transform; crosshairScale = crosshair.localScale; }
         BuildHud();
@@ -347,7 +362,12 @@ public class LundunWeapons : MonoBehaviour
         bloom = 0f;
         patternStep = 0;
         readyAt = Time.time + (silent ? 0f : switchTime);
-        if (gun != null)
+        if (rig != null)
+        {
+            if (gun != null) gun.gameObject.SetActive(false);
+            rig.Equip(Current.kind);
+        }
+        else if (gun != null)
         {
             Weapon w = Current;
             gun.gameObject.SetActive(w.kind != Kind.Fists);
@@ -378,7 +398,7 @@ public class LundunWeapons : MonoBehaviour
             else if (Time.time >= reloadEnd) FinishReload();
         }
 
-        if (pumpAt > 0f && Time.time >= pumpAt) { pumpAt = -1f; if (Current.pellets > 1) Foley(LundunGunAudio.Pump, 0.9f); }
+        if (pumpAt > 0f && Time.time >= pumpAt) { pumpAt = -1f; if (Current.pellets > 1) { Foley(LundunGunAudio.Pump, 0.9f); if (rig != null) rig.Pump(); } }
 
         if (crosshair != null)
         {

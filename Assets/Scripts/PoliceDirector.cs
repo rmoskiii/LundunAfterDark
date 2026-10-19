@@ -36,6 +36,8 @@ public class PoliceDirector : MonoBehaviour
         instance = this;
         // W1b: everyday foot and car patrols live alongside the director
         if (GetComponent<LundunPatrols>() == null) gameObject.AddComponent<LundunPatrols>();
+        // W3: roadblocks (4★+, while driving)
+        if (GetComponent<LundunRoadblocks>() == null) gameObject.AddComponent<LundunRoadblocks>();
     }
 
     void OnDestroy() { if (instance == this) instance = null; }
@@ -70,6 +72,7 @@ public class PoliceDirector : MonoBehaviour
         if (stars > 0 && PoliceTiers.For(stars).recall && Time.time >= nextRecall) { nextRecall = Time.time + 2f; Recall(wanted.LastKnownPosition); }
 
         if (stars == 0) return;
+        Helicopter(stars, wanted);
         PoliceTiers.Tier tier = PoliceTiers.For(stars);
         int armed = 0;
         foreach (PoliceAI u in units) if (u.Armed) armed++;
@@ -82,6 +85,27 @@ public class PoliceDirector : MonoBehaviour
             if (Spawn(wanted.LastKnownPosition, player, tier, needArmed)) nextSpawnTime = Time.time + tier.spawnGap;
             else nextSpawnTime = Time.time + 0.5f;     // no good spot this time; try again shortly
         }
+    }
+
+    // ------------------------------------------------------------------ W3: the helicopter (4★ and up)
+    [Header("Helicopter (W3)")]
+    [SerializeField] private int helicopterFromStars = 4;
+    [Tooltip("Seconds after reaching the level before it arrives (it also flies in from far off)")]
+    [SerializeField] private float helicopterDelay = 4f;
+    [Tooltip("If it's shot down, how long before another comes")]
+    [SerializeField] private float helicopterReplace = 60f;
+    private LundunHeli heli;
+    private float heliAt = -1f;
+
+    void Helicopter(int stars, WantedSystem wanted)
+    {
+        if (stars < helicopterFromStars) { heliAt = -1f; return; }
+        if (heli != null && !heli.Leaving) return;
+        if (heliAt < 0f) heliAt = Time.time + helicopterDelay;
+        if (Time.time < heliAt) return;
+        VehicleHealth template = policeCarPrefab != null ? policeCarPrefab.GetComponent<VehicleHealth>() : null;
+        heli = LundunHeli.Spawn(wanted.LastKnownPosition, template);
+        heliAt = Time.time + helicopterReplace;               // used if this one is lost
     }
 
     /// W1: called when the stars go up, so the next level's response (e.g. armed units at 3★) is on its way.

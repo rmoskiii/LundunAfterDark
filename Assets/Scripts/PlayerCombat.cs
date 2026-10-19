@@ -159,6 +159,7 @@ public class PlayerCombat : MonoBehaviour
     void Whiff()
     {
         LundunPlayerReact.Act("Punch", 0.7f);
+        if (LundunWeaponRig.Instance != null) LundunWeaponRig.Instance.Suspend(0.75f);   // G3: free his arms for the punch
         if (cameraFollow != null) cameraFollow.AddShake(shakeAmount * 0.3f);
     }
 
@@ -186,6 +187,8 @@ public class PlayerCombat : MonoBehaviour
             {
                 end = hit.point;
                 Health health = hit.collider.GetComponentInParent<Health>();
+                // G3: bullet holes and dust on walls / ground, sparks off vehicles
+                if (health == null && impacts < 4) LundunCombatFX.Impact(hit, hit.collider.GetComponentInParent<VehicleHealth>() != null || hit.collider.GetComponentInParent<LundunHeli>() != null);
                 if (health == null || impacts < 3)
                 {
                     GameObject fx = health != null ? bloodImpactPrefab : surfaceImpactPrefab;
@@ -247,7 +250,16 @@ public class PlayerCombat : MonoBehaviour
 
     void PlayWeaponFeedback(LundunWeapons.Weapon w)
     {
-        if (muzzleFlash != null) muzzleFlash.Flash(w.flashSize);
+        // G3: James's new guns: flash and smoke at the real muzzle, the gun kicks, brass flies out
+        LundunWeaponRig rig = LundunWeaponRig.Instance;
+        if (rig != null && rig.Muzzle != null)
+        {
+            int puffs = w.kind == LundunWeapons.Kind.Shotgun ? 4 : w.kind == LundunWeapons.Kind.Carbine ? 2 : 1;
+            LundunCombatFX.Muzzle(rig.Muzzle, w.flashSize, puffs);
+            rig.Fired(w);
+            if (w.kind != LundunWeapons.Kind.Shotgun) LundunCombatFX.Eject(rig.EjectPoint, false);   // the shotgun ejects on the pump
+        }
+        else if (muzzleFlash != null) muzzleFlash.Flash(w.flashSize);
         if (gunAudio != null)
         {
             // each gun's own sound (generated, or your own clip if set), with a little of the original recording underneath
@@ -317,6 +329,7 @@ public class PlayerCombat : MonoBehaviour
         Vector3 dir = to.sqrMagnitude > 0.001f ? to.normalized : transform.forward;
         transform.rotation = Quaternion.LookRotation(dir);          // square up to them
         LundunPlayerReact.Act("Punch", 0.7f);
+        if (LundunWeaponRig.Instance != null) LundunWeaponRig.Instance.Suspend(0.75f);   // G3: free his arms for the punch
 
         if (gunAudio != null && punchClip != null) gunAudio.PlayOneShot(punchClip);
         if (cameraFollow != null) cameraFollow.AddShake(shakeAmount * 0.6f);
@@ -470,13 +483,15 @@ public class PlayerCombat : MonoBehaviour
 
     void SpawnTracer(Vector3 end, float widthScale)
     {
-        if (tracerMaterial == null || muzzle == null) return;
+        // G3: from the muzzle of the gun James is actually holding
+        Transform from = LundunWeaponRig.Instance != null && LundunWeaponRig.Instance.Muzzle != null ? LundunWeaponRig.Instance.Muzzle : muzzle;
+        if (tracerMaterial == null || from == null) return;
 
         GameObject tracer = new GameObject("Tracer");
         LineRenderer line = tracer.AddComponent<LineRenderer>();
         line.material = tracerMaterial;
         line.positionCount = 2;
-        line.SetPosition(0, muzzle.position);
+        line.SetPosition(0, from.position);
         line.SetPosition(1, end);
         line.startWidth = tracerWidth * widthScale;
         line.endWidth = tracerWidth * 0.5f * widthScale;

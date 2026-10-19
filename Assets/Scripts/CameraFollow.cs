@@ -45,6 +45,23 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private float aimShoulder = 0.72f;
     [SerializeField] private float aimFov = 40f;
 
+    [Header("Framing (G3)")]
+    [Tooltip("Just walking about: pull back a little to show more of the street")]
+    [SerializeField] private float exploreDistanceScale = 1.12f;
+    [SerializeField] private float exploreExtraHeight = 0.12f;
+    [Tooltip("Gun up (fired recently): a little closer, more over the shoulder")]
+    [SerializeField] private float combatDistanceScale = 0.9f;
+    [SerializeField] private float combatExtraShoulder = 0.1f;
+
+    [Header("Walls (G3)")]
+    [Tooltip("Keep the camera out of buildings: it slides in when something big is behind you")]
+    [SerializeField] private bool cameraCollision = true;
+    [SerializeField] private float collisionRadius = 0.22f;
+    [Tooltip("Ignore things smaller than this (lamp posts, bollards) so the camera doesn't jump")]
+    [SerializeField] private float ignoreSmallerThan = 3f;
+    [SerializeField] private LayerMask collisionLayers = 1;      // Default = buildings and the world
+    private float collideDistance = -1f;
+
     [Header("Field of view")]
     [SerializeField] private float normalFov = 60f;
     [SerializeField] private float sprintFov = 75f;
@@ -100,6 +117,8 @@ public class CameraFollow : MonoBehaviour
         yaw = target.eulerAngles.y;
         player = target.GetComponent<PlayerController>();
     }
+
+    bool Big(Collider c) { return c != null && c.bounds.size.magnitude >= ignoreSmallerThan; }
 
     public void AddRecoil(float up, float sideways)
     {
@@ -182,12 +201,36 @@ public class CameraFollow : MonoBehaviour
         float camHeight = Mathf.Lerp(currentHeight, aimHeight, aimIn);
         float camShoulder = Mathf.Lerp(currentShoulder, aimShoulder, aimIn);
 
-        Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
-        Vector3 focusPoint = target.position
-                           + Vector3.up * camHeight
-                           + rotation * Vector3.right * camShoulder;
+        // G3: wider while just walking about, a touch closer while the gun's up
+        if (!vehicleMode)
+        {
+            float combat = LundunWeaponRig.Raise * (1f - aimIn);
+            float explore = (1f - aimIn) * (1f - combat);
+            camDistance *= Mathf.Lerp(1f, exploreDistanceScale, explore) * Mathf.Lerp(1f, combatDistanceScale, combat);
+            camHeight += exploreExtraHeight * explore;
+            camShoulder += combatExtraShoulder * combat;
+        }
 
-        transform.position = focusPoint - rotation * Vector3.forward * camDistance;
+        Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
+        Vector3 pivot = target.position + Vector3.up * camHeight;
+        Vector3 focusPoint = pivot + rotation * Vector3.right * camShoulder;
+
+        // G3: never inside a wall. First the shoulder offset (standing against a wall), then the arm back.
+        float dist = camDistance;
+        if (cameraCollision)
+        {
+            if (Physics.Linecast(pivot, focusPoint, out RaycastHit side, collisionLayers, QueryTriggerInteraction.Ignore) && Big(side.collider))
+                focusPoint = side.point - (focusPoint - pivot).normalized * (collisionRadius + 0.05f);
+            float want = camDistance;
+            if (Physics.SphereCast(focusPoint, collisionRadius, -(rotation * Vector3.forward), out RaycastHit hit, camDistance, collisionLayers, QueryTriggerInteraction.Ignore)
+                && Big(hit.collider))
+                want = Mathf.Max(0.35f, hit.distance - 0.05f);
+            if (collideDistance < 0f || want < collideDistance) collideDistance = want;            // pull in at once
+            else collideDistance = Mathf.MoveTowards(collideDistance, want, 6f * Time.deltaTime);  // ease back out
+            dist = Mathf.Min(camDistance, collideDistance);
+        }
+
+        transform.position = focusPoint - rotation * Vector3.forward * dist;
         transform.rotation = rotation;
 
         if (shake > 0f)

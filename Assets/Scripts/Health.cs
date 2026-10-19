@@ -30,6 +30,12 @@ public class Health : MonoBehaviour
         if (rend != null) originalColour = rend.material.color;
     }
 
+    /// W3: the look changed after spawning (e.g. armed officers' dark kit): remember the new colour for the hit flash.
+    public void RefreshColour()
+    {
+        if (rend != null) originalColour = rend.material.color;
+    }
+
     public void TakeDamage(float amount, Vector3 hitPoint, Vector3 force)
     {
         if (IsDead) return;

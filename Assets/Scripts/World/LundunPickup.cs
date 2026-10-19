@@ -33,8 +33,8 @@ public class LundunPickup : MonoBehaviour
     {
         LundunWeapons w = LundunWeapons.Instance;
         GameObject src = w != null ? w.GunModel : null;
-        GameObject m;
-        if (src != null)
+        GameObject m = LundunGunModels.Build(kind);                // G3: the real model of that gun
+        if (m == null && src != null)
         {
             // a copy of James's gun model, without anything that makes it behave like his gun
             m = Instantiate(src);
@@ -45,7 +45,7 @@ public class LundunPickup : MonoBehaviour
             m.SetActive(true);
             m.transform.localScale = w.GunScale * (kind == LundunWeapons.Kind.Carbine ? 1.3f : 1f);
         }
-        else
+        else if (m == null)
         {
             m = GameObject.CreatePrimitive(PrimitiveType.Cube);
             Destroy(m.GetComponent<Collider>());
