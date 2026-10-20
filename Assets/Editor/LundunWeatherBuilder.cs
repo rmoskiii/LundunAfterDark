@@ -21,6 +21,8 @@ public static class LundunWeatherBuilder
         new Wet("Assets/World/Materials/Marking.mat", 0.6f, 0.15f),
         new Wet("Assets/World/Materials/Concrete.mat", 0.6f, 0.25f),
         new Wet("Assets/World/Dressing/Dress_Solid.mat", 0.45f, 0.12f),
+        new Wet("Assets/World/Streets/Street_Decals.mat", 0.7f, 0.25f),          // L2 (skipped if you haven't run Lundun → 22)
+        new Wet("Assets/World/Streets/Street_Setts.mat", 0.8f, 0.35f),
     };
 
     [MenuItem("Lundun/19  Weather V3b (London rain + wet roads)", false, 20)]

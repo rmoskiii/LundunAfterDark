@@ -41,7 +41,7 @@ public static class LundunSurfaceBuilder
         {
             EditorUtility.DisplayProgressBar("Lundun", "Drawing textures…", 0.1f);
             Texture2D tarmac = Save("Tarmac", SurfaceArt.Tarmac(), 8);
-            Texture2D paving = Save("Paving", SurfaceArt.Paving(), 8);
+            Texture2D paving = SaveBands("Paving", 8);                // L2: four district pavements stacked (StreetArt.PavingBands)
             Dictionary<string, Texture2D> fac = new Dictionary<string, Texture2D>();
             foreach (string s in new[] { "brick", "stucco", "estate", "warehouse", "panels" })
                 fac[s] = Save("Facade_" + s, SurfaceArt.Facade(s), 4);
@@ -55,6 +55,7 @@ public static class LundunSurfaceBuilder
             {
                 string p = AssetDatabase.GUIDToAssetPath(g);
                 string n = Path.GetFileNameWithoutExtension(p);
+                if (n.StartsWith("Bld_Kit")) continue;          // L1: the building kit paints its own facades
                 string style = n.Contains("CANARY_PEN") ? "panels" : n.Contains("KNIGHT") ? "stucco" : n.Contains("GILMOR") ? "estate" : n.Contains("CANARY") ? "warehouse" : "brick";
                 mats += Apply(bk, p, fac[style], 1.06f);
             }
@@ -125,13 +126,31 @@ public static class LundunSurfaceBuilder
         return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
     }
 
+    /// L2: the paving bands (Peckam slabs, Knightsbury York stone, Canary granite, Gilmore asphalt). Repeats along the street,
+    /// never wraps up/down (each band is picked by the pavement's UVs).
+    static Texture2D SaveBands(string name, int aniso)
+    {
+        SurfaceArt.Img im = new SurfaceArt.Img(StreetArt.PaveW, StreetArt.PaveH);
+        byte[] px = StreetArt.PavingBands();
+        System.Array.Copy(px, im.rgba, px.Length);
+        Texture2D t = Save(name, im, aniso);
+        string path = AssetDatabase.GetAssetPath(t);
+        TextureImporter ti = (TextureImporter)AssetImporter.GetAtPath(path);
+        ti.wrapModeU = TextureWrapMode.Repeat; ti.wrapModeV = TextureWrapMode.Clamp;
+        ti.maxTextureSize = 2048;
+        TextureImporterPlatformSettings ps = ti.GetPlatformTextureSettings("iPhone");
+        ps.maxTextureSize = 2048; ti.SetPlatformTextureSettings(ps);
+        ti.SaveAndReimport();
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
     // ------------------------------------------------------------------ materials (with a one-time backup)
     static Backup LoadOrMakeBackup()
     {
         if (File.Exists(BackupPath)) return JsonUtility.FromJson<Backup>(File.ReadAllText(BackupPath));
         Backup b = new Backup();
         List<string> paths = new List<string> { MatDir + "/Road.mat", MatDir + "/Pavement.mat" };
-        foreach (string g in AssetDatabase.FindAssets("Bld_ t:Material", new[] { MatDir })) paths.Add(AssetDatabase.GUIDToAssetPath(g));
+        foreach (string g in AssetDatabase.FindAssets("Bld_ t:Material", new[] { MatDir })) { string kp = AssetDatabase.GUIDToAssetPath(g); if (!Path.GetFileName(kp).StartsWith("Bld_Kit")) paths.Add(kp); }
         foreach (string p in paths)
         {
             Material m = AssetDatabase.LoadAssetAtPath<Material>(p);
@@ -187,6 +206,7 @@ public static class LundunSurfaceBuilder
     {
         Material pave = AssetDatabase.LoadAssetAtPath<Material>(MatDir + "/Pavement.mat");
         List<RoadLine> roads = Lines(d, true);
+        if (!undo) Generator.Build(d);                            // L2: the generator knows the streets and districts
         float tile = (float)SurfaceArt.PavingTileM;
         int n = 0;
         foreach (MeshRenderer r in world.GetComponentsInChildren<MeshRenderer>(true))
@@ -203,8 +223,10 @@ public static class LundunSurfaceBuilder
                 Vector3 w = f.transform.TransformPoint(v[i]);
                 if (undo) { uv[i] = new Vector2(w.x * 0.1f, w.z * 0.1f); continue; }
                 float along, across;
-                if (!Nearest(roads, new Vector2(w.x, w.z), out along, out across)) { uv[i] = new Vector2(w.x / tile, w.z / tile); continue; }
                 bool side = Mathf.Abs(f.transform.TransformDirection(nr[i]).y) < 0.5f;
+                double bu, bv;                                            // L2: u along the street, v in this district's band
+                if (Generator.PavementUV(w.x, w.z, side, out bu, out bv)) { uv[i] = new Vector2((float)bu, (float)bv); continue; }
+                if (!Nearest(roads, new Vector2(w.x, w.z), out along, out across)) { uv[i] = new Vector2(w.x / tile, w.z / tile); continue; }
                 uv[i] = new Vector2(along / tile, side ? 0.012f : Mathf.Max(0f, across) / tile);      // kerb faces show the granite kerb
             }
             m.uv = uv;
@@ -244,6 +266,8 @@ public static class LundunSurfaceBuilder
         foreach (MeshFilter f in b.GetComponentsInChildren<MeshFilter>(true))
         {
             Mesh m = f.sharedMesh; if (m == null) continue;
+            MeshRenderer kr = f.GetComponent<MeshRenderer>();
+            if (kr != null && kr.sharedMaterial != null && kr.sharedMaterial.name.StartsWith("Bld_Kit")) continue;   // L1: kit roofs are already textured
             Vector2[] uv = m.uv; bool changed = false;
             for (int i = 0; i < uv.Length; i++)
                 if (Mathf.Abs(uv[i].x - from.x) < 0.0005f && Mathf.Abs(uv[i].y - from.y) < 0.0005f) { uv[i] = to; changed = true; }

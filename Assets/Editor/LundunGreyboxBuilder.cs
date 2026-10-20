@@ -595,6 +595,7 @@ public static class LundunGreyboxBuilder
     {
         Material m;
         if (cache.TryGetValue(name, out m)) return m;
+        if (name.StartsWith("Bld_Kit")) { m = LundunBuildingKitBuilder.MaterialFor(name); cache[name] = m; return m; }   // L1: the building kit
         string path = MatDir + "/" + name + ".mat";
         m = AssetDatabase.LoadAssetAtPath<Material>(path);
         if (m == null)

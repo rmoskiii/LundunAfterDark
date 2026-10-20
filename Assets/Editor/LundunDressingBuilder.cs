@@ -318,6 +318,10 @@ public static class LundunDressingBuilder
         GameObject w = GameObject.Find("World");
         Transform group = w != null ? w.transform.Find("Buildings") : null;
         if (group == null) { Debug.LogWarning("[Lundun] World/Buildings not found — buildings not refreshed (run Lundun → 1 first)."); return 0; }
+        // L1: the building kit's materials are made on demand
+        bool kit = false;
+        foreach (MeshData md in world.meshes) if (md.group == "Buildings" && md.material.StartsWith("Bld_Kit")) kit = true;
+        if (kit && !LundunBuildingKitBuilder.EnsureMaterials()) return 0;
         foreach (MeshData md in world.meshes)
             if (md.group == "Buildings" && AssetDatabase.LoadAssetAtPath<Material>("Assets/World/Materials/" + md.material + ".mat") == null)
             { Debug.LogWarning("[Lundun] Building material " + md.material + " missing — buildings not refreshed. Run Lundun → 1 once, then 13 again."); return 0; }
@@ -336,6 +340,7 @@ public static class LundunDressingBuilder
             GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccluderStatic | StaticEditorFlags.OccludeeStatic);
             n++;
         }
+        if (kit) LundunBuildingKitBuilder.RegisterWindowGlow();
         return n;
     }
 

@@ -22,6 +22,7 @@ namespace LundunGreybox
         public List<StationInfo> stations = new List<StationInfo>();
         public List<PlaceInfo> places = new List<PlaceInfo>();
         public List<BikeDockInfo> bikeDocks = new List<BikeDockInfo>();
+        public List<double[]> crossings = new List<double[]>();       // L2: zebra crossings (x, z, along x, along z, road width)
         public DressAtlas atlas;
         public List<string> log = new List<string>();
         public Dictionary<string, int> counts = new Dictionary<string, int>();
@@ -722,6 +723,7 @@ namespace LundunGreybox
                             HQuad(mSolid, tp, dir, 1.4, 0.45, PaveY + 0.006, tactile);
                         }
                         Claim(c + l * (ri.w / 2 + ri.pave / 2), 4); Claim(c - l * (ri.w / 2 + ri.pave / 2), 4);
+                        D.crossings.Add(new[] { c.x, c.z, dir.x, dir.z, ri.w });
                         D.Count("zebra crossings");
                     }
                 }
@@ -825,6 +827,7 @@ namespace LundunGreybox
             int pubs = 0, gilShops = 0;
             foreach (BuildingInfo b in blds)
             {
+                ShopSink(!KitAllowsShops(b));      // L1: houses get no shop fronts (rolled as before, built nowhere, so nothing else moves)
                 string dist = b.district;
                 if (dist == "D_CANARY_PEN") continue;
                 // the face nearest a road with a pavement
@@ -866,6 +869,25 @@ namespace LundunGreybox
                     bool shut = dist == "D_PECKAM" && drng.NextDouble() < 0.22;
                     Shop(uc, n, t, unitW, shop, shut);
                 }
+            }
+            ShopSink(false);
+        }
+
+        static MeshData keepSolid, keepCut, keepGlow;
+        static DressingResult keepD;
+        /// While on, shop fronts and pubs are built into throwaway meshes (and not counted).
+        static void ShopSink(bool on)
+        {
+            if (on && keepSolid == null)
+            {
+                keepSolid = mSolid; keepCut = mCut; keepGlow = mGlow; keepD = D;
+                mSolid = new MeshData("Sink", "Dressing", "DressSolid", false); mCut = new MeshData("Sink", "Dressing", "DressCutout", false); mGlow = new MeshData("Sink", "Dressing", "DressGlow", false);
+                D = new DressingResult { atlas = keepD.atlas };
+            }
+            else if (!on && keepSolid != null)
+            {
+                mSolid = keepSolid; mCut = keepCut; mGlow = keepGlow; D = keepD;
+                keepSolid = keepCut = keepGlow = null; keepD = null;
             }
         }
 

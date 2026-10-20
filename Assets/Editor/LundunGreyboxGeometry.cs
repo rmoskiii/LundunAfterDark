@@ -58,6 +58,17 @@ namespace LundunGreybox
             tri.Add(i); tri.Add(k); tri.Add(l);
         }
 
+        /// L1: a single triangle whose front face points along n (winding fixed automatically).
+        public void Tri(P3 a, P3 b, P3 c, double nx, double ny, double nz)
+        {
+            double ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+            double vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+            double cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
+            if (cx * nx + cy * ny + cz * nz < 0) { P3 t = b; b = c; c = t; }
+            int i = Add(a), j = Add(b), k = Add(c);
+            tri.Add(i); tri.Add(j); tri.Add(k);
+        }
+
         /// Convex polygon facing up.
         public void FanUp(List<P3> pts)
         {
@@ -931,6 +942,18 @@ namespace LundunGreybox
 
             int cleared = ClearPlots(R);                                       // R7: room for hospitals, police stations, safehouses
             if (cleared > 0) R.log.Add("  " + cleared + " buildings cleared for hospitals / police stations / safehouses");
+
+            // L1: the building kit (terraces, parades, estates, towers…) on exactly these plots. The plain boxes below
+            // are kept as the fallback (Generator.UseBuildingKit = false).
+            if (UseBuildingKit)
+            {
+                BuildKit(R);
+                foreach (BuildingInfo b in R.buildings) rng.Next(0, 8);   // the boxes drew one number each: keep the sequence identical for everything built after
+                Dictionary<string, int> perK = new Dictionary<string, int>();
+                foreach (BuildingInfo b in R.buildings) { int n; perK.TryGetValue(b.district, out n); perK[b.district] = n + 1; }
+                foreach (var kv in perK) R.log.Add("  " + kv.Key + ": " + kv.Value + " buildings");
+                return;
+            }
 
             // meshes: one per district material variant per 200 m chunk
             Dictionary<string, MeshData> chunks = new Dictionary<string, MeshData>();
