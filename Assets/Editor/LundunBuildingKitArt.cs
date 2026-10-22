@@ -29,13 +29,14 @@ namespace LundunGreybox
         public const int B_Concrete = 1, B_ConcPanel = 2, B_EstDeck = 3, B_EstBack = 4, B_EstBrickUp = 5, B_EstGf = 6,
             B_Garages = 7, B_TowerUp = 8, B_StairCore = 9, B_WhUpYel = 10, B_WhUpRed = 11, B_WhGf = 12, B_GlassBlue = 13,
             B_GlassGreen = 14, B_OfficeStone = 15, B_OfficeDark = 16, B_Lobby = 17, B_RoofFlat = 18, B_Plant = 19,
-            B_Balcony = 20, B_GlassSilver = 21, B_EstBrick = 22, B_WhYel = 23, B_WhRed = 24, B_TowerUpB = 25, B_EstShop = 26;
+            B_Balcony = 20, B_GlassSilver = 21, B_EstBrick = 22, B_WhYel = 23, B_WhRed = 24, B_TowerUpB = 25, B_EstShop = 26,
+            B_RailArchLo = 27, B_RailArchHi = 28, B_Girder = 29, B_Train = 30, B_Station = 31;     // railway: viaduct arches (two strips, 0–3.85 m and 3.85–7.7 m), bridge girders, train sides, station boards
 
         // design storey height (m) and unit width (m) of every strip
         static readonly double[] FloorA = { 3.75, 3.2, 3.2, 3.2, 3.6, 7.0, 16, 3.1, 3.1, 3.1, 3.3, 3.3, 3.3, 3.2, 3.2, 3.2, 3.2, 4.0, 3.6, 3.8, 3.4, 3.8, 3.5, 3.6, 3.4, 1.0, 3.4, 3.5, 4.0 };
         static readonly double[] UnitA = { 1, 32, 32, 32, 32, 32, 32, 5.3333333, 5.3333333, 5.3333333, 5.3333333, 5.3333333, 5.3333333, 1, 6.4, 6.4, 6.4, 6.4, 6.4, 6.4, 8, 8, 5.3333333, 5.3333333, 6.4, 32, 32, 32, 8 };
-        static readonly double[] FloorB = { 3.75, 3.0, 3.0, 2.9, 2.9, 2.9, 3.0, 2.6, 2.9, 3.0, 3.6, 3.6, 4.2, 3.8, 3.8, 3.8, 3.8, 4.8, 16, 3.0, 1.1, 3.8, 2.9, 3.6, 3.6, 2.9, 4.0 };
-        static readonly double[] UnitB = { 1, 32, 4, 5.3333333, 5.3333333, 5.3333333, 5.3333333, 2.6666667, 4, 4, 10.666667, 10.666667, 10.666667, 1.6, 1.6, 1.6, 1.6, 8, 32, 32, 5.3333333, 1.6, 32, 32, 32, 4, 6.4 };
+        static readonly double[] FloorB = { 3.75, 3.0, 3.0, 2.9, 2.9, 2.9, 3.0, 2.6, 2.9, 3.0, 3.6, 3.6, 4.2, 3.8, 3.8, 3.8, 3.8, 4.8, 16, 3.0, 1.1, 3.8, 2.9, 3.6, 3.6, 2.9, 4.0, 3.85, 3.85, 2.6, 2.9, 1.2 };
+        static readonly double[] UnitB = { 1, 32, 4, 5.3333333, 5.3333333, 5.3333333, 5.3333333, 2.6666667, 4, 4, 10.666667, 10.666667, 10.666667, 1.6, 1.6, 1.6, 1.6, 8, 32, 32, 5.3333333, 1.6, 32, 32, 32, 4, 6.4, 8, 8, 32, 10.666667, 6.4 };
 
         public static double FloorH(int atlas, int row) { return atlas == 0 ? FloorA[row] : FloorB[row]; }
         public static double UnitW(int atlas, int row) { return atlas == 0 ? UnitA[row] : UnitB[row]; }
@@ -72,6 +73,8 @@ namespace LundunGreybox
             public int lintel;              // 0 none, 1 stone, 2 gauged brick, 3 stucco hood, 4 segmental brick arch, 5 keystone stone
             public double frame = 0.92, lit = 0.35;
             public string text;
+            public bool fullText;           // railway: the text fills the whole op (station boards)
+            public string piece;            // railway: a big graffiti piece of this word, drawn by the overlay
         }
 
         class Facade
@@ -80,6 +83,7 @@ namespace LundunGreybox
             public Func<int, List<Op>> layout;
             public Func<int, double[]> unitColour;    // painted walls: a colour per unit
             public bool dirt, soot = true;
+            public double yOff;                       // railway arches: this strip starts yOff metres up the wall
             public List<Op>[] cache;
         }
 
@@ -348,6 +352,9 @@ namespace LundunGreybox
                     }
                 case 'G':
                     { Set(ref t, 0.2, 0.22, 0.25, 0.9); break; }
+                case 'Y': RailArchWall(ref t, f, u, x, y + f.yOff, gx, gy, pyPerM); break;
+                case 'H': GirderWall(ref t, f, x, y, gx, gy); break;
+                case 'J': TrainWall(ref t, x, y, gx, gy); break;
                 default: Set(ref t, f.r, f.g, f.b, 0.2); break;
             }
             if (f.soot && f.wall != 'S' && f.wall != 'F') { t.r *= grime; t.g *= grime; t.b *= grime; }
@@ -425,7 +432,7 @@ namespace LundunGreybox
             if (x < o.x0 || x >= o.x1 || y < o.y0 || y >= o.y1)
             {
                 // arched windows: the arch rises above y1
-                if (o.k == 'A' || (o.k == 'S' && o.arch) || (o.k == 'O' && o.arch))
+                if (o.k == 'A' || o.arch)
                 {
                     double cx = (o.x0 + o.x1) / 2, r = (o.x1 - o.x0) / 2;
                     if (y >= o.y1 && x >= o.x0 && x < o.x1 && (x - cx) * (x - cx) + (y - o.y1) * (y - o.y1) < r * r) { }
@@ -612,7 +619,31 @@ namespace LundunGreybox
                 r = 0.3 + 0.15 * fy; g = 0.36 + 0.15 * fy; b = 0.44 + 0.15 * fy;
                 if (lit) { er = 0.75; eg = 0.82; eb = 0.95; }
             }
+            if (lit) LitTint(id, x, y, w, h, ref er, ref eg, ref eb);
             t.r = r; t.g = g; t.b = b; t.s = 0.88; t.er = er; t.eg = eg; t.eb = eb;
+        }
+
+        /// L5: every lit window is its own room: warm bulbs, soft white, cool LED, the blue of a TV, the odd red lamp,
+        /// some bright, some barely on.
+        static void LitTint(int id, double x, double y, double w, double h, ref double er, ref double eg, ref double eb)
+        {
+            double lum = 0.3 * er + 0.59 * eg + 0.11 * eb;
+            double pick = R01(id, 17, 191), bright = 0.55 + 0.6 * R01(id, 19, 193);
+            double[] tint;
+            if (pick < 0.34) tint = new[] { 1.0, 0.7, 0.4 };                // tungsten
+            else if (pick < 0.62) tint = new[] { 1.0, 0.88, 0.72 };         // soft white
+            else if (pick < 0.82) tint = new[] { 0.8, 0.88, 1.0 };          // LED / office white
+            else if (pick < 0.9)
+            {
+                // a telly: blue, brighter low down where the screen is
+                tint = new[] { 0.42, 0.58, 1.0 };
+                bright *= 0.55 + 0.6 * Math.Max(0, 1 - Math.Abs(y / h - 0.35) * 2.2);
+            }
+            else if (pick < 0.93) tint = new[] { 1.0, 0.55, 0.42 };         // red shade
+            else { tint = new[] { 1.0, 0.75, 0.5 }; bright *= 0.3; }        // just a hall light on
+            // a ceiling light: a little brighter at the top
+            double k = lum * 1.35 * bright * (0.85 + 0.25 * (y / h));
+            er = tint[0] * k; eg = tint[1] * k; eb = tint[2] * k;
         }
 
         static void Door(ref Tx t, Op o, double lx, double ly, double w, double h, int gx, int gy)
@@ -733,10 +764,11 @@ namespace LundunGreybox
                     int x0 = (int)((u * uw + o.x0) * PxPerM), x1 = (int)((u * uw + o.x1) * PxPerM);
                     int y0 = f.row * Pitch + Pad + (int)(o.y0 * pyPerM), y1 = f.row * Pitch + Pad + (int)(o.y1 * pyPerM);
                     if (o.tag) Tag(cv, r, x0, y0, x1, Math.Min(y1, y0 + (int)(2.0 * pyPerM)));
+                    if (!string.IsNullOrEmpty(o.piece)) Piece(cv, r, x0, y0, x1, y1, o.piece);
                     if (!string.IsNullOrEmpty(o.text))
                     {
                         // a board in the window or on the fascia
-                        int bw = Math.Min(x1 - x0 - 6, 60), bh = Math.Min(y1 - y0 - 6, 22);
+                        int bw = o.fullText ? x1 - x0 - 6 : Math.Min(x1 - x0 - 6, 60), bh = o.fullText ? y1 - y0 - 6 : Math.Min(y1 - y0 - 6, 22);
                         int bx = x0 + (x1 - x0 - bw) / 2, by = o.k == 'X' ? y0 + 3 : y0 + (int)(1.1 * pyPerM);
                         if (o.k != 'X') { cv.Fill(bx, by, bw, bh, new Col(235, 232, 220)); cv.Frame(bx, by, bw, bh, 2, new Col(180, 30, 30)); }
                         cv.Text(o.text, bx + 3, by + 2, bw - 6, bh - 4, o.k == 'X' && o.r < 0.5 ? new Col(225, 215, 190) : new Col(170, 25, 25), 0.5, DressAtlas.Align.Centre);
@@ -771,6 +803,196 @@ namespace LundunGreybox
                     x += PixelFont.Advance(ch) * cs;
                 }
                 if (!bubble) cv.Seg(x0 + 4, top - 7 * cs - 3, x, top - 7 * cs - 2 + r.NextDouble() * 3, 0.6, c);   // underline swoosh
+            }
+        }
+
+        // ------------------------------------------------------------------ railway (the line over Rye Lane)
+        /// The viaduct, one 8 m bay per unit: piers, a 6.4 m arch springing at 2.6 m, and what's been built into it.
+        /// Unit 0 a shuttered lock-up, 1 a car repair bay, 2 a café, 3 the station entrance. Two strips (0–3.85 m, 3.85–7.7 m)
+        /// so the bricks keep their size; the ops are the same, shifted down for the upper strip.
+        static List<Op> RailArchOps(int u, double yOff)
+        {
+            double[] grey = C("8e8c88"), red = C("5c2224"), black = C("1c1d1f"), cream = C("d8cfb8"), galv = C("a6abae"), navy = C("1f2a4a"), green = C("2c4a36");
+            List<Op> o = new List<Op>();
+            Func<double, double> Y = v => v - yOff;
+            bool lo = yOff == 0;
+            Op back = Box('P', 0.8, 7.2, Y(0), Y(2.6), u == 0 ? grey : u == 1 ? red : u == 2 ? black : cream); back.arch = true; o.Add(back);
+            Op fan = new Op { k = 'A', x0 = 1.1, x1 = 6.9, y0 = Y(2.6), y1 = Y(2.6), style = u == 2 ? 4 : 6, id = Id(B_RailArchLo, u, 1), sill = false, frame = u == 3 ? 0.85 : 0.25,
+                              lit = u == 0 ? 0.45 : u == 1 ? 0.3 : 1.0, arch = true };
+            o.Add(fan);
+            switch (u)
+            {
+                case 0:
+                    o.Add(new Op { k = 'U', x0 = 1.3, x1 = 6.7, y0 = Y(0), y1 = Y(3.0), r = galv[0], g = galv[1], b = galv[2], tag = lo });
+                    break;
+                case 1:
+                    o.Add(new Op { k = 'R', x0 = 1.4, x1 = 6.6, y0 = Y(0), y1 = Y(3.3), id = Id(B_RailArchLo, u, 2), lit = 0.8 });
+                    o.Add(new Op { k = 'X', x0 = 1.4, x1 = 6.6, y0 = Y(3.35), y1 = Y(3.85), r = navy[0], g = navy[1], b = navy[2], text = lo ? "MOT TYRES" : null, fullText = true });
+                    break;
+                case 2:
+                    o.Add(new Op { k = 'W', x0 = 1.3, x1 = 5.0, y0 = Y(0.6), y1 = Y(2.55), style = 7, id = Id(B_RailArchLo, u, 3), sill = false, frame = 0.15, lit = 1.0 });
+                    o.Add(new Op { k = 'D', x0 = 5.4, x1 = 6.5, y0 = Y(0), y1 = Y(2.4), style = 1, r = 0.12, g = 0.12, b = 0.13 });
+                    o.Add(new Op { k = 'X', x0 = 1.3, x1 = 6.7, y0 = Y(2.62), y1 = Y(3.2), r = green[0], g = green[1], b = green[2], text = lo ? "ARCH COFFEE" : null, fullText = true });
+                    break;
+                default:
+                    o.Add(new Op { k = 'W', x0 = 1.0, x1 = 7.0, y0 = Y(0), y1 = Y(3.0), style = 5, id = Id(B_RailArchLo, u, 2), sill = false, frame = 0.85, lit = 1.0 });
+                    o.Add(new Op { k = 'X', x0 = 1.0, x1 = 7.0, y0 = Y(3.05), y1 = Y(3.75), r = navy[0], g = navy[1], b = navy[2], text = lo ? "RYE LANE STATION" : null, fullText = true });
+                    break;
+            }
+            return o;
+        }
+
+        static void RailDefs(List<Facade> L)
+        {
+            L.Add(new Facade { row = B_RailArchLo, wall = 'Y', brick = 1, dirt = true, layout = u => RailArchOps(u, 0) });
+            L.Add(new Facade { row = B_RailArchHi, wall = 'Y', brick = 1, yOff = 3.85, layout = u => RailArchOps(u, 3.85) });
+
+            // bridge girders: painted steel, rivets, stiffeners, rust, and the pieces everyone sees from the bus
+            double[] gr = C("2c4a36");
+            Facade g = new Facade { row = B_Girder, wall = 'H', r = gr[0], g = gr[1], b = gr[2], soot = false };
+            g.layout = u => new List<Op> {
+                new Op { k = '-', x0 = 0.6, x1 = 7.4, y0 = 0.3, y1 = 2.3, piece = "PEK" },
+                new Op { k = '-', x0 = 8.4, x1 = 15.2, y0 = 0.3, y1 = 2.3, piece = "RIZE" },
+                new Op { k = 'X', x0 = 15.5, x1 = 17.1, y0 = 0.7, y1 = 1.5, r = 0.95, g = 0.95, b = 0.93, text = "5.7M", fullText = true },
+                new Op { k = '-', x0 = 17.4, x1 = 24.6, y0 = 0.3, y1 = 2.3, piece = "SE15" },
+                new Op { k = '-', x0 = 25.0, x1 = 31.6, y0 = 0.3, y1 = 2.3, piece = "DUSK" } };
+            L.Add(g);
+
+            // train sides: unit 0/1 a carriage half, unit 2 the cab end
+            Facade tr = new Facade { row = B_Train, wall = 'J', soot = false };
+            double[] teal = C("2f6d6d"), yel = C("d8a91f");
+            tr.layout = u =>
+            {
+                List<Op> o = new List<Op>();
+                if (u == 2)
+                {
+                    o.Add(Box('P', 0.5, 1.4, 0.45, 2.55, yel));
+                    o.Add(new Op { k = 'W', x0 = 0.65, x1 = 1.25, y0 = 1.55, y1 = 2.25, style = 7, id = Id(B_Train, u, 0), sill = false, frame = 0.2, lit = 0 });
+                    o.Add(new Op { k = 'W', x0 = 2.2, x1 = 4.2, y0 = 1.25, y1 = 2.25, style = 7, id = Id(B_Train, u, 1), sill = false, frame = 0.2, lit = 0.9 });
+                }
+                else o.Add(new Op { k = 'W', x0 = 0.4, x1 = 4.2, y0 = 1.25, y1 = 2.25, style = 7, id = Id(B_Train, u, 1), sill = false, frame = 0.2, lit = 0.9 });
+                o.Add(Box('P', 4.55, 5.33, 0.45, 2.55, teal)); o.Add(Box('P', 5.35, 6.13, 0.45, 2.55, teal));
+                o.Add(new Op { k = 'W', x0 = 4.75, x1 = 5.15, y0 = 1.4, y1 = 2.3, style = 7, id = Id(B_Train, u, 2), sill = false, frame = 0.2, lit = 0.9 });
+                o.Add(new Op { k = 'W', x0 = 5.53, x1 = 5.93, y0 = 1.4, y1 = 2.3, style = 7, id = Id(B_Train, u, 3), sill = false, frame = 0.2, lit = 0.9 });
+                o.Add(new Op { k = 'W', x0 = 6.5, x1 = 10.3, y0 = 1.25, y1 = 2.25, style = 7, id = Id(B_Train, u, 4), sill = false, frame = 0.2, lit = 0.9 });
+                return o;
+            };
+            L.Add(tr);
+
+            // station: name boards, way out, canopy valance, the company fascia, platform number
+            double[] navy = C("1f2a4a"), green = C("2c4a36"), cream = C("e2d8c0");
+            Facade st = new Facade { row = B_Station, wall = '0', r = navy[0], g = navy[1], b = navy[2], soot = false };
+            st.layout = u =>
+            {
+                List<Op> o = new List<Op>();
+                switch (u)
+                {
+                    case 0: o.Add(new Op { k = 'X', x0 = 0.1, x1 = 6.3, y0 = 0.12, y1 = 1.08, r = navy[0], g = navy[1], b = navy[2], text = "RYE LANE", fullText = true }); break;
+                    case 1: o.Add(new Op { k = 'X', x0 = 0.1, x1 = 6.3, y0 = 0.12, y1 = 1.08, r = navy[0], g = navy[1], b = navy[2], text = "WAY OUT", fullText = true }); break;
+                    case 2:
+                        o.Add(Box('P', 0, 6.4, 0, 1.2, green));
+                        for (int k = 0; k < 24; k++) { Op b = Box('B', k * 0.2667 + 0.03, k * 0.2667 + 0.2, k % 2 == 0 ? 0.1 : 0.22, 1.2, cream); o.Add(b); }
+                        break;
+                    case 3: o.Add(new Op { k = 'X', x0 = 0.1, x1 = 6.3, y0 = 0.12, y1 = 1.08, r = green[0], g = green[1], b = green[2], text = "LUNDUN RAIL", fullText = true }); break;
+                    default: o.Add(new Op { k = 'X', x0 = 0.1, x1 = 6.3, y0 = 0.12, y1 = 1.08, r = navy[0], g = navy[1], b = navy[2], text = "PLATFORM 1", fullText = true }); break;
+                }
+                return o;
+            };
+            L.Add(st);
+        }
+
+        /// Yellow stock brick going black at the bottom, a ring of engineering-brick voussoirs, stone imposts,
+        /// a blue-brick string course where the deck is, and stone coping on the parapet. y is metres up the wall.
+        static void RailArchWall(ref Tx t, Facade f, int u, double x, double y, int gx, int gy, double pyPerM)
+        {
+            Brick(ref t, 1, x + u * 1000.37, y, gx, gy, pyPerM, f.row);
+            double dx = x - 4, dy = y - 2.6, d = Math.Sqrt(dx * dx + dy * dy);
+            if (dy >= 0 && d >= 3.2 && d < 3.64)
+            {
+                double ang = Math.Atan2(dy, dx), along = ang * 3.42 / 0.115, fr = along - Math.Floor(along);
+                bool joint = fr < 0.14 || Math.Abs(d - 3.42) < 0.018;
+                double v = joint ? 0.5 : 0.36 + (R01((int)Math.Floor(along), d > 3.42 ? 1 : 0, 401) - 0.5) * 0.08;
+                Set(ref t, v * 1.02, v * 0.66, v * 0.54, 0.2);
+            }
+            if ((x < 0.8 || x > 7.2) && y >= 2.42 && y < 2.6) { double v = 0.6 + (Fbm(gx, gy, 10, 403) - 0.5) * 0.06; Set(ref t, v, v * 0.98, v * 0.92, 0.2); }
+            if (y >= 6.15 && y < 6.42) { double v = y > 6.38 ? 0.32 : 0.21 + (R01((int)(x / 0.225), (int)(y / 0.075), 405) - 0.5) * 0.04; Set(ref t, v, v * 1.02, v * 1.12, 0.35); }
+            if (y >= 7.5) { double v = (x % 0.9) < 0.02 ? 0.45 : 0.6 + (Fbm(gx, gy, 12, 407) - 0.5) * 0.06; Set(ref t, v, v * 0.99, v * 0.95, 0.2); }
+            // soot: darker low down and in streaks from the string course
+            double k = 0.72 + 0.28 * Smooth(0, 1.6, y);
+            if (y < 6.15 && y > 3.0) k *= 1 - 0.18 * Clamp01((6.15 - y) / 3.0 * 0.8) * Value(gx / 4.0, 0, 1 << 20, 409);
+            k *= 1 + (Fbm(gx, gy, 64, 411) - 0.5) * 0.18;
+            t.r *= k; t.g *= k; t.b *= k;
+        }
+
+        /// A painted plate girder: flanges, stiffeners every 1.6 m, rivets, rust and pigeon mess.
+        static void GirderWall(ref Tx t, Facade f, double x, double y, int gx, int gy)
+        {
+            double v = 1 + (Fbm(gx, gy, 32, 421) - 0.5) * 0.12;
+            if (y < 0.22 || y > 2.38) v *= 1.1;
+            if (Math.Abs(y - 0.22) < 0.025 || Math.Abs(y - 2.38) < 0.025) v *= 0.6;
+            double sx = x % 1.6;
+            if (sx < 0.14) v *= 1.12; else if (sx < 0.2) v *= 0.7;
+            Set(ref t, f.r * v, f.g * v, f.b * v, 0.35);
+            // rivets
+            foreach (double ry in new[] { 0.32, 2.28 })
+            {
+                double rx = (x % 0.12) - 0.06, ddy = y - ry;
+                if (rx * rx + ddy * ddy < 0.022 * 0.022) { t.r *= 1.35; t.g *= 1.35; t.b *= 1.35; }
+            }
+            if (sx < 0.14 && (y % 0.15) < 0.04 && Math.Abs(sx - 0.07) < 0.025) { t.r *= 1.3; t.g *= 1.3; t.b *= 1.3; }
+            // rust: blooms and streaks running down from the top flange
+            double rust = Smooth(0.6, 0.78, Fbm(gx, gy, 24, 423)) * 0.7 + Clamp01((y - 1.2) / 1.2) * Smooth(0.55, 0.85, Value(gx / 3.0, 0, 1 << 20, 425)) * 0.5;
+            rust = Clamp01(rust);
+            t.r = t.r * (1 - rust) + 0.42 * rust; t.g = t.g * (1 - rust) + 0.22 * rust; t.b = t.b * (1 - rust) + 0.12 * rust;
+            // pigeons
+            if (y < 0.24 && Value(gx / 3.0, gy / 3.0, 1 << 20, 427) > 0.9 && Value(gx / 40.0, 0, 1 << 20, 429) > 0.55) { t.r = 0.8; t.g = 0.8; t.b = 0.76; }
+        }
+
+        /// A train's side: dark skirt, navy band, white pinstripe, off-white body, grey cant rail.
+        static void TrainWall(ref Tx t, double x, double y, int gx, int gy)
+        {
+            double v = 1 + (Fbm(gx, gy, 32, 431) - 0.5) * 0.05;
+            if (y < 0.4) Set(ref t, 0.2 * v, 0.21 * v, 0.23 * v, 0.3);
+            else if (y < 0.9) Set(ref t, 0.12 * v, 0.17 * v, 0.29 * v, 0.6);
+            else if (y < 0.97) Set(ref t, 0.92, 0.92, 0.9, 0.6);
+            else if (y < 2.6) Set(ref t, 0.87 * v, 0.87 * v, 0.84 * v, 0.6);
+            else Set(ref t, 0.55 * v, 0.56 * v, 0.58 * v, 0.5);
+            if (y < 0.9 && y > 0.4 && Value(gx / 6.0, gy / 6.0, 1 << 20, 433) > 0.75) { t.r *= 0.85; t.g *= 0.85; t.b *= 0.85; }   // brake dust
+        }
+
+        /// A big graffiti piece: shadow, black outline, two-tone fill, highlights, a few drips.
+        static void Piece(DressAtlas cv, Random r, int x0, int y0, int x1, int y1, string word)
+        {
+            Col[][] pal = { new[] { new Col(255, 61, 127), new Col(255, 210, 63), new Col(16, 16, 16), new Col(255, 255, 255) },
+                            new[] { new Col(62, 224, 255), new Col(42, 91, 255), new Col(11, 11, 32), new Col(232, 247, 255) },
+                            new[] { new Col(156, 255, 58), new Col(31, 168, 74), new Col(16, 16, 16), new Col(255, 255, 255) },
+                            new[] { new Col(255, 255, 255), new Col(201, 201, 201), new Col(17, 17, 17), new Col(255, 42, 42) },
+                            new[] { new Col(255, 122, 26), new Col(209, 18, 31), new Col(26, 6, 6), new Col(255, 230, 160) } };
+            Col[] p = pal[r.Next(pal.Length)];
+            int w = x1 - x0, h = y1 - y0, cols = PixelFont.Columns(word);
+            double cs = Math.Min(h / 9.0, w / (cols + 2.0));
+            double startX = x0 + (w - cols * cs) / 2, top = y0 + h / 2.0 + 3.5 * cs;
+            double shear = (r.NextDouble() - 0.3) * 0.3;
+            double[] dy = new double[word.Length];
+            for (int k = 0; k < word.Length; k++) dy[k] = (r.NextDouble() - 0.5) * cs * 0.8;
+            for (int pass = 0; pass < 4; pass++)
+            {
+                double cx = startX;
+                for (int k = 0; k < word.Length; k++)
+                {
+                    char ch = word[k];
+                    double tt = top + dy[k];
+                    if (pass == 0) cv.Glyph(ch, cx + cs * 0.3, tt - cs * 0.3, cs, cs * 0.95 + 3, p[2], shear, 1);
+                    else if (pass == 1) cv.Glyph(ch, cx, tt, cs, cs * 0.95 + 2.2, p[2], shear, 1);
+                    else if (pass == 2) { cv.Glyph(ch, cx, tt, cs, cs * 0.95, p[1], shear, 1); cv.Glyph(ch, cx, tt + cs * 0.25, cs, cs * 0.6, p[0], shear, 0.75); }
+                    else cv.Glyph(ch, cx - cs * 0.15, tt - cs * 0.2, cs, cs * 0.2, p[3], shear, 1);
+                    cx += PixelFont.Advance(ch) * cs;
+                }
+            }
+            for (int d = 0; d < 4; d++)
+            {
+                double dx = startX + r.NextDouble() * cols * cs, len = 3 + r.NextDouble() * 10, yy = top - 7 * cs;
+                cv.Seg(dx, yy, dx, yy - len, 1.0, p[1]);
             }
         }
 
@@ -1209,6 +1431,7 @@ namespace LundunGreybox
                 L.Add(f);
             }
             L.Add(ShopRow(B_EstShop, true));
+            RailDefs(L);
             return L;
         }
 

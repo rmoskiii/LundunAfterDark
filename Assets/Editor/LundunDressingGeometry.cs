@@ -23,6 +23,7 @@ namespace LundunGreybox
         public List<PlaceInfo> places = new List<PlaceInfo>();
         public List<BikeDockInfo> bikeDocks = new List<BikeDockInfo>();
         public List<double[]> crossings = new List<double[]>();       // L2: zebra crossings (x, z, along x, along z, road width)
+        public List<double[]> shopLights = new List<double[]>();      // L5: lit shop / pub fronts (x, z, out x, out z, width, kind 0 shop 1 pub)
         public DressAtlas atlas;
         public List<string> log = new List<string>();
         public Dictionary<string, int> counts = new Dictionary<string, int>();
@@ -177,6 +178,7 @@ namespace LundunGreybox
             DressGraffitiWalls();
             DressFurniture();               // L3: district furniture (its own random seed, after everything else)
             DressGrit();                    // L4: bin bags and fly-tipping (its own random seed, last)
+            DressRailway();                 // L6: the railway's fences and graffiti (its own random seed, after everything)
 
             foreach (MeshData m in new[] { mSolid, mCut, mGlow }) D.meshes.AddRange(Chunk(m));
             int v = 0; foreach (MeshData m in D.meshes) v += m.VertexCount;
@@ -922,6 +924,7 @@ namespace LundunGreybox
             }
             double doorW = 1.1, winW = hw * 2 - doorW - 0.2;
             V2 winC = c - t * (doorW / 2 + 0.1);
+            D.shopLights.Add(new[] { c.x, c.z, n.x, n.z, w, 0 });
             SBox(mSolid, winC + n * 0.05, t, winW / 2, 0.06, 0, 0.5, S("charcoal"));                       // stall riser
             VQuad(mGlow, winC + n * 0.06 - t * (winW / 2), winC + n * 0.06 + t * (winW / 2), 0.5, 2.8, A["shopwin"], n);
             V2 doorC = c + t * (hw - doorW / 2);
@@ -933,6 +936,7 @@ namespace LundunGreybox
         {
             double hw = w / 2 - 0.2;
             SBox(mSolid, c + n * 0.1, t, hw + 0.15, 0.1, 0, 3.9, S("pubgreen"));
+            D.shopLights.Add(new[] { c.x, c.z, n.x, n.z, w, 1 });
             VQuad(mGlow, c + n * 0.21 - t * hw, c + n * 0.21 + t * hw, 3.05, 3.8, A["pub_" + name], n);
             VQuad(mGlow, c + n * 0.21 - t * (hw - 0.2), c + n * 0.21 + t * (hw - 1.6), 0.7, 2.7, A["pubwin"], n);
             VQuad(mSolid, c + n * 0.21 + t * (hw - 1.4), c + n * 0.21 + t * (hw - 0.2), 0, 2.5, S("glass"), n);

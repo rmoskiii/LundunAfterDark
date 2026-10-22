@@ -15,7 +15,7 @@ public static class LundunBuildingKitBuilder
     const string Dir = "Assets/World/Generated/BuildingKit";
     const string MatDir = "Assets/World/Materials";
     const string PrefKey = "Lundun.BuildingKit";
-    const int ArtVersion = 1;                       // bump when the painting code changes, so the atlases are redrawn
+    const int ArtVersion = 3;                       // 2 = L5 window light variety, 3 = L6 railway strips. Bump when the painting code changes, so the atlases are redrawn
 
     static LundunBuildingKitBuilder() { Generator.UseBuildingKit = EditorPrefs.GetBool(PrefKey, true); }
 

@@ -244,6 +244,7 @@ namespace LundunGreybox
             string name = KitPubNames[(int)(Math.Abs(p.c.x * 13 + p.c.z * 7)) % KitPubNames.Length];
             V2 a = PP(p, -p.W / 2 + 0.4, -0.06), b = PP(p, p.W / 2 - 0.4, -0.06);
             VQuad(mGlow, a, b, 3.12, 3.78, A["kpub_" + name], p.n);
+            V2 mid = PP(p, 0, 0); D.shopLights.Add(new[] { mid.x, mid.z, p.n.x, p.n.z, p.W * 0.8, 1 });   // L5: the bar's light on the pavement
             // hanging sign on a bracket at the front corner nearest a junction
             foreach (int side in new[] { -1, 1 })
             {

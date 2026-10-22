@@ -222,6 +222,7 @@ public class LundunAtmosphere : MonoBehaviour
     }
 
     readonly List<Vector3> nearest = new List<Vector3>();
+    readonly List<Color> nearestCol = new List<Color>();          // L5: each lamp's own colour
 
     void UpdateHalos()
     {
@@ -251,15 +252,16 @@ public class LundunAtmosphere : MonoBehaviour
             h.transform.SetPositionAndRotation(p, face);
             float size = haloSize * Mathf.Lerp(1f, 1.6f, Mathf.InverseLerp(20f, haloRange, d));   // far ones stay visible
             h.transform.localScale = new Vector3(size, size, 1f);
-            Color c = haloColour; c.a = haloStrength * level * fade;
+            Color c = i < nearestCol.Count ? nearestCol[i] : haloColour; c.a = haloStrength * level * fade;
             h.color = c;
         }
     }
 
     void PickNearest(Vector3 cp)
     {
-        nearest.Clear();
+        nearest.Clear(); nearestCol.Clear();
         IReadOnlyList<Vector3> all = lamps.Positions;
+        IReadOnlyList<Color> cols = lamps.Colours;
         if (all == null) return;
         float r2 = haloRange * haloRange;
         // keep the N closest (simple insertion; a few hundred lamps at 4 Hz is cheap)
@@ -271,9 +273,16 @@ public class LundunAtmosphere : MonoBehaviour
             int at = dist.Count;
             while (at > 0 && dist[at - 1] > d2) at--;
             if (at >= halos.Length) continue;
-            dist.Insert(at, d2); nearest.Insert(at, all[i]);
-            if (dist.Count > halos.Length) { dist.RemoveAt(dist.Count - 1); nearest.RemoveAt(nearest.Count - 1); }
+            dist.Insert(at, d2); nearest.Insert(at, all[i]); nearestCol.Insert(at, cols != null && i < cols.Count ? HaloTint(cols[i]) : haloColour);
+            if (dist.Count > halos.Length) { dist.RemoveAt(dist.Count - 1); nearest.RemoveAt(nearest.Count - 1); nearestCol.RemoveAt(nearestCol.Count - 1); }
         }
+    }
+
+    /// L5: a halo in the lamp's colour, as bright as the halo colour you tuned.
+    Color HaloTint(Color lamp)
+    {
+        float k = Mathf.Max(haloColour.r, Mathf.Max(haloColour.g, haloColour.b)) / Mathf.Max(0.01f, Mathf.Max(lamp.r, Mathf.Max(lamp.g, lamp.b)));
+        return new Color(lamp.r * k, lamp.g * k, lamp.b * k, 1f);
     }
 
     static Sprite HaloSprite()

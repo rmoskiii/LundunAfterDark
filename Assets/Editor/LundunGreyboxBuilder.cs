@@ -79,10 +79,18 @@ public static class LundunGreyboxBuilder
 
                 GameObject go = new GameObject(md.name);
                 go.transform.SetParent(Group(root, groups, md.group), false);
+                if (md.material == "ColliderOnly")
+                {
+                    // L6: invisible walking surfaces (the station stairs' ramps, the platform's back)
+                    go.AddComponent<MeshCollider>().sharedMesh = mesh;
+                    if (md.navArea >= 0) AddNavModifier(go, false, md.navArea);
+                    GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.BatchingStatic);
+                    continue;
+                }
                 go.AddComponent<MeshFilter>().sharedMesh = mesh;
                 MeshRenderer mr = go.AddComponent<MeshRenderer>();
                 mr.sharedMaterial = GetMaterial(mats, md.material);
-                if (md.group == "Roads" || md.group == "Junctions" || md.group == "Ground" || md.group == "Parks" && md.material == "Park" || md.material == "Water" || md.material == "LightPool")
+                if (md.group == "Roads" || md.group == "Junctions" || md.group == "Ground" || md.group == "Parks" && md.material == "Park" || md.material == "Water" || md.material.StartsWith("LightPool"))
                     mr.shadowCastingMode = ShadowCastingMode.Off;
                 if (md.collider) go.AddComponent<MeshCollider>().sharedMesh = mesh;
                 if (md.navIgnore) AddNavModifier(go, true, -1);
@@ -126,6 +134,7 @@ public static class LundunGreyboxBuilder
             List<Vector3> lampList = new List<Vector3>();
             foreach (LampInfo lp in r.lamps) lampList.Add(new Vector3((float)lp.x, (float)lp.y, (float)lp.z));
             SetupLighting(lampList);
+            LundunLightingDistrictBuilder.RegisterLamps(r, false);      // L5: lamp colours by district
             EditorSceneManager.MarkSceneDirty(scene);
             Selection.activeGameObject = root;
             Debug.Log("[Lundun] Greybox built. " + string.Join("\n", r.log.ToArray()) + "\nNext: Lundun → 2  Place Gameplay Objects.");
@@ -591,6 +600,9 @@ public static class LundunGreyboxBuilder
         }
     }
 
+    /// L5: the shared world materials (made the same way as menu 1 makes them), for other builders.
+    public static Material WorldMaterial(string name) { return GetMaterial(new Dictionary<string, Material>(), name); }
+
     static Material GetMaterial(Dictionary<string, Material> cache, string name)
     {
         Material m;
@@ -601,7 +613,7 @@ public static class LundunGreyboxBuilder
         if (m == null)
         {
             bool unlit = name.StartsWith("Beacon_");
-            Shader sh = Shader.Find(name == "Sky" ? "Lundun/SkyGradient" : name == "LightPool" ? "Lundun/LightPool" : unlit ? "Universal Render Pipeline/Unlit" : "Universal Render Pipeline/Lit");
+            Shader sh = Shader.Find(name == "Sky" ? "Lundun/SkyGradient" : name.StartsWith("LightPool") ? "Lundun/LightPool" : unlit ? "Universal Render Pipeline/Unlit" : "Universal Render Pipeline/Lit");
             if (sh == null) sh = Shader.Find("Standard");
             m = new Material(sh);
             m.name = name;
@@ -627,7 +639,14 @@ public static class LundunGreyboxBuilder
             case "Parapet": c = new Color(0.58f, 0.56f, 0.52f); break;
             case "LampPole": c = new Color(0.10f, 0.11f, 0.12f); smooth = 0.4f; break;
             case "LampHead": c = new Color(1f, 0.9f, 0.7f); Emit(m, new Color(1f, 0.82f, 0.5f) * 2.5f); break;
+            // L5: lamps by district
+            case "LampPole_Concrete": c = new Color(0.52f, 0.51f, 0.49f); smooth = 0.1f; break;
+            case "LampPole_Heritage": c = new Color(0.04f, 0.045f, 0.05f); smooth = 0.6f; break;
+            case "LampPole_Steel": c = new Color(0.55f, 0.58f, 0.6f); smooth = 0.65f; break;
+            case "LampHead_Heritage": c = new Color(1f, 0.95f, 0.85f); smooth = 0.9f; Emit(m, LundunLampColours.Heritage * 2.5f); break;
+            case "LampHead_LED": c = new Color(0.9f, 0.95f, 1f); Emit(m, LundunLampColours.LED * 2.5f); break;
             case "Park": c = new Color(0.17f, 0.36f, 0.16f); smooth = 0.05f; break;
+            case "RailBank": c = new Color(0.22f, 0.28f, 0.15f); smooth = 0.04f; break;     // L6: the railway embankment
             case "Trunk": c = new Color(0.30f, 0.22f, 0.14f); break;
             case "Leaves": c = new Color(0.12f, 0.30f, 0.13f); smooth = 0.05f; break;
             case "Hedge": c = new Color(0.08f, 0.20f, 0.09f); smooth = 0.05f; break;
@@ -638,10 +657,10 @@ public static class LundunGreyboxBuilder
             case "Beacon_Mission": c = new Color(1f, 0.55f, 0.1f, 1f); break;
         }
         if (name == "Sky") return;                 // colours come from the lighting preset
-        if (name == "LightPool")
+        if (name.StartsWith("LightPool"))
         {
             m.SetTexture("_MainTex", PoolTexture());
-            m.SetColor("_Color", new Color(1f, 0.72f, 0.42f));
+            m.SetColor("_Color", LundunLampColours.Pool(name));
             m.SetFloat("_Intensity", 0.7f);
             return;
         }
@@ -732,6 +751,9 @@ public static class LundunGreyboxBuilder
     }
 
     static bool warnedNav;
+
+    /// L6: for other builders.
+    public static void NavModifier(GameObject go, bool ignore, int area) { AddNavModifier(go, ignore, area); }
 
     static void AddNavModifier(GameObject go, bool ignore, int area)
     {

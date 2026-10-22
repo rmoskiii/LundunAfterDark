@@ -77,6 +77,7 @@ public class LundunWeather : MonoBehaviour
     private AudioSource rainAudio;
     private SpriteRenderer[] streaks;
     private Vector3[] streakBase;
+    private Color[] streakCol;                       // L5: each lamp's own colour
     private int streakUsed;
     private float nextStreakPick;
     private LundunLighting lighting;
@@ -354,6 +355,7 @@ public class LundunWeather : MonoBehaviour
         Sprite sp = StreakSprite();
         streaks = new SpriteRenderer[Mathf.Max(1, streakCount)];
         streakBase = new Vector3[streaks.Length];
+        streakCol = new Color[streaks.Length];
         GameObject root = new GameObject("WetReflections");
         root.transform.SetParent(transform, false);
         for (int i = 0; i < streaks.Length; i++)
@@ -397,7 +399,7 @@ public class LundunWeather : MonoBehaviour
             s.transform.SetPositionAndRotation(b + dir * (len * 0.5f) + Vector3.up * 0.04f, Quaternion.LookRotation(Vector3.down, dir));
             s.transform.localScale = new Vector3(wid, len, 1f);
             float fade = 1f - Mathf.InverseLerp(streakRange * 0.7f, streakRange, dist);
-            Color c = streakColour; c.a = a * fade;
+            Color c = streakCol != null && streakCol[i].a > 0f ? streakCol[i] : streakColour; c.a = a * fade;
             s.color = c;
         }
     }
@@ -409,7 +411,9 @@ public class LundunWeather : MonoBehaviour
         IReadOnlyList<Vector3> all = lamps.Positions;
         if (all == null) return;
         Vector3 fwd = cam.transform.forward; fwd.y = 0f; fwd.Normalize();
+        IReadOnlyList<Color> cols = lamps.Colours;
         List<KeyValuePair<float, Vector3>> found = new List<KeyValuePair<float, Vector3>>();
+        Dictionary<Vector3, Color> colOf = new Dictionary<Vector3, Color>();
         float r2 = streakRange * streakRange;
         for (int i = 0; i < all.Count; i++)
         {
@@ -417,6 +421,7 @@ public class LundunWeather : MonoBehaviour
             float d2 = d.sqrMagnitude;
             if (d2 > r2 || Vector3.Dot(d, fwd) < -4f) continue;
             found.Add(new KeyValuePair<float, Vector3>(d2, all[i]));
+            if (cols != null && i < cols.Count) colOf[all[i]] = cols[i];
         }
         found.Sort((x, y) => x.Key.CompareTo(y.Key));
         int mask = ~LayerMask.GetMask("Player", "NPC", "Vehicle", "UI");
@@ -425,8 +430,17 @@ public class LundunWeather : MonoBehaviour
             Vector3 head = found[i].Value;
             float y = 0.02f;
             if (Physics.Raycast(head + Vector3.up * 0.5f, Vector3.down, out RaycastHit hit, 15f, mask, QueryTriggerInteraction.Ignore)) y = hit.point.y;
+            Color lc;
+            if (streakCol != null) streakCol[streakUsed] = colOf.TryGetValue(head, out lc) ? StreakTint(lc) : new Color(0, 0, 0, 0);
             streakBase[streakUsed++] = new Vector3(head.x, y, head.z);
         }
+    }
+
+    /// L5: a streak in the lamp's colour, as bright as the streak colour you tuned.
+    Color StreakTint(Color lamp)
+    {
+        float k = Mathf.Max(streakColour.r, Mathf.Max(streakColour.g, streakColour.b)) / Mathf.Max(0.01f, Mathf.Max(lamp.r, Mathf.Max(lamp.g, lamp.b)));
+        return new Color(lamp.r * k, lamp.g * k, lamp.b * k, 1f);
     }
 
     /// Long soft streak: brightest towards the lamp end, fading towards you, soft at the sides.

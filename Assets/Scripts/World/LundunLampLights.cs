@@ -10,6 +10,10 @@ public class LundunLampLights : MonoBehaviour
 {
     [Tooltip("Lamp head positions, filled in by Lundun → 1  Build Greybox World")]
     [SerializeField] private Vector3[] lamps = new Vector3[0];
+    [Tooltip("L5: each lamp's style (0 sodium, 1 sodium estate, 2 heritage, 3 LED), filled in by Lundun → 24")]
+    [SerializeField] private int[] styles = new int[0];
+    [Tooltip("L5: use each lamp's own colour (by district) instead of one colour for all")]
+    [SerializeField] private bool colourByDistrict = true;
 
     [Header("Pool")]
     [SerializeField] private int poolSize = 8;
@@ -27,6 +31,7 @@ public class LundunLampLights : MonoBehaviour
     public float Level { get; set; } = 1f;
 
     private readonly List<Vector3> all = new List<Vector3>();
+    private readonly List<Color> colours = new List<Color>();
     private Light[] pool;
     private float[] bestDist;
     private int[] bestIndex;
@@ -34,14 +39,20 @@ public class LundunLampLights : MonoBehaviour
     private float next;
 
     public void SetLamps(Vector3[] positions) { lamps = positions; }
+    /// L5: positions and styles together.
+    public void SetLamps(Vector3[] positions, int[] lampStyles) { lamps = positions; styles = lampStyles; }
     /// Every lamp head (built lamps + the high street's), for the glow halos (V3a).
     public IReadOnlyList<Vector3> Positions { get { return all; } }
     public Color Colour { get { return colour; } }
+    /// L5: each lamp's light colour, in the same order as Positions.
+    public IReadOnlyList<Color> Colours { get { return colours; } }
 
     void Start()
     {
         vehicles = FindAnyObjectByType<VehicleSystem>();
         all.AddRange(lamps);
+        for (int i = 0; i < lamps.Length; i++)
+            colours.Add(colourByDistrict && styles != null && i < styles.Length ? LundunLampColours.ForStyle(styles[i]) : colour);
 
         // Take over the hand-placed high-street lamp lights
         bool copied = false;
@@ -52,6 +63,7 @@ public class LundunLampLights : MonoBehaviour
             if (!IsLampPost(l.transform)) continue;
             if (!copied) { colour = l.color; intensity = l.intensity; range = l.range; if (l.type == LightType.Spot) spotAngle = l.spotAngle; copied = true; }
             all.Add(l.transform.position);
+            colours.Add(colourByDistrict ? LundunLampColours.Sodium : colour);    // the old high street is in Peckam
             l.enabled = false;
         }
 
@@ -110,6 +122,7 @@ public class LundunLampLights : MonoBehaviour
             float dist = Mathf.Sqrt(bestDist[i]);
             float fade = 1f - Mathf.InverseLerp(fullBrightWithin, offBeyond, dist);
             l.transform.position = all[bestIndex[i]];
+            if (colourByDistrict) l.color = colours[bestIndex[i]];
             l.intensity = intensity * Level * fade;
             l.enabled = fade > 0.01f;
         }

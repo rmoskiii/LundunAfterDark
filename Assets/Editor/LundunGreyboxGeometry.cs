@@ -119,7 +119,7 @@ namespace LundunGreybox
     public class Beacon { public string id, kind; public double x, z, radius, height; }
     public class ColliderBox { public string name; public double cx, cy, cz, sx, sy, sz; }
     public class BuildingInfo { public string district; public V2 c, dir; public double len, dep, h; }
-    public class LampInfo { public double x, y, z; }
+    public class LampInfo { public double x, y, z; public int style; }   // L5 style: 0 sodium, 1 sodium (estate concrete), 2 heritage, 3 LED
 
     public class GreyboxResult
     {
@@ -248,6 +248,7 @@ namespace LundunGreybox
             BuildBuildings(R);
             BuildMarkers(R);
             BuildBounds(R);
+            BuildRailway(R);            // L6: last, with its own numbers
             List<MeshData> split = new List<MeshData>();
             foreach (MeshData m in R.meshes) { if (m.chunk) split.AddRange(Chunk(m)); else split.Add(m); }
             R.meshes = split;
@@ -712,11 +713,27 @@ namespace LundunGreybox
         }
 
         // ------------------------------------------------------------------ lamps
+        /// L5: lamps by district. Same places as ever (the light pool and halos line up with R.lamps); the look changes:
+        ///   0 Peckam (and anywhere else)  grey column, box head, orange sodium
+        ///   1 Gilmore                     thick concrete column, box head, orange sodium
+        ///   2 Knightsbury                 black cast-iron column with a swan-neck arm and a glass lantern, warm white
+        ///   3 Canary Quay / Peninsula      slim steel column, flat LED head, cool white
+        public static readonly string[] LampPoleMats = { "LampPole", "LampPole_Concrete", "LampPole_Heritage", "LampPole_Steel" };
+        public static readonly string[] LampHeadMats = { "LampHead", "LampHead", "LampHead_Heritage", "LampHead_LED" };
+        public static readonly string[] LampPoolMats = { "LightPool", "LightPool", "LightPool_Heritage", "LightPool_LED" };
+
         static void BuildLamps(GreyboxResult R)
         {
-            MeshData poles = new MeshData("LampPoles", "Lamps", "LampPole", false) { navIgnore = true };
-            MeshData heads = new MeshData("LampHeads", "Lamps", "LampHead", false) { navIgnore = true };
-            MeshData pools = new MeshData("LightPools", "Lamps", "LightPool", false) { navIgnore = true };
+            Dictionary<string, MeshData> parts = new Dictionary<string, MeshData>();
+            Func<string, string, MeshData> part = (mesh, mat) =>
+            {
+                MeshData m; if (!parts.TryGetValue(mesh, out m)) { m = new MeshData(mesh, "Lamps", mat, false) { navIgnore = true }; parts[mesh] = m; }
+                return m;
+            };
+            Dictionary<string, List<V2>> dpoly = new Dictionary<string, List<V2>>();
+            foreach (LwPoly d in W.districts) dpoly[d.id] = Pts(d.polygon);
+            railPlan = UseRailway ? MakeRailPlan() : null;      // L6: the railway (no random numbers: nothing else moves)
+            railLamps.Clear();
             foreach (RoadInfo ri in roads.Values)
             {
                 if (ri.cls == "service") continue;
@@ -732,17 +749,65 @@ namespace LundunGreybox
                         V2 pos = c + dir.Left * (s * lateral);
                         if (InBox(pos) || NearOtherRoad(pos, ri, 1.0)) continue;
                         V2 toRoad = dir.Left * -s;
-                        poles.Box(pos, dir, 0.09, 0.09, 0, 6.2, false, 0.1, 0, false);
-                        heads.Box(pos + toRoad * 0.7, toRoad, 0.8, 0.22, 5.95, 6.2, true, 0.1, 0, false);
+                        int style;
+                        switch (DistrictAt(pos, dpoly))
+                        {
+                            case "D_GILMOR": style = 1; break;
+                            case "D_KNIGHT": style = 2; break;
+                            case "D_CANARY": case "D_CANARY_PEN": style = 3; break;
+                            default: style = 0; break;
+                        }
+                        MeshData poles = part("LampPoles" + (style == 0 ? "" : "_" + style), LampPoleMats[style]);
+                        MeshData heads = part("LampHeads" + (style < 2 ? "" : "_" + style), LampHeadMats[style]);
+                        MeshData pools = part("LightPools" + (style < 2 ? "" : "_" + style), LampPoolMats[style]);
+                        // L6: under a railway bridge the light hangs from the bridge instead (the lamp itself stays, for the lights)
+                        bool underRail = railPlan != null && (RailHides(pos) || RailHides(pos + toRoad * 0.9));
+                        if (!underRail)
+                        switch (style)
+                        {
+                            case 0:
+                                poles.Box(pos, dir, 0.09, 0.09, 0, 6.2, false, 0.1, 0, false);
+                                heads.Box(pos + toRoad * 0.7, toRoad, 0.8, 0.22, 5.95, 6.2, true, 0.1, 0, false);
+                                break;
+                            case 1:
+                                poles.Box(pos, dir, 0.14, 0.14, 0, 6.0, false, 0.1, 0, false);
+                                poles.Box(pos + toRoad * 0.45, toRoad, 0.45, 0.06, 5.92, 6.05, true, 0.1, 0, false);
+                                heads.Box(pos + toRoad * 0.85, toRoad, 0.45, 0.2, 5.85, 6.08, true, 0.1, 0, false);
+                                break;
+                            case 2:
+                                // plinth, fluted column, a collar, the swan-neck arm, a lantern hanging from it
+                                poles.Box(pos, dir, 0.17, 0.17, 0, 0.55, false, 0.1, 0, false);
+                                poles.Box(pos, dir, 0.11, 0.11, 0.55, 0.9, false, 0.1, 0, false);
+                                poles.Box(pos, dir, 0.07, 0.07, 0.9, 5.75, false, 0.1, 0, false);
+                                poles.Box(pos, dir, 0.1, 0.1, 4.2, 4.3, false, 0.1, 0, false);
+                                poles.Box(pos + toRoad * 0.22, toRoad, 0.22, 0.04, 5.95, 6.05, true, 0.1, 0, false);
+                                poles.Box(pos + toRoad * 0.6, toRoad, 0.3, 0.035, 6.02, 6.1, true, 0.1, 0, false);
+                                poles.Box(pos + toRoad * 0.1, toRoad, 0.12, 0.035, 5.7, 5.98, true, 0.1, 0, false);
+                                V2 lh = pos + toRoad * 0.9;
+                                poles.Box(lh, toRoad, 0.03, 0.03, 5.92, 6.06, false, 0.1, 0, false);           // hanger
+                                poles.Box(lh, toRoad, 0.21, 0.21, 5.85, 5.93, true, 0.1, 0, false);            // lantern roof
+                                heads.Box(lh, toRoad, 0.16, 0.16, 5.38, 5.85, true, 0.1, 0, false);            // glass
+                                poles.Box(lh, toRoad, 0.11, 0.11, 5.3, 5.38, true, 0.1, 0, false);             // base
+                                break;
+                            default:
+                                poles.Box(pos, dir, 0.065, 0.065, 0, 6.4, false, 0.1, 0, false);
+                                poles.Box(pos + toRoad * 0.35, toRoad, 0.35, 0.04, 6.3, 6.36, true, 0.1, 0, false);
+                                heads.Box(pos + toRoad * 0.95, toRoad, 0.42, 0.13, 6.22, 6.3, true, 0.1, 0, false);
+                                break;
+                        }
                         V2 pc = pos + toRoad * 1.5, f = dir, l = dir.Left;
-                        double pr = PoolRadius;
+                        double pr = style == 2 ? PoolRadius * 0.8 : PoolRadius;
                         pools.Quad(new P3(pc - f * pr - l * pr, PoolY, 0, 0), new P3(pc + f * pr - l * pr, PoolY, 1, 0),
                                    new P3(pc + f * pr + l * pr, PoolY, 1, 1), new P3(pc - f * pr + l * pr, PoolY, 0, 1), 0, 1, 0);
                         V2 hp = pos + toRoad * 0.9;
-                        R.lamps.Add(new LampInfo { x = hp.x, y = 5.9, z = hp.z });
+                        R.lamps.Add(new LampInfo { x = hp.x, y = 5.9, z = hp.z, style = style });
+                        if (underRail) railLamps.Add(new[] { hp.x, hp.z, style });
                     }
             }
-            R.meshes.Add(poles); R.meshes.Add(heads); R.meshes.Add(pools);
+            // the original three meshes always exist (other tools look for them), then the district ones
+            part("LampPoles", "LampPole"); part("LampHeads", "LampHead"); part("LightPools", "LightPool");
+            List<string> keys = new List<string>(parts.Keys); keys.Sort();
+            foreach (string k in keys) R.meshes.Add(parts[k]);
             R.log.Add(R.lamps.Count + " street lamps");
         }
 

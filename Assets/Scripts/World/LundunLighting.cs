@@ -20,6 +20,11 @@ public class LundunLighting : MonoBehaviour
     [SerializeField] private Material lampHeadMaterial;
     [SerializeField] private Material lightPoolMaterial;
     [SerializeField] private LundunLampLights lampLights;
+    [Tooltip("L5: the other lamp heads (heritage, LED), each with its own glow colour")]
+    [SerializeField] private Material[] lampHeadVariants = new Material[0];
+    [SerializeField] private Color[] lampVariantGlow = new Color[0];
+    [Tooltip("L5: the other ground glows (heritage, LED lamps; shops, pubs, lobbies)")]
+    [SerializeField] private Material[] poolVariants = new Material[0];
 
     [Header("Strengths at lampLevel = 1")]
     [SerializeField] private float lightPoolStrength = 0.7f;
@@ -82,6 +87,11 @@ public class LundunLighting : MonoBehaviour
         if (lampHeadMaterial != null) lampHeadMaterial.SetColor("_EmissionColor", lampGlow * (lampGlowStrength * l.lampLevel));
         if (lightPoolMaterial != null) lightPoolMaterial.SetFloat("_Intensity", lightPoolStrength * l.lampLevel);
         if (lampLights != null) lampLights.Level = l.lampLevel;
+        for (int i = 0; lampHeadVariants != null && i < lampHeadVariants.Length; i++)
+            if (lampHeadVariants[i] != null)
+                lampHeadVariants[i].SetColor("_EmissionColor", (lampVariantGlow != null && i < lampVariantGlow.Length ? lampVariantGlow[i] : lampGlow) * (lampGlowStrength * l.lampLevel));
+        if (poolVariants != null)
+            foreach (Material m in poolVariants) if (m != null) m.SetFloat("_Intensity", lightPoolStrength * l.lampLevel);
 
         if (grade != null)
         {
