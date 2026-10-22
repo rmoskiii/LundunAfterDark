@@ -74,7 +74,16 @@ namespace LundunGreybox
             for (int i = 0; i < 3; i++) sprite("stain" + i, 1.2, 0.9);
             for (int i = 0; i < 3; i++) sprite("crack" + i, 3.0, 0.5);
             for (int i = 0; i < 2; i++) sprite("paveStain" + i, 0.9, 0.9);
+            // L4: grit
+            for (int i = 0; i < GritLitter; i++) sprite("litter" + i, 0.7, 0.5);
+            for (int i = 0; i < GritLeaves; i++) sprite("leaves" + i, 0.9, 0.7);
+            for (int i = 0; i < GritPuddles; i++) sprite("puddle" + i, 2.4, 1.2);
+            for (int i = 0; i < GritPosters; i++) sprite("poster" + i, 0.6, 0.85);
+            for (int i = 0; i < GritTags; i++) sprite("tagS" + i, 0.9, 0.45);
+            sprite("stickers", 0.4, 0.6);
+            sprite("binjuice", 0.9, 0.7);
         }
+        public const int GritLitter = 6, GritLeaves = 3, GritPuddles = 3, GritPosters = 8, GritTags = 4;
 
         public static Strip GetStrip(string n) { Layout(); return Strips[n]; }
         public static Rect GetSprite(string n) { Layout(); return Sprites[n]; }
@@ -452,7 +461,192 @@ namespace LundunGreybox
             for (int i = 0; i < 3; i++) Stain(im, Sprites["stain" + i], 200 + i, 0.08, 0.07, 0.06);
             for (int i = 0; i < 2; i++) Stain(im, Sprites["paveStain" + i], 210 + i, 0.3, 0.27, 0.22);
             for (int i = 0; i < 3; i++) Crack(im, Sprites["crack" + i], 220 + i);
+            // L4: grit
+            for (int i = 0; i < GritLitter; i++) Litter(cv, Sprites["litter" + i], 300 + i);
+            for (int i = 0; i < GritLeaves; i++) Leaves(cv, Sprites["leaves" + i], 320 + i);
+            for (int i = 0; i < GritPuddles; i++) Puddle(im, Sprites["puddle" + i], 340 + i);
+            for (int i = 0; i < GritPosters; i++) Poster(cv, Sprites["poster" + i], i);
+            for (int i = 0; i < GritTags; i++) SmallTag(cv, Sprites["tagS" + i], 360 + i);
+            Stickers(cv, Sprites["stickers"], 380);
+            Stain(im, Sprites["binjuice"], 390, 0.16, 0.13, 0.07);
             return im;
+        }
+
+        // ------------------------------------------------------------------ L4: litter, leaves, puddles, posters, tags
+        /// A filled, rotated rectangle (px units), colour by local position (u, v in 0..1).
+        static void RotRect(byte[] im, double cx, double cy, double w, double h, double ang, Func<double, double, double[]> col)
+        {
+            double ca = Math.Cos(ang), sa = Math.Sin(ang), r = Math.Sqrt(w * w + h * h) / 2 + 1;
+            for (int y = (int)(cy - r); y <= (int)(cy + r); y++)
+                for (int x = (int)(cx - r); x <= (int)(cx + r); x++)
+                {
+                    double dx = x + 0.5 - cx, dy = y + 0.5 - cy;
+                    double lx = dx * ca + dy * sa, ly = -dx * sa + dy * ca;
+                    if (Math.Abs(lx) > w / 2 || Math.Abs(ly) > h / 2) continue;
+                    double[] c = col(lx / w + 0.5, ly / h + 0.5);
+                    if (c != null) Put(im, x, y, c[0], c[1], c[2], 1);
+                }
+        }
+
+        static void Litter(DressAtlas cv, Rect r, int seed)
+        {
+            Random rnd = new Random(seed);
+            byte[] im = cv.px;
+            double ppm = DecPxM;
+            int n = 4 + rnd.Next(5);
+            for (int k = 0; k < n; k++)
+            {
+                double cx = r.x + 10 + rnd.NextDouble() * (r.w - 20), cy = r.y + 10 + rnd.NextDouble() * (r.h - 20), ang = rnd.NextDouble() * Math.PI;
+                int kind = rnd.Next(7);
+                switch (kind)
+                {
+                    case 0:
+                        {   // a can lying on its side: coloured body, silver ends, a highlight
+                            double[][] cols = { new[] { 0.7, 0.08, 0.08 }, new[] { 0.75, 0.76, 0.78 }, new[] { 0.12, 0.25, 0.6 }, new[] { 0.1, 0.45, 0.2 }, new[] { 0.8, 0.62, 0.15 } };
+                            double[] c = cols[rnd.Next(cols.Length)];
+                            RotRect(im, cx, cy, 0.12 * ppm, 0.066 * ppm, ang, (u, v) =>
+                                u < 0.08 || u > 0.92 ? new[] { 0.7, 0.7, 0.72 } : Math.Abs(v - 0.35) < 0.08 ? new[] { c[0] * 1.5 + 0.2, c[1] * 1.5 + 0.2, c[2] * 1.5 + 0.2 } : c);
+                            break;
+                        }
+                    case 1:
+                        {   // crisp packet: shiny, crinkled, coloured bands
+                            double[] c = new[] { rnd.NextDouble() * 0.6 + 0.3, rnd.NextDouble() * 0.6 + 0.2, rnd.NextDouble() * 0.5 + 0.1 };
+                            RotRect(im, cx, cy, 0.16 * ppm, 0.2 * ppm, ang, (u, v) =>
+                            { double k2 = 0.8 + 0.3 * Math.Sin(u * 30 + v * 7); return v > 0.85 || v < 0.1 ? new[] { 0.8 * k2, 0.8 * k2, 0.82 * k2 } : new[] { c[0] * k2, c[1] * k2, c[2] * k2 }; });
+                            break;
+                        }
+                    case 2:
+                        {   // takeaway box (white with a red stripe)
+                            RotRect(im, cx, cy, 0.22 * ppm, 0.16 * ppm, ang, (u, v) => Math.Abs(v - 0.5) < 0.12 ? new[] { 0.72, 0.1, 0.1 } : new[] { 0.88, 0.86, 0.82 });
+                            break;
+                        }
+                    case 3:
+                        {   // paper / receipt, crumpled
+                            RotRect(im, cx, cy, 0.1 * ppm, 0.2 * ppm, ang, (u, v) => { double k2 = 0.75 + 0.2 * Math.Sin(u * 21 + v * 13) * Math.Cos(v * 17); return new[] { k2, k2, k2 * 0.97 }; });
+                            break;
+                        }
+                    case 4:
+                        {   // coffee cup lying down
+                            RotRect(im, cx, cy, 0.14 * ppm, 0.08 * ppm, ang, (u, v) => u > 0.85 ? new[] { 0.15, 0.12, 0.1 } : u > 0.4 && u < 0.6 ? new[] { 0.45, 0.3, 0.18 } : new[] { 0.9, 0.9, 0.88 });
+                            break;
+                        }
+                    case 5:
+                        {   // cigarette ends
+                            for (int b = 0; b < 4 + rnd.Next(5); b++)
+                            {
+                                double bx = cx + (rnd.NextDouble() - 0.5) * 40, by = cy + (rnd.NextDouble() - 0.5) * 30;
+                                RotRect(im, bx, by, 0.035 * ppm, 0.01 * ppm, rnd.NextDouble() * Math.PI, (u, v) => u < 0.4 ? new[] { 0.78, 0.55, 0.3 } : new[] { 0.9, 0.88, 0.84 });
+                            }
+                            break;
+                        }
+                    default:
+                        {   // plastic bottle (green or clear)
+                            bool green = rnd.NextDouble() < 0.5;
+                            RotRect(im, cx, cy, 0.24 * ppm, 0.07 * ppm, ang, (u, v) => u > 0.88 ? new[] { 0.2, 0.3, 0.7 } : green ? new[] { 0.2, 0.45, 0.25 } : new[] { 0.62, 0.68, 0.7 });
+                            break;
+                        }
+                }
+            }
+        }
+
+        static void Leaves(DressAtlas cv, Rect r, int seed)
+        {
+            Random rnd = new Random(seed);
+            double[][] cols = { new[] { 0.62, 0.32, 0.08 }, new[] { 0.48, 0.25, 0.08 }, new[] { 0.72, 0.52, 0.12 }, new[] { 0.35, 0.22, 0.1 }, new[] { 0.55, 0.42, 0.15 } };
+            for (int k = 0; k < 70; k++)
+            {
+                double cx = r.x + 6 + rnd.NextDouble() * (r.w - 12), cy = r.y + 6 + rnd.NextDouble() * (r.h - 12);
+                double dx = (cx - r.x - r.w / 2) / (r.w / 2), dy = (cy - r.y - r.h / 2) / (r.h / 2);
+                if (dx * dx + dy * dy > 1 && rnd.NextDouble() < 0.7) continue;            // gathered in a drift
+                double[] c = cols[rnd.Next(cols.Length)];
+                double sz = 0.06 + rnd.NextDouble() * 0.06;
+                RotRect(cv.px, cx, cy, sz * DecPxM, sz * 0.7 * DecPxM, rnd.NextDouble() * Math.PI, (u, v) =>
+                {
+                    double e = (u - 0.5) * (u - 0.5) * 4 + (v - 0.5) * (v - 0.5) * 4;
+                    if (e > 1) return null;
+                    double k2 = Math.Abs(v - 0.5) < 0.05 ? 0.7 : 1;                         // the leaf's midrib
+                    return new[] { c[0] * k2, c[1] * k2, c[2] * k2 };
+                });
+            }
+        }
+
+        static void Puddle(byte[] im, Rect r, int seed)
+        {
+            double cx = r.x + r.w / 2.0, cy = r.y + r.h / 2.0;
+            for (int y = r.y; y < r.y + r.h; y++)
+                for (int x = r.x; x < r.x + r.w; x++)
+                {
+                    double lx = (x + 0.5 - cx) / (r.w / 2.0), ly = (y + 0.5 - cy) / (r.h / 2.0);
+                    double d = Math.Sqrt(lx * lx + ly * ly) + (Fbm(x, y, 40, seed, DecW) - 0.5) * 0.8;
+                    if (d > 0.85) continue;
+                    double v = d > 0.72 ? 0.13 : 0.07 + (Fbm(x, y, 12, seed + 3, DecW) - 0.5) * 0.03;   // darker wet rim, glassy middle
+                    Put(im, x, y, v, v * 1.05, v * 1.15, 1);
+                }
+        }
+
+        static readonly string[][] PosterText = {
+            new[] { "BASEMENT|SESSIONS|SAT", "111111", "ff3d9a" }, new[] { "LUNDUN|JUNGLE|ALL NIGHT", "f2c200", "111111" },
+            new[] { "CASH|FOR|CARS", "f4f1ea", "c8102e" }, new[] { "MAN|& VAN|CHEAP", "e07b1a", "111111" },
+            new[] { "LOST|CAT|BISCUIT", "f4f1ea", "222222" }, new[] { "ROOM|TO LET|SE15", "ffffff", "1d4fb8" },
+            new[] { "COMEDY|CLUB|FRIDAYS", "1d4fb8", "ffffff" }, new[] { "DUB|SOUND|SYSTEM", "1f6b3a", "f2c200" } };
+
+        static void Poster(DressAtlas cv, Rect r, int i)
+        {
+            string[] p = PosterText[i % PosterText.Length];
+            Col bg = Col.Hex(p[1]), fg = Col.Hex(p[2]);
+            cv.Fill(r.x, r.y, r.w, r.h, bg);
+            string[] lines = p[0].Split('|');
+            int lh = (r.h - 12) / lines.Length;
+            for (int k = 0; k < lines.Length; k++)
+                cv.Text(lines[k], r.x + 3, r.y + r.h - 6 - (k + 1) * lh, r.w - 6, lh - 2, fg, 0.5, DressAtlas.Align.Centre);
+            if (i == 4) cv.Fill(r.x + r.w / 4, r.y + 8, r.w / 2, r.h / 4, Col.Hex("6b5a48"));            // the cat's photo
+            // weather, glue and a torn corner
+            Random rnd = new Random(400 + i);
+            byte[] im = cv.px;
+            int tear = rnd.Next(4);
+            for (int y = r.y; y < r.y + r.h; y++)
+                for (int x = r.x; x < r.x + r.w; x++)
+                {
+                    int k = (y * DecW + x) * 4;
+                    double lx = (x - r.x) / (double)r.w, ly = (y - r.y) / (double)r.h;
+                    double cu = tear % 2 == 0 ? lx : 1 - lx, cvv = tear / 2 == 0 ? ly : 1 - ly;
+                    if (cu + cvv < 0.28 + (Fbm(x, y, 8, 410 + i, DecW) - 0.5) * 0.12) { im[k + 3] = 0; continue; }
+                    double g = 0.82 + (Fbm(x, y, 20, 420 + i, DecW) - 0.5) * 0.3;
+                    im[k] = B(im[k] / 255.0 * g); im[k + 1] = B(im[k + 1] / 255.0 * g); im[k + 2] = B(im[k + 2] / 255.0 * g * 0.95); im[k + 3] = 255;
+                }
+        }
+
+        static void SmallTag(DressAtlas cv, Rect r, int seed)
+        {
+            Random rnd = new Random(seed);
+            string[] words = { "OSK", "PEK", "RYE", "ZEPH", "MEK", "SE15", "DUSK", "VEX" };
+            Col[] cols = { new Col(20, 20, 22), new Col(235, 235, 235), new Col(200, 30, 40), new Col(40, 90, 210), new Col(190, 190, 195), new Col(140, 60, 200) };
+            string w = words[rnd.Next(words.Length)];
+            Col c = cols[rnd.Next(cols.Length)];
+            int n = PixelFont.Columns(w);
+            double cs = Math.Min((r.w - 10) / (double)n, (r.h - 10) / 8.0);
+            double x = r.x + 5, top = r.y + r.h - 6, shear = 0.25 + rnd.NextDouble() * 0.3;
+            bool bubble = rnd.NextDouble() < 0.4;
+            foreach (char ch in w)
+            {
+                if (bubble) { cv.Glyph(ch, x, top, cs, cs * 0.75 + 2, new Col(15, 15, 15), shear, 1); cv.Glyph(ch, x, top, cs, cs * 0.75, c, shear, 1); }
+                else cv.Glyph(ch, x, top, cs, Math.Max(1.2, cs * 0.18), c, shear, 1.1);
+                x += PixelFont.Advance(ch) * cs;
+            }
+            cv.Seg(r.x + 4, r.y + 6, x, r.y + 4 + rnd.NextDouble() * 6, 1.2, c);
+        }
+
+        static void Stickers(DressAtlas cv, Rect r, int seed)
+        {
+            Random rnd = new Random(seed);
+            for (int k = 0; k < 9; k++)
+            {
+                int w = 10 + rnd.Next(18), h = 8 + rnd.Next(14);
+                int x = r.x + rnd.Next(Math.Max(1, r.w - w)), y = r.y + rnd.Next(Math.Max(1, r.h - h));
+                Col c = new Col(rnd.Next(60, 255), rnd.Next(30, 240), rnd.Next(30, 240));
+                cv.Fill(x, y, w, h, c);
+                cv.Fill(x + 2, y + h / 2 - 1, w - 4, 2, new Col(20, 20, 20));
+            }
         }
 
         static void Put(byte[] im, int x, int y, double r, double g, double b, double a)

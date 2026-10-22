@@ -56,6 +56,7 @@ public static class LundunStreetsBuilder
 
             Material decalMat = DecalMaterial(decals);
             Material settsMat = SettsMaterial(setts);
+            Material wetMat = WetMaterial(decals);                   // L4: puddles
             WearMarkings(worn);
 
             // 3. the decal objects, one per 100 m block
@@ -75,7 +76,7 @@ public static class LundunStreetsBuilder
                 go.transform.SetParent(root.transform, false);
                 go.AddComponent<MeshFilter>().sharedMesh = mesh;
                 MeshRenderer mr = go.AddComponent<MeshRenderer>();
-                mr.sharedMaterial = md.material == Generator.StreetSettsMat ? settsMat : decalMat;
+                mr.sharedMaterial = md.material == Generator.StreetSettsMat ? settsMat : md.material == Generator.StreetWetMat ? wetMat : decalMat;
                 mr.shadowCastingMode = ShadowCastingMode.Off;
                 mr.lightProbeUsage = LightProbeUsage.Off; mr.reflectionProbeUsage = ReflectionProbeUsage.Off;
                 GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic);
@@ -134,6 +135,20 @@ public static class LundunStreetsBuilder
         m.SetFloat("_AlphaClip", 1f); m.SetFloat("_Cutoff", 0.5f); m.EnableKeyword("_ALPHATEST_ON");
         m.renderQueue = (int)RenderQueue.AlphaTest;
         m.SetFloat("_Smoothness", 0.25f); m.SetFloat("_Metallic", 0f);
+        m.enableInstancing = true;
+        EditorUtility.SetDirty(m);
+        return m;
+    }
+
+    /// L4: puddles — the same decal atlas, but glassy (they reflect the sky and the street lights).
+    static Material WetMaterial(Texture2D tex)
+    {
+        Material m = LoadOrCreate(Dir + "/" + Generator.StreetWetMat + ".mat");
+        m.SetTexture("_BaseMap", tex);
+        m.SetColor("_BaseColor", Color.white);
+        m.SetFloat("_AlphaClip", 1f); m.SetFloat("_Cutoff", 0.5f); m.EnableKeyword("_ALPHATEST_ON");
+        m.renderQueue = (int)RenderQueue.AlphaTest;
+        m.SetFloat("_Smoothness", 0.95f); m.SetFloat("_Metallic", 0f);
         m.enableInstancing = true;
         EditorUtility.SetDirty(m);
         return m;

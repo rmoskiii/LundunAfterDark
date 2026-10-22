@@ -176,6 +176,7 @@ namespace LundunGreybox
             DressEstates();
             DressGraffitiWalls();
             DressFurniture();               // L3: district furniture (its own random seed, after everything else)
+            DressGrit();                    // L4: bin bags and fly-tipping (its own random seed, last)
 
             foreach (MeshData m in new[] { mSolid, mCut, mGlow }) D.meshes.AddRange(Chunk(m));
             int v = 0; foreach (MeshData m in D.meshes) v += m.VertexCount;
@@ -256,6 +257,7 @@ namespace LundunGreybox
                 else if (ps.kind == "police") a.Sign("sign_" + ps.id, 640, 80, ps.name.ToUpperInvariant(), Col.Hex("10183d"), Col.Hex("ffffff"), Col.Hex("2f6bff"), 0.48);
             a.Shutter("shutter"); a.ShopWindow("shopwin"); a.PubWindow("pubwin"); a.Pitch("pitch"); a.Mattress("mattress");
             FurnitureAtlas(a);              // L3 (appended)
+            GritAtlas(a);                   // L4 (appended)
             return a;
         }
 

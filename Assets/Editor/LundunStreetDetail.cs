@@ -81,7 +81,10 @@ namespace LundunGreybox
             LookRight(crossings);
             KeepClear(places);
 
-            foreach (MeshData m in new[] { sDec, sPave, sSet }) SR.meshes.AddRange(Chunk(m));
+            MeshData sWet = new MeshData("StreetPuddles", "Streets", StreetWetMat, false) { navIgnore = true };
+            StreetGrit(sWet);                // L4: litter, leaves, puddles, posters, tags (own random seed, last)
+
+            foreach (MeshData m in new[] { sDec, sPave, sSet, sWet }) SR.meshes.AddRange(Chunk(m));
             int v = 0; foreach (MeshData m in SR.meshes) v += m.VertexCount;
             List<string> keys = new List<string>(SR.counts.Keys); keys.Sort();
             SR.log.Add(string.Format("Streets (L2): {0} mesh blocks, {1} vertices, {2} parking bays", SR.meshes.Count, v, SR.bays.Count));

@@ -430,8 +430,11 @@ namespace LundunGreybox
         }
 
         // ------------------------------------------------------------------ green street cabinets
+        /// L4: street cabinets (x, z, along x, along z, side of the road face): tags and stickers go on them.
+        static List<double[]> cabinetSpots = new List<double[]>();
         static void Cabinets()
         {
+            cabinetSpots = new List<double[]>();
             List<string> ids = new List<string>(roads.Keys); ids.Sort();
             foreach (string id in ids)
             {
@@ -446,6 +449,7 @@ namespace LundunGreybox
                         V2 dir; V2 q = ri.line.At(ch, out dir) + dir.Left * (s * (ri.w / 2 + ri.pave - 0.35));
                         if (!Free(q, 0.7)) continue;
                         SBox(mSolid, q, dir, 0.5, 0.22, FPaveY, FPaveY + 1.25, S("cabinet"));
+                        cabinetSpots.Add(new[] { q.x, q.z, dir.x, dir.z, -s });      // L4: the face towards the road gets tagged
                         SBox(mSolid, q, dir, 0.53, 0.25, FPaveY + 1.25, FPaveY + 1.3, S("cabinettop"));
                         Claim(q, 0.7);
                         Collider("Cabinet", q, dir, 1.0, 0.44, FPaveY, FPaveY + 1.3);
