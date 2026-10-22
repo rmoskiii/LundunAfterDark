@@ -27,7 +27,11 @@ namespace LundunGreybox
         {
             public KitType type; public int face; public string road; public double gap; public bool nearJunction, mixed;
             public V2 c, n, r; public double W, D;
+            public double eave;          // L3: top of the front wall (scaffolding goes up to here)
         }
+
+        /// L3: the kit's plan for a plot (type, front, size), or null.
+        public static KitPlan KitPlanFor(BuildingInfo b) { KitPlan p; return kitPlans.TryGetValue(b, out p) ? p : null; }
 
         static Dictionary<BuildingInfo, KitPlan> kitPlans = new Dictionary<BuildingInfo, KitPlan>();
         /// How many of each type were built last time (for the log).
@@ -357,6 +361,7 @@ namespace LundunGreybox
                 if (Room < 0.8) bayType = 0;
                 int plainRow = pal == 0 ? KitArt.A_BrickRed : pal == 1 ? KitArt.A_BrickYel : KitArt.A_Render;
                 double rise = Math.Min(3.4, D / 2 * Math.Tan(32 * Math.PI / 180));
+                p.eave = eave;
 
                 for (int i = 0; i < houses; i++)
                 {
@@ -437,6 +442,7 @@ namespace LundunGreybox
                 int upRow = pal == 0 ? KitArt.A_PUpYel : pal == 1 ? KitArt.A_PUpRed : KitArt.A_PUpPaint;
                 int plainRow = pal == 0 ? KitArt.A_BrickYel : pal == 1 ? KitArt.A_BrickRed : KitArt.A_Render;
                 int gfRow = pub ? KitArt.A_PubGf : KitArt.A_ShopGf;
+                p.eave = eave;
                 Units(0, gfRow, P(-W / 2, 0), P(W / 2, 0), Front, 0, gf, Pick(5));
                 int k0 = Pick(5);                                   // painted parades keep their colours lined up storey to storey
                 for (int f = 0; f < ups; f++) Units(0, upRow, P(-W / 2, 0), P(W / 2, 0), Front, gf + up * f, gf + up * (f + 1), pal == 2 ? k0 : Pick(5));
@@ -533,6 +539,7 @@ namespace LundunGreybox
                 int ups = Math.Max(2, Math.Min(4, (int)Math.Round((h - gf - 3.4) / up)));
                 double eave = gf + up * ups;
                 bool mansard = Chance(0.6);
+                p.eave = eave;
                 int gfRow = p.mixed ? KitArt.A_ShopGf : KitArt.A_StuccoGf;
                 double uw = KitArt.UnitW(0, KitArt.A_StuccoUp);
                 if (p.mixed) Units(0, gfRow, P(-W / 2, 0), P(W / 2, 0), Front, 0, 4.0, Pick(5));
@@ -605,6 +612,7 @@ namespace LundunGreybox
                 double gf = p.mixed ? 4.0 : 3.8, up = 3.4;
                 int ups = Math.Max(3, Math.Min(6, (int)Math.Round((h - gf - 1.0) / up)));
                 double eave = gf + up * ups;
+                p.eave = eave;
                 Units(0, p.mixed ? KitArt.A_ShopGf : KitArt.A_MansionGf, P(-W / 2, 0), P(W / 2, 0), Front, 0, gf, Pick(5));
                 Units(0, KitArt.A_MansionGf, P(W / 2, D), P(-W / 2, D), Back, 0, gf, Pick(4));
                 for (int f = 0; f < ups; f++)
@@ -659,6 +667,7 @@ namespace LundunGreybox
                 double hw = W / houses, gf = 3.6, up = 3.5;
                 int ups = Math.Max(2, Math.Min(4, (int)Math.Round((h - gf - 1.0) / up)));
                 double eave = gf + up * ups;
+                p.eave = eave;
                 for (int i = 0; i < houses; i++)
                 {
                     double s0 = -W / 2 + i * hw, s1 = s0 + hw;

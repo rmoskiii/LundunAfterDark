@@ -187,7 +187,9 @@ public class LundunTrafficCar : MonoBehaviour
     {
         Vector3 centre = start + dir * along;
         Vector3 left = new Vector3(-dir.z, 0f, dir.x);
+        bool baysStreet = width > 9.5 && width < 10.5;      // L3: 10 m streets have parked cars along the kerb: keep clear of them
         float offset = narrowStreet.Contains(new Vector2(centre.x, centre.z)) ? 1.6f
+                     : baysStreet ? (float)(width * 0.25) - 0.35f
                      : isBus ? Mathf.Max((float)(width * 0.25), (float)(width * 0.5) - 1.8f)   // buses hug the kerb
                      : (float)(width * 0.25);                                                     // UK: keep left
         return centre + left * offset;

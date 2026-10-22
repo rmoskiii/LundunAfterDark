@@ -175,6 +175,7 @@ namespace LundunGreybox
             DressBillboards();
             DressEstates();
             DressGraffitiWalls();
+            DressFurniture();               // L3: district furniture (its own random seed, after everything else)
 
             foreach (MeshData m in new[] { mSolid, mCut, mGlow }) D.meshes.AddRange(Chunk(m));
             int v = 0; foreach (MeshData m in D.meshes) v += m.VertexCount;
@@ -254,6 +255,7 @@ namespace LundunGreybox
                 if (ps.kind == "hospital") a.Sign("sign_" + ps.id, 640, 80, ps.name.ToUpperInvariant(), Col.Hex("1d5fb0"), Col.Hex("ffffff"), new Col(0, 0, 0, 0), 0.48);
                 else if (ps.kind == "police") a.Sign("sign_" + ps.id, 640, 80, ps.name.ToUpperInvariant(), Col.Hex("10183d"), Col.Hex("ffffff"), Col.Hex("2f6bff"), 0.48);
             a.Shutter("shutter"); a.ShopWindow("shopwin"); a.PubWindow("pubwin"); a.Pitch("pitch"); a.Mattress("mattress");
+            FurnitureAtlas(a);              // L3 (appended)
             return a;
         }
 
@@ -441,8 +443,7 @@ namespace LundunGreybox
 
         static void Bollard(V2 p, double y)
         {
-            Cyl(mSolid, p, 0.1, y, y + 0.9, 6, S("black"));
-            Cyl(mSolid, p, 0.105, y + 0.72, y + 0.8, 6, S("white"), false);
+            BollardStyled(p, y);            // L3: cast iron / steel / concrete by district (the old black-and-white one is the default)
             Claim(p, 0.3);
             D.Count("bollards");
         }

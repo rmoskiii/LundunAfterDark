@@ -310,6 +310,8 @@ public class LundunPopulation : MonoBehaviour
 
     bool SpawnCar(Vector3 player, Camera cam, bool parked)
     {
+        // L3: parked cars go in the marked bays when the city has them (Lundun → 23)
+        if (parked && LundunParking.Instance != null && LundunParking.Instance.SlotCount > 0) return SpawnInBay(player, cam);
         LundunNavigation nav = LundunNavigation.Instance;
         if (nav == null || nav.Graph == null) return false;
         for (int attempt = 0; attempt < 6; attempt++)
@@ -350,6 +352,24 @@ public class LundunPopulation : MonoBehaviour
             return true;
         }
         return false;
+    }
+
+    /// L3: a real (stealable) parked car in a free bay.
+    bool SpawnInBay(Vector3 player, Camera cam)
+    {
+        Vector3 pos; Quaternion rot;
+        if (!LundunParking.Instance.TryGetSlot(player, spawnNearest, carSpawnFarthest, rng, cam, out pos, out rot)) return false;
+        Car c = GetPooledCar();
+        if (c == null) return false;
+        Vector3 at = pos + Vector3.up * 1.0f;
+        c.go.transform.SetPositionAndRotation(at, rot);
+        c.go.SetActive(true);
+        c.rb.position = at; c.rb.rotation = rot;
+        c.rb.linearVelocity = Vector3.zero; c.rb.angularVelocity = Vector3.zero;
+        c.cc.SetTouchInput(0f, 0f);
+        c.active = true;
+        c.ai.BeginParked();
+        return true;
     }
 
     // ------------------------------------------------------------------ buses
