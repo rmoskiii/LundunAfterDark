@@ -54,6 +54,10 @@ public class LundunNavigation : MonoBehaviour
             if (places != null)
                 foreach (LundunPlaces.Place pl in places.Places)
                     Destinations.Add(new Destination { id = pl.id, name = pl.name, kind = pl.kind, position = pl.door });
+            // L6: Lundun Rail stations (the way in from the street)
+            LundunTrain train = FindAnyObjectByType<LundunTrain>();
+            if (train != null && train.Entrance != Vector3.zero)
+                Destinations.Add(new Destination { id = "RAIL_RYE_LANE", name = LundunTrain.StationName, kind = "rail", position = train.Entrance });
         }
         else Debug.LogWarning("[Lundun] LundunNavigation has no world JSON — GPS off.");
         if (waypointBeam != null) waypointBeam.gameObject.SetActive(false);

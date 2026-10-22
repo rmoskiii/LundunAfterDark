@@ -101,7 +101,9 @@ public static class LundunRailwayBuilder
         Vector3[] path = new Vector3[pts.Count];
         for (int i = 0; i < pts.Count; i++) path[i] = new Vector3((float)pts[i][0], (float)pts[i][1], (float)pts[i][2]);
         LundunTrain t = root.AddComponent<LundunTrain>();
-        t.SetData(path, cars, (float)station, (float)depot, new Vector3((float)spot[0], (float)spot[1], (float)spot[2]));
+        double[] way = Generator.RailStationEntrance();
+        t.SetData(path, cars, (float)station, (float)depot, new Vector3((float)spot[0], (float)spot[1], (float)spot[2]),
+                  way != null ? new Vector3((float)way[0], (float)way[1], (float)way[2]) : path[path.Length - 1]);
         // park it at the platform in the editor too
         for (int k = 0; k < 3; k++)
         {

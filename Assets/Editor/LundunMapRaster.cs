@@ -28,6 +28,10 @@ namespace LundunGreybox
         static readonly byte[] HospitalPlot = { 112, 66, 72 };
         static readonly byte[] PolicePlot = { 60, 80, 124 };
         static readonly byte[] SafePlot = { 56, 98, 70 };
+        static readonly byte[] RailBed = { 92, 80, 72 };          // L6: the railway (brick and ballast)
+        static readonly byte[] RailDark = { 40, 40, 44 };
+        static readonly byte[] RailLight = { 214, 214, 210 };
+        static readonly byte[] Platform = { 196, 92, 82 };
 
         static MapImage img;
 
@@ -90,6 +94,24 @@ namespace LundunGreybox
             // the hand-built high street's side road (not in the world data)
             LwExistingStreet es = W.existingStreet;
             Capsule(new V2(es.centreX, es.centreZ - es.sizeZ / 2 - 4), new V2(es.centreX, es.centreZ + es.sizeZ / 2 + 4), 4, Street);
+
+            // L6: the railway over everything (its bridges cross the roads), the classic black-and-white map line,
+            // and Rye Lane station's platform picked out
+            Generator.RailPlan rp = Generator.Railway;
+            if (rp != null)
+            {
+                List<V2> pts = rp.line.p;
+                for (int i = 0; i + 1 < pts.Count; i++) Capsule(pts[i], pts[i + 1], 5.6, RailBed);
+                for (int i = 0; i + 1 < pts.Count; i++) Capsule(pts[i], pts[i + 1], 1.8, RailDark);
+                for (double s = 0; s < rp.length - 1; s += 16)
+                    Capsule(Generator.RailPoint(s, 0), Generator.RailPoint(Math.Min(rp.length, s + 8), 0), 1.0, RailLight);
+                double s0 = Generator.RailStationStart + 1, s1 = rp.length - 1;
+                for (double s = s0; s < s1; s += 4)
+                {
+                    double e = Math.Min(s1, s + 4);
+                    Polygon(new List<V2> { Generator.RailPoint(s, -3.45), Generator.RailPoint(e, -3.45), Generator.RailPoint(e, -7.2), Generator.RailPoint(s, -7.2) }, Platform);
+                }
+            }
             return img;
         }
 

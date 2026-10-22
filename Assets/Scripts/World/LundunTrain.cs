@@ -16,6 +16,7 @@ public class LundunTrain : MonoBehaviour
     [SerializeField] private float depotFront;                          // and where it stops at the far end
     [SerializeField] private Vector3 platformSpot;                      // where James gets off
     [SerializeField] private float carLength = 19.4f, carGap = 0.6f;
+    [SerializeField] private Vector3 entrance;                          // the station's street entrance (for the map and GPS)
 
     [Header("Running")]
     [SerializeField] private float maxSpeed = 16f;                      // m/s (about 36 mph)
@@ -48,13 +49,22 @@ public class LundunTrain : MonoBehaviour
     public bool Riding { get { return riding; } }
     public float Speed { get { return v; } }
 
-    public void SetData(Vector3[] p, Transform[] c, float station, float depot, Vector3 spot)
+    public void SetData(Vector3[] p, Transform[] c, float station, float depot, Vector3 spot, Vector3 way)
     {
-        path = p; cars = c; stationFront = station; depotFront = depot; platformSpot = spot;
+        path = p; cars = c; stationFront = station; depotFront = depot; platformSpot = spot; entrance = way;
     }
+
+    public const string StationName = "Rye Lane Station";
+    /// The station's street entrance, and a marker there for the minimap.
+    public Vector3 Entrance { get { return entrance; } }
+    public Transform StationMarker { get; private set; }
 
     void Awake()
     {
+        GameObject mk = new GameObject("RyeLaneStation");
+        mk.transform.SetParent(transform, false);
+        mk.transform.position = entrance;
+        StationMarker = mk.transform;
         int n = path.Length;
         cum = new float[n];
         for (int i = 1; i < n; i++) cum[i] = cum[i - 1] + Vector3.Distance(path[i - 1], path[i]);

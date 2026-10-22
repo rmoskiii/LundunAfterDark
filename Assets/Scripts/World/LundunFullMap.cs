@@ -286,6 +286,7 @@ public class LundunFullMap : MonoBehaviour
             case "hospital": return "Hospital";
             case "police": return "Police station";
             case "tube": return "Lundun Underground";
+            case "rail": return "Lundun Rail station";
             case "bike": return "Lundun Cycles dock";
             case "landmark": return "Landmark";
             case "mission": return "Job";
@@ -346,7 +347,7 @@ public class LundunFullMap : MonoBehaviour
         // places
         if (nav != null)
         {
-            foreach (string kind in new[] { "landmark", "mission", "tube", "police", "hospital", "safehouse" })
+            foreach (string kind in new[] { "landmark", "mission", "rail", "tube", "police", "hospital", "safehouse" })
                 foreach (LundunNavigation.Destination d in nav.Destinations)
                     if (d.kind == kind) AddItem(d.kind, d.name, d.position);
         }
@@ -382,6 +383,7 @@ public class LundunFullMap : MonoBehaviour
             case "tube": col = new Color(0.16f, 0.24f, 0.62f); glyph = LundunHudArt.Tube; size = 34; break;
             case "bike": col = new Color(0.1f, 0.68f, 0.64f); glyph = LundunHudArt.Bike; size = 26; break;
             case "mission": col = new Color(1f, 0.82f, 0.2f, 0.75f); letter = name.Length > 0 ? name.Substring(0, 1) : "?"; break;
+            case "rail": col = KindColour("rail"); letter = "R"; size = 34; break;
             default: col = new Color(0.92f, 0.92f, 0.92f, 0.9f); size = 14; break;
         }
         RectTransform ic = Disc(blipLayer, col, size);
@@ -428,7 +430,7 @@ public class LundunFullMap : MonoBehaviour
 
         // filters, down the left
         float y = -150f;
-        foreach (string kind in new[] { "safehouse", "hospital", "police", "tube", "bike", "landmark" })
+        foreach (string kind in new[] { "safehouse", "hospital", "police", "tube", "rail", "bike", "landmark" })
         {
             bool any = false;
             foreach (Item it in items) if (it.kind == kind) { any = true; break; }
@@ -487,7 +489,7 @@ public class LundunFullMap : MonoBehaviour
         RectTransform d = Disc(r, col, 38);
         d.anchorMin = d.anchorMax = new Vector2(0, 0.5f); d.anchoredPosition = new Vector2(7f + 19f, 0f);
         c.disc = d.GetComponent<Image>();
-        string letter = kind == "safehouse" ? "S" : kind == "hospital" ? "H" : kind == "police" ? "P" : null;
+        string letter = kind == "safehouse" ? "S" : kind == "hospital" ? "H" : kind == "police" ? "P" : kind == "rail" ? "R" : null;
         if (letter != null) { TextMeshProUGUI t = Text(d, letter, 25, new Color(0.04f, 0.05f, 0.06f)); Stretch(t.rectTransform); }
         else if (kind == "tube") Glyph(d, LundunHudArt.Tube, Color.white, 0.68f);
         else if (kind == "bike") Glyph(d, LundunHudArt.Bike, Color.white, 0.68f);
@@ -517,6 +519,7 @@ public class LundunFullMap : MonoBehaviour
             case "police": return "POLICE";
             case "tube": return "UNDERGROUND";
             case "bike": return "BIKE DOCKS";
+            case "rail": return "RAIL";
             default: return "LANDMARKS";
         }
     }
@@ -530,6 +533,7 @@ public class LundunFullMap : MonoBehaviour
             case "police": return new Color(0.27f, 0.52f, 1f);
             case "tube": return new Color(0.16f, 0.24f, 0.62f);
             case "bike": return new Color(0.1f, 0.68f, 0.64f);
+            case "rail": return new Color(0.17f, 0.55f, 0.38f);
             case "mission": return new Color(1f, 0.82f, 0.2f);
             case "route": case "pin": return Purple;
             default: return new Color(0.92f, 0.92f, 0.92f);
@@ -539,7 +543,7 @@ public class LundunFullMap : MonoBehaviour
     void SetCardIcon(string kind)
     {
         cardDisc.color = KindColour(kind);
-        string letter = kind == "safehouse" ? "S" : kind == "hospital" ? "H" : kind == "police" ? "P" : null;
+        string letter = kind == "safehouse" ? "S" : kind == "hospital" ? "H" : kind == "police" ? "P" : kind == "rail" ? "R" : null;
         cardLetter.text = letter ?? "";
         cardGlyph.gameObject.SetActive(letter == null);
         if (letter == null)
@@ -563,7 +567,7 @@ public class LundunFullMap : MonoBehaviour
         for (int i = listContainer.childCount - 1; i >= 0; i--) Destroy(listContainer.GetChild(i).gameObject);
         listContainer.offsetMax = new Vector2(listContainer.offsetMax.x, -110f);
 
-        foreach (string kind in new[] { "safehouse", "hospital", "police", "tube", "landmark", "mission" })
+        foreach (string kind in new[] { "safehouse", "hospital", "police", "tube", "rail", "landmark", "mission" })
             foreach (Item it in items)
                 if (it.kind == kind)
                 {
@@ -600,7 +604,7 @@ public class LundunFullMap : MonoBehaviour
         Button b = r.gameObject.AddComponent<Button>(); b.targetGraphic = bg; b.onClick.AddListener(onClick);
         RectTransform d = Disc(r, KindColour(kind), 44);
         d.anchorMin = d.anchorMax = new Vector2(0, 0.5f); d.anchoredPosition = new Vector2(11f + 22f, 0f);
-        string letter = kind == "safehouse" ? "S" : kind == "hospital" ? "H" : kind == "police" ? "P" : kind == "mission" ? text.Substring(0, 1) : null;
+        string letter = kind == "safehouse" ? "S" : kind == "hospital" ? "H" : kind == "police" ? "P" : kind == "rail" ? "R" : kind == "mission" ? text.Substring(0, 1) : null;
         if (letter != null) { TextMeshProUGUI t = Text(d, letter, 29, new Color(0.04f, 0.05f, 0.06f)); Stretch(t.rectTransform); }
         else Glyph(d, kind == "tube" ? LundunHudArt.Tube : LundunHudArt.Star, kind == "tube" ? Color.white : new Color(0.04f, 0.05f, 0.06f), 0.66f);
         TextMeshProUGUI l = Text(r, text, 27, Color.white);

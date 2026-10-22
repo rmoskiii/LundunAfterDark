@@ -705,6 +705,19 @@ namespace LundunGreybox
             return new[] { body, lights };
         }
 
+        /// The station's street entrance: in front of the passage arch on the road side (for the map and GPS).
+        public static double[] RailStationEntrance()
+        {
+            if (railPlan == null || railPlan.rye == null) return null;
+            double L = railPlan.length - railPlan.sStation0, bay = L / Math.Max(1, (int)Math.Round(L / 8.0));
+            V2 p = RAt(railPlan.sStation0 + bay / 2, RailHW + 2.0);
+            return new[] { p.x, 0.0, p.z };
+        }
+
+        /// A point on the railway: s metres along it, lat metres to the left (right if negative). For the map.
+        public static V2 RailPoint(double s, double lat) { return RAt(s, lat); }
+        public static double RailStationStart { get { return railPlan == null ? 0 : railPlan.sStation0; } }
+
         /// The train's track: the platform road, every 2 m from the south end to the buffers, at rail-head height.
         public static List<double[]> TrainPath(out double stationFront, out double depotFront, out double[] platformSpot)
         {

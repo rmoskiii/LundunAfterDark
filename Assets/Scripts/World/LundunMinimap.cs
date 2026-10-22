@@ -81,6 +81,8 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
         LundunTube tube = LundunTube.Instance;
         if (tube != null && tube.Markers != null)
             foreach (Transform t in tube.Markers) AddStatic(t, new Color(0.11f, 0.15f, 0.4f), "U", 24, false, 1f);
+        LundunTrain train = FindAnyObjectByType<LundunTrain>();
+        if (train != null && train.StationMarker != null) AddStatic(train.StationMarker, new Color(0.17f, 0.55f, 0.38f), "R", 24, false, 1f);   // L6: Rye Lane station
         if (poiGroup != null)
             foreach (Transform t in poiGroup)
             {
