@@ -251,6 +251,24 @@ public class LundunPopulation : MonoBehaviour
         return np;
     }
 
+    /// E7b: a new person of their own for another system to look after (the Lundun Wheel's crowd), made under parent,
+    /// switched off. Not part of this pool or its budget: the caller owns it.
+    public GameObject NewPerson(Transform parent)
+    {
+        if (pedestrianPrefabs == null || pedestrianPrefabs.Length == 0) return null;
+        GameObject prefab = pedestrianPrefabs[rng.Next(pedestrianPrefabs.Length)];
+        if (prefab == null) return null;
+        GameObject go = Instantiate(prefab, parent);
+        go.SetActive(false);
+        LundunPeopleSizer.Normalize(go);
+        foreach (Animator a in go.GetComponentsInChildren<Animator>(true))
+        {
+            a.cullingMode = AnimatorCullingMode.CullCompletely;
+            if (a.runtimeAnimatorController == null && peopleController != null) a.runtimeAnimatorController = peopleController;
+        }
+        return go;
+    }
+
     /// Puts a person at a specific spot right now (e.g. a driver pulled out of a car). Null if none free.
     public GameObject SpawnPersonAt(Vector3 near, float yaw)
     {

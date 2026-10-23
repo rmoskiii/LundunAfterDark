@@ -34,6 +34,7 @@ namespace LundunGreybox
         static readonly byte[] Platform = { 196, 92, 82 };
         static readonly byte[] WheelRim = { 236, 236, 240 };      // E7: the Lundun Wheel from above
         static readonly byte[] WheelDeck = { 150, 156, 160 };
+        static readonly byte[] WheelPlaza = { 96, 100, 96 };      // E7b: the paved plaza round it
 
         static MapImage img;
 
@@ -116,6 +117,11 @@ namespace LundunGreybox
             }
             // E7: the Lundun Wheel: its platform, its legs and the rim seen from above (a long white bar along the river)
             {
+                // E7b: the plaza it stands on, from the pavement to the river wall
+                List<V2> plaza = new List<V2>();
+                for (double x = -64; x <= 64.01; x += 4) plaza.Add(Generator.WheelToWorld(x, Generator.PlazaRoadZ(x)));
+                for (double x = 64; x >= -64.01; x -= 4) plaza.Add(Generator.WheelToWorld(x, Generator.PlazaRiverZ(x)));
+                Polygon(plaza, WheelPlaza);
                 double ph = Generator.WheelPlatformHalf;
                 Polygon(new List<V2> { Generator.WheelToWorld(-ph, Generator.WheelPlatformFar), Generator.WheelToWorld(ph, Generator.WheelPlatformFar),
                                        Generator.WheelToWorld(ph, Generator.WheelPlatformNear), Generator.WheelToWorld(-ph, Generator.WheelPlatformNear) }, WheelDeck);
