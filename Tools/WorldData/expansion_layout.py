@@ -15,7 +15,7 @@ roads = [  # id, name, class, width, points
  ('XR05', 'Acre Lane', 'arterial', 15, [(425,-305),(258,-318),(120,-326),(40,-330)]),
  ('XR06', 'Stockwell Road', 'street', 10, [(260,40),(259,-80),(258.4,-240),(258,-318),(257,-500),(256,-700)]),
  ('XR07', 'Loughborough Road', 'street', 10, [(700,40),(700,-130),(700,-330),(700,-500),(700,-695)]),
- ('XR08', 'Denmore Hill', 'street', 10, [(980,40),(981,-140),(982,-378),(985,-690)]),
+ ('XR08', 'Denmore Hill', 'street', 10, [(980,40),(981,-140),(982,-378),(982.98,-480),(985,-690)]),   # E4: a point (on the line) where Ferndale Way joins
  ('XR09', 'Brixtun Hill', 'street', 10, [(40,-700),(256,-700),(415,-700),(700,-695),(985,-690)]),
  ('XR10', 'Effram Road', 'street', 10, [(40,-330),(40,-700)]),
  ('XR11', 'Somerleyton Road', 'street', 10, [(534,-120),(700,-130),(840,-135),(981,-140)]),
@@ -23,12 +23,44 @@ roads = [  # id, name, class, width, points
  ('XR13', 'Saltoun Road', 'street', 10, [(258.4,-240),(426.5,-245)]),
  ('XR14', 'Tulse Lane', 'street', 10, [(257,-500),(420,-500),(700,-500)]),
 ]
+
+# E4: Ferndale Retail Park, in the empty south-east (outside every district, so no terraces line its roads).
+# Ferndale Way comes off Denmore Hill to a roundabout, then on east; Windmill Row loops round the north block; Stockyard
+# Lane runs south to Brixtun Hill, which carries on east and up to meet Ferndale Way again (two ways in and out).
+def arc(cx, cz, r, a0, a1, step=10):
+    n = max(1, int(round(abs(a1 - a0) / step)))
+    return [(round(cx + r * math.cos(math.radians(a0 + (a1 - a0) * i / n)), 3), round(cz + r * math.sin(math.radians(a0 + (a1 - a0) * i / n)), 3)) for i in range(n + 1)]
+def rounded(pts, r=14):
+    out = [pts[0]]
+    for i in range(1, len(pts) - 1):
+        a, b, c = pts[i - 1], pts[i], pts[i + 1]
+        d0 = ((b[0] - a[0]) / math.dist(a, b), (b[1] - a[1]) / math.dist(a, b)); d1 = ((c[0] - b[0]) / math.dist(b, c), (c[1] - b[1]) / math.dist(b, c))
+        if abs(d0[0] * d1[1] - d0[1] * d1[0]) < 1e-6: out.append(b); continue
+        p = (b[0] - d0[0] * r, b[1] - d0[1] * r); q = (b[0] + d1[0] * r, b[1] + d1[1] * r)
+        for k in range(5):     # a quadratic curve through the corner
+            t = k / 4.0
+            out.append((round((1 - t) ** 2 * p[0] + 2 * (1 - t) * t * b[0] + t * t * q[0], 3), round((1 - t) ** 2 * p[1] + 2 * (1 - t) * t * b[1] + t * t * q[1], 3)))
+    out.append(pts[-1]); return out
+RB = (1200, -480, 28)          # the roundabout: centre, radius
+roads += [
+ ('XR15', 'Ferndale Way', 'arterial', 14, [(982.98,-480),(1080,-480),(1172,-480)]),
+ ('XR16', 'Ferndale Circus', 'street', 10, arc(*RB, 180, 90)),
+ ('XR17', 'Ferndale Circus', 'street', 10, arc(*RB, 90, 0)),
+ ('XR18', 'Ferndale Circus', 'street', 10, arc(*RB, 0, -90)),
+ ('XR19', 'Ferndale Circus', 'street', 10, arc(*RB, -90, -180)),
+ ('XR20', 'Ferndale Way', 'arterial', 14, [(1228,-480),(1400,-480),(1560,-480)]),
+ ('XR21', 'Windmill Row', 'street', 10, rounded([(1200,-452),(1200,-300),(1200,-200),(1380,-200),(1560,-200),(1560,-340),(1560,-480)])),
+ ('XR22', 'Stockyard Lane', 'street', 10, [(1200,-508),(1200,-600),(1200,-690)]),
+ ('XR23', 'Brixtun Hill', 'street', 10, rounded([(985,-690),(1100,-690),(1200,-690),(1380,-690),(1560,-690),(1560,-580),(1560,-480)])),
+]
 # junctions: id, x, z  (ids J55/J56/J58 = joins onto the Ring's existing junctions; XJ_R02_* = new joins on the Ring)
 juncs = [('J55',430,40),('J56',700,40),('J58',980,40),('XJR02A',530,40),('XJR02S',260,40),
  ('XJ01',428,-185),('XJ02',535,-175),('XJ03',425,-305),('XJ04',535,-312),('XJ05',700,-330),('XJ06',982,-378),
  ('XJ07',258,-318),('XJ08',40,-330),('XJ09',40,-700),('XJ10',256,-700),('XJ11',415,-700),('XJ12',700,-695),('XJ13',985,-690),
  ('XJ14',534,-120),('XJ15',700,-130),('XJ16',840,-135),('XJ17',981,-140),('XJ18',840,-350),('XJ19',258.4,-240),('XJ20',426.5,-245),
- ('XJ21',257,-500),('XJ22',420,-500),('XJ23',700,-500)]
+ ('XJ21',257,-500),('XJ22',420,-500),('XJ23',700,-500),
+ # E4: the retail park
+ ('XJ24',982.98,-480),('XJ25',1172,-480),('XJ26',1200,-452),('XJ27',1228,-480),('XJ28',1200,-508),('XJ30',1560,-480),('XJ31',1200,-690)]
 
 def chain(pts):
     c=[0.0]
@@ -67,6 +99,8 @@ parks=[
  {'id':'P_BROCKMERE','name':'Brockmere Park','polygon':P([(430,-716),(690,-712),(690,-905),(430,-905)])},
  # E3: the market square in front of Brixtun station, between the viaduct, Brixtun Road and Atlantic Road (last, so nothing else moves)
  {'id':'P_MARKET','name':'Brixtun Market','polygon':P([(443.5,-74.9),(524.0,-74.9),(524.0,-58.0),(443.5,-58.0)])},
+ # E4: the roundabout's island (grass; its trees come from the retail park, so nothing else moves)
+ {'id':'P_ISLAND_FERNDALE','name':'Ferndale Circus','polygon':P([(round(1200+19*math.cos(math.radians(a)),3),round(-480+19*math.sin(math.radians(a)),3)) for a in range(0,360,15)])},
 ]
 pois=[]
 x={'schemaVersion':'1.1','worldBounds':{'groundMinX':-300.0,'groundMaxX':1900.0,'groundMinZ':-1130.0,'groundMaxZ':2080.0,'wallMinX':-120.0,'wallMaxX':1720.0,'wallMinZ':-950.0,'wallMaxZ':1900.0},

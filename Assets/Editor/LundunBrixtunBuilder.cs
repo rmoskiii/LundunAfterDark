@@ -1,4 +1,4 @@
-// Lundun → 28  Brixtun (E1, E2, E3)
+// Lundun → 28  Brixtun + Ferndale Retail Park (E1–E4)
 // Builds Brixtun, south of the Ring, from Assets/World/LundunExpansion.json, under its own object
 // "LundunExpansion/Brixtun" (the city's menus never touch it, and it never touches theirs):
 //   Roads, Junctions, Parks (Windward Square, Brockmere Park), Buildings (Victorian parades with shops, terraces,
@@ -10,6 +10,9 @@
 //   E3: Parked (static parked cars + bays kept for real ones), PoliceSpawns, bike docks (in the dressing), and Market:
 //       the stalls (in the dressing) and LundunMarketCrowd, the traders and shoppers
 //   Map: Brixtun station, the market, Windward Square, the Regal Hall, the department stores and the library
+//   E4: RetailPark: Ferndale Retail Park in the south-east (Basketful, Grocera, ValuStack, FLATPAK Home Store, their car
+//       parks and yards, the wasteland, ramps and ruins; its parked cars in RetailParked, its fences, containers and signs
+//       in the dressing); the stores and the park on the map
 // Brixtun is built like Peckam (the town centre) and Gilmore (the estate), with its own shops, postcode, tags and
 // landmark buildings, its own random numbers, and its own dressing texture.
 // The city's side: where Brixtun Road, Atlantic Road, Stockwell Road, Loughborough Road and Denmore Hill meet the
@@ -33,6 +36,7 @@ public static class LundunBrixtunBuilder
     const string Dir = "Assets/World/Expansions/Brixtun";
     const string MeshPath = Dir + "/BrixtunMeshes.asset";
     const string ParkedPath = Dir + "/BrixtunParked.asset";
+    const string RetailParkedPath = Dir + "/RetailParked.asset";
     const string AtlasPath = Dir + "/BrixtunDressingAtlas.png";
     const string GenDir = "Assets/World/Generated";
     const string RootName = "LundunExpansion", AreaName = "Brixtun";
@@ -41,7 +45,7 @@ public static class LundunBrixtunBuilder
 
     static Mesh container;
 
-    [MenuItem("Lundun/28  Brixtun (E1–E3)", false, 34)]
+    [MenuItem("Lundun/28  Brixtun + Retail Park (E1–E4)", false, 34)]
     public static void Build()
     {
         Scene scene = SceneManager.GetActiveScene();
@@ -111,6 +115,8 @@ public static class LundunBrixtunBuilder
             List<Generator.MapPlace> places = Generator.ExpansionPlaces();
             foreach (Generator.MapPlace mp in places)
                 LundunExpansionBuilder.Register(mp.id, mp.id == "RAIL_BRIXTUN" ? LundunTrain.BrixtunName : mp.name, mp.kind, new Vector3((float)mp.x, 0f, (float)mp.z), mp.label);
+            string retail = "";
+            foreach (string l in x.log) if (l.StartsWith(Generator.RetailParkName)) retail = "\nE4: " + l + ".";
 
             // the runtime bit: lamps for the real lamp lights, the Tube station, the signs' glow
             LundunExpansionArea rt = area.gameObject.AddComponent<LundunExpansionArea>();
@@ -133,7 +139,7 @@ public static class LundunBrixtunBuilder
             log = "[Lundun] E1 Brixtun: " + string.Join("\n", x.log.ToArray()) + "\n" + parts + " street / building pieces, " + dressing + " dressing pieces, " +
                   streets + " marking and litter blocks, " + spills + " shop lights, " + links + " NavMesh links onto the Ring, stations: " + string.Join(", ", names) +
                   ".\nE3: " + cars + " parked cars (" + bays.Length + " bays kept for real ones), " + police.Length + " police spawn points, " + docks.Length +
-                  " bike docks, " + stalls + " market stalls; on the map: " + places.Count + " places." +
+                  " bike docks, " + stalls + " market stalls; on the map: " + places.Count + " places." + retail +
                   "\nCity side: " + marks + " marking blocks, " + pieces + " junction and railway pieces (with Brixtun station), the lamps.";
         }
         catch (Exception e)
@@ -208,7 +214,7 @@ public static class LundunBrixtunBuilder
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             MeshRenderer mr = go.AddComponent<MeshRenderer>();
             mr.sharedMaterial = LundunGreyboxBuilder.WorldMaterial(md.material);
-            if (md.group == "Roads" || md.group == "Junctions" || (md.group == "Parks" && md.material == "Park") || md.name.StartsWith("SquarePaving") ||
+            if (md.group == "Roads" || md.group == "Junctions" || (md.group == "Parks" && md.material == "Park") || md.name.StartsWith("SquarePaving") || md.name.StartsWith("RP_CarParks") || md.name.StartsWith("RP_Paving") || md.name.StartsWith("RP_Markings") ||
                 md.material.StartsWith("LightPool") || md.material.StartsWith("LampHead"))
                 mr.shadowCastingMode = ShadowCastingMode.Off;
             if (md.collider) go.AddComponent<MeshCollider>().sharedMesh = mesh;
@@ -480,16 +486,25 @@ public static class LundunBrixtunBuilder
     static int BuildParked(Transform area, StreetResult xs, out Vector4[] bays, out Renderer[] parked)
     {
         bays = new Vector4[0]; parked = new Renderer[0];
-        List<ParkSlot> slots = Generator.ParkingSlots(xs);
-        Transform root = Child(area, "Parked");
-        List<Renderer> renderers; List<Vector4> free; int cars, painted; List<string> missing;
-        if (!LundunParkedBuilder.Bake(slots, root, ParkedPath, out renderers, out free, out cars, out painted, out missing))
+        List<Vector4> allBays = new List<Vector4>(); List<Renderer> allParked = new List<Renderer>();
+        int total = 0;
+        // the streets' cars, and (E4) the retail park's, each in its own asset (they're big)
+        List<ParkSlot>[] sets = { Generator.ParkingSlots(xs), Generator.RetailParkSlots() };
+        string[] roots = { "Parked", "RetailParked" }, paths = { ParkedPath, RetailParkedPath };
+        for (int i = 0; i < sets.Length; i++)
         {
-            Debug.LogWarning("[Lundun] No car prefabs in Assets/Vehicles/Prefabs (Lundun → 10): Brixtun has no parked cars.");
-            return 0;
+            if (sets[i].Count == 0) { AssetDatabase.DeleteAsset(paths[i]); continue; }
+            Transform root = Child(area, roots[i]);
+            List<Renderer> renderers; List<Vector4> free; int cars, painted; List<string> missing;
+            if (!LundunParkedBuilder.Bake(sets[i], root, paths[i], out renderers, out free, out cars, out painted, out missing))
+            {
+                Debug.LogWarning("[Lundun] No car prefabs in Assets/Vehicles/Prefabs (Lundun → 10): Brixtun has no parked cars.");
+                return 0;
+            }
+            allBays.AddRange(free); allParked.AddRange(renderers); total += cars;
         }
-        bays = free.ToArray(); parked = renderers.ToArray();
-        return cars;
+        bays = allBays.ToArray(); parked = allParked.ToArray();
+        return total;
     }
 
     /// Fixed police spawn points along Brixtun's roads (the fallback when PoliceDirector can't find a road spot).

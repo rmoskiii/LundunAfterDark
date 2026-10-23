@@ -182,7 +182,7 @@ namespace LundunGreybox
             DressFurniture();               // L3: district furniture (its own random seed, after everything else)
             DressGrit();                    // L4: bin bags and fly-tipping (its own random seed, last)
             if (!ExpansionMode) DressRailway();     // L6: the railway's fences and graffiti (its own random seed, after everything; the city does all of it)
-            if (ExpansionMode) { DressRailTags(); DressMarket(); DressBikeDocks(); }     // E2: its bridges' tags; E3: its market, then its bike docks (after everything, so nothing else moves)
+            if (ExpansionMode) { DressRailTags(); DressMarket(); DressBikeDocks(); DressRetailPark(); }     // E2: its bridges' tags; E3: its market, then its bike docks; E4: the retail park (after everything, so nothing else moves)
 
             foreach (MeshData m in new[] { mSolid, mCut, mGlow }) D.meshes.AddRange(Chunk(m));
             int v = 0; foreach (MeshData m in D.meshes) v += m.VertexCount;
@@ -264,7 +264,7 @@ namespace LundunGreybox
             a.Shutter("shutter"); a.ShopWindow("shopwin"); a.PubWindow("pubwin"); a.Pitch("pitch"); a.Mattress("mattress");
             FurnitureAtlas(a);              // L3 (appended)
             GritAtlas(a);                   // L4 (appended)
-            if (ExpansionMode) MarketAtlas(a);      // E3: the market's colours and sign (expansions only: the city's atlas stays as it was)
+            if (ExpansionMode) { MarketAtlas(a); RetailAtlas(a); }     // E3/E4: the market's and retail park's colours and signs (expansions only: the city's atlas stays as it was)
             return a;
         }
 
@@ -494,7 +494,7 @@ namespace LundunGreybox
 
             foreach (LwPoly park in W.parks)
             {
-                if (IsMarket(park)) continue;                       // E3: the market's stalls fill it (DressMarket)
+                if (IsMarket(park) || IsIsland(park)) continue;     // E3: the market's stalls fill it (DressMarket); E4: no benches on a roundabout
                 List<V2> poly = Pts(park.polygon);
                 bool posh = park.name == "Hydemoor Park";
                 for (int i = 0; i < poly.Count; i++)

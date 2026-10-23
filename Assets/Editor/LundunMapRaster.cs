@@ -35,6 +35,8 @@ namespace LundunGreybox
         static readonly byte[] WheelRim = { 236, 236, 240 };      // E7: the Lundun Wheel from above
         static readonly byte[] WheelDeck = { 150, 156, 160 };
         static readonly byte[] WheelPlaza = { 96, 100, 96 };      // E7b: the paved plaza round it
+        static readonly byte[] Waste = { 50, 54, 46 };            // E4: the retail park's wasteland
+        static readonly byte[] StoreRoof = { 92, 98, 104 };       // E4: the big stores (lighter than houses, so they stand out)
 
         static MapImage img;
 
@@ -78,6 +80,14 @@ namespace LundunGreybox
                 V2 f = bd.dir.Norm, l = f.Left;
                 double hl = bd.len / 2, hd = bd.dep / 2;
                 Polygon(new List<V2> { bd.c - f * hl - l * hd, bd.c + f * hl - l * hd, bd.c + f * hl + l * hd, bd.c - f * hl + l * hd }, Building);
+            }
+
+            // E4: the retail park: wasteland a shade lighter, car parks and yards paved, the stores and ruins as buildings
+            if (X != null)
+            {
+                foreach (Generator.RetailMapPoly rmp in Generator.RetailMap) if (rmp.kind == 2) Polygon(rmp.poly, Waste);
+                foreach (Generator.RetailMapPoly rmp in Generator.RetailMap) if (rmp.kind == 0) Polygon(rmp.poly, Service);
+                foreach (Generator.RetailMapPoly rmp in Generator.RetailMap) if (rmp.kind == 1) Polygon(rmp.poly, StoreRoof);
             }
 
             // V2b: hospitals, police stations and safehouses (their plots), tinted so they read on the map

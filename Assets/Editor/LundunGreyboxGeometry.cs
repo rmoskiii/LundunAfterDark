@@ -760,7 +760,8 @@ namespace LundunGreybox
                         if (joined) { joinGhostLamps.Add(pos); continue; }
                         V2 toRoad = dir.Left * -s;
                         int style;
-                        switch (DistrictAt(pos, dpoly))
+                        if (ExpansionMode && IsRetailRoad(ri)) style = 3;          // E4: the retail park's roads: tall LED columns
+                        else switch (DistrictAt(pos, dpoly))
                         {
                             case "D_GILMOR": style = 1; break;
                             case "D_KNIGHT": style = 2; break;
@@ -850,7 +851,7 @@ namespace LundunGreybox
                 double minX = double.MaxValue, maxX = double.MinValue, minZ = double.MaxValue, maxZ = double.MinValue;
                 foreach (V2 q in poly) { minX = Math.Min(minX, q.x); maxX = Math.Max(maxX, q.x); minZ = Math.Min(minZ, q.z); maxZ = Math.Max(maxZ, q.z); }
                 double area = Math.Abs(PolyArea(poly));
-                int want = IsMarket(park) ? 0 : (int)(area / (square ? 520 : 140));      // E3: the market has stalls, not trees
+                int want = IsMarket(park) || IsIsland(park) ? 0 : (int)(area / (square ? 520 : 140));      // E3: the market has stalls, not trees; E4: the roundabout's trees come from the retail park
                 List<V2> placed = new List<V2>();
                 for (int tries = 0; tries < want * 20 && placed.Count < want; tries++)
                 {

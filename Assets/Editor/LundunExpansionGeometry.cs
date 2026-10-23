@@ -192,6 +192,7 @@ namespace LundunGreybox
             BuildBuildings(R);
             BuildRailLights(R);
             BuildMarkers(R);                // E3: police spawn points along its roads (no random numbers)
+            BuildRetailPark(R);             // E4: Ferndale Retail Park (its own random numbers, last)
             List<MeshData> split = new List<MeshData>();
             foreach (MeshData m in R.meshes) { if (m.chunk) split.AddRange(Chunk(m)); else split.Add(m); }
             R.meshes = split;
@@ -353,6 +354,16 @@ namespace LundunGreybox
                 foreach (V2 q in poly) { minX = Math.Min(minX, q.x); maxX = Math.Max(maxX, q.x); minZ = Math.Min(minZ, q.z); maxZ = Math.Max(maxZ, q.z); }
                 if (IsMarket(park)) list.Add(new MapPlace { id = "MARKET_" + Slug(park.name), name = park.name, kind = "market", x = minX + 1.5, z = (minZ + maxZ) / 2, label = true });
                 else list.Add(new MapPlace { id = "LANDMARK_" + Slug(park.name), name = park.name, kind = "landmark", x = (minX + maxX) / 2, z = (minZ + maxZ) / 2, label = true });
+            }
+            // E4: the retail park's stores (their doors), and the park itself
+            if (retailMap.Count > 0)
+            {
+                foreach (Store s in Stores)
+                {
+                    V2 p = s.Door + s.Out * 12;
+                    list.Add(new MapPlace { id = "SHOP_" + s.id, name = s.name, kind = "shop", x = p.x, z = p.z, label = false });
+                }
+                list.Add(new MapPlace { id = "LANDMARK_FERNDALE_RETAIL_PARK", name = RetailParkName, kind = "landmark", x = Roundabout.x + 60, z = Roundabout.z + 70, label = true });
             }
             double[] st = BrixtunStationEntrance();
             if (st != null) list.Add(new MapPlace { id = "RAIL_BRIXTUN", name = "Brixtun Station", kind = "rail", x = st[0], z = st[2], label = false });
