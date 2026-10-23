@@ -647,6 +647,7 @@ public static class LundunGreyboxBuilder
             case "LampHead_LED": c = new Color(0.9f, 0.95f, 1f); Emit(m, LundunLampColours.LED * 2.5f); break;
             case "Park": c = new Color(0.17f, 0.36f, 0.16f); smooth = 0.05f; break;
             case "RailBank": c = new Color(0.22f, 0.28f, 0.15f); smooth = 0.04f; break;     // L6: the railway embankment
+            case "WheelLights": c = new Color(0.9f, 0.95f, 1f); Emit(m, new Color(0.82f, 0.9f, 1f) * 2.6f); break;   // E7: the Wheel's lights (LundunWheel dims them by day)
             case "Trunk": c = new Color(0.30f, 0.22f, 0.14f); break;
             case "Leaves": c = new Color(0.12f, 0.30f, 0.13f); smooth = 0.05f; break;
             case "Hedge": c = new Color(0.08f, 0.20f, 0.09f); smooth = 0.05f; break;

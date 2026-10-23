@@ -24,7 +24,7 @@ namespace LundunGreybox
             A_TUpRed = 7, A_TUpYel = 8, A_TUpPaint = 9, A_TGfRed = 10, A_TGfYel = 11, A_TGfPaint = 12, A_Bay = 13,
             A_PUpYel = 14, A_PUpRed = 15, A_PUpPaint = 16, A_ShopGf = 17, A_StuccoUp = 18, A_StuccoGf = 19,
             A_MansionUp = 20, A_MansionGf = 21, A_GeorgUp = 22, A_GeorgGf = 23, A_Mansard = 24, A_Cornice = 25,
-            A_MansionPlain = 26, A_GeorgPlain = 27, A_PubGf = 28;
+            A_MansionPlain = 26, A_GeorgPlain = 27, A_PubGf = 28, A_WheelSigns = 29;     // E7: the Lundun Wheel's signs
         // atlas B
         public const int B_Concrete = 1, B_ConcPanel = 2, B_EstDeck = 3, B_EstBack = 4, B_EstBrickUp = 5, B_EstGf = 6,
             B_Garages = 7, B_TowerUp = 8, B_StairCore = 9, B_WhUpYel = 10, B_WhUpRed = 11, B_WhGf = 12, B_GlassBlue = 13,
@@ -33,8 +33,8 @@ namespace LundunGreybox
             B_RailArchLo = 27, B_RailArchHi = 28, B_Girder = 29, B_Train = 30, B_Station = 31;     // railway: viaduct arches (two strips, 0–3.85 m and 3.85–7.7 m), bridge girders, train sides, station boards
 
         // design storey height (m) and unit width (m) of every strip
-        static readonly double[] FloorA = { 3.75, 3.2, 3.2, 3.2, 3.6, 7.0, 16, 3.1, 3.1, 3.1, 3.3, 3.3, 3.3, 3.2, 3.2, 3.2, 3.2, 4.0, 3.6, 3.8, 3.4, 3.8, 3.5, 3.6, 3.4, 1.0, 3.4, 3.5, 4.0 };
-        static readonly double[] UnitA = { 1, 32, 32, 32, 32, 32, 32, 5.3333333, 5.3333333, 5.3333333, 5.3333333, 5.3333333, 5.3333333, 1, 6.4, 6.4, 6.4, 6.4, 6.4, 6.4, 8, 8, 5.3333333, 5.3333333, 6.4, 32, 32, 32, 8 };
+        static readonly double[] FloorA = { 3.75, 3.2, 3.2, 3.2, 3.6, 7.0, 16, 3.1, 3.1, 3.1, 3.3, 3.3, 3.3, 3.2, 3.2, 3.2, 3.2, 4.0, 3.6, 3.8, 3.4, 3.8, 3.5, 3.6, 3.4, 1.0, 3.4, 3.5, 4.0, 1.2 };
+        static readonly double[] UnitA = { 1, 32, 32, 32, 32, 32, 32, 5.3333333, 5.3333333, 5.3333333, 5.3333333, 5.3333333, 5.3333333, 1, 6.4, 6.4, 6.4, 6.4, 6.4, 6.4, 8, 8, 5.3333333, 5.3333333, 6.4, 32, 32, 32, 8, 6.4 };
         static readonly double[] FloorB = { 3.75, 3.0, 3.0, 2.9, 2.9, 2.9, 3.0, 2.6, 2.9, 3.0, 3.6, 3.6, 4.2, 3.8, 3.8, 3.8, 3.8, 4.8, 16, 3.0, 1.1, 3.8, 2.9, 3.6, 3.6, 2.9, 4.0, 3.85, 3.85, 2.6, 2.9, 1.2 };
         static readonly double[] UnitB = { 1, 32, 4, 5.3333333, 5.3333333, 5.3333333, 5.3333333, 2.6666667, 4, 4, 10.666667, 10.666667, 10.666667, 1.6, 1.6, 1.6, 1.6, 8, 32, 32, 5.3333333, 1.6, 32, 32, 32, 4, 6.4, 8, 8, 32, 10.666667, 6.4 };
 
@@ -996,6 +996,23 @@ namespace LundunGreybox
             }
         }
 
+        // ------------------------------------------------------------------ E7: the Lundun Wheel's signs
+        /// One 6.4 m × 1.2 m board per unit: the name, tickets, boarding, exit, the queue.
+        static void WheelSigns(List<Facade> L)
+        {
+            double[] teal = C("1f5f6b"), white = C("f2f0ea"), navy = C("1f2a4a");
+            Facade f = new Facade { row = A_WheelSigns, wall = '0', r = teal[0], g = teal[1], b = teal[2], soot = false };
+            string[] words = { "THE LUNDUN WHEEL", "TICKETS", "BOARDING", "EXIT", "QUEUE HERE" };
+            f.layout = u =>
+            {
+                double[] bg = u == 0 ? teal : u == 3 ? C("2c4a36") : navy;
+                return new List<Op> {
+                    new Op { k = 'X', x0 = 0.08, x1 = 6.32, y0 = 0.1, y1 = 1.1, r = bg[0], g = bg[1], b = bg[2], text = words[u], fullText = true },
+                    Box('B', 0.08, 6.32, 0.1, 0.16, white) };
+            };
+            L.Add(f);
+        }
+
         // ------------------------------------------------------------------ helpers to build layouts
         static Op Win(double x0, double x1, double y0, double y1, int style, int id, int lintel, bool sill = true, double frame = 0.92, double lit = 0.35)
         { return new Op { k = 'W', x0 = x0, x1 = x1, y0 = y0, y1 = y1, style = style, id = id, lintel = lintel, sill = sill, frame = frame, lit = lit }; }
@@ -1020,6 +1037,7 @@ namespace LundunGreybox
             L.Add(Plain(A_Cornice, 'Z', 0, stucco));
             L.Add(Plain(A_MansionPlain, 'K', 0, white));
             L.Add(Plain(A_GeorgPlain, 'K', 2, white));
+            WheelSigns(L);
 
             // Victorian terrace, upper floor: a window over the door, a wide window over the bay
             for (int pal = 0; pal < 3; pal++)

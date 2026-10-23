@@ -32,6 +32,8 @@ namespace LundunGreybox
         static readonly byte[] RailDark = { 40, 40, 44 };
         static readonly byte[] RailLight = { 214, 214, 210 };
         static readonly byte[] Platform = { 196, 92, 82 };
+        static readonly byte[] WheelRim = { 236, 236, 240 };      // E7: the Lundun Wheel from above
+        static readonly byte[] WheelDeck = { 150, 156, 160 };
 
         static MapImage img;
 
@@ -111,6 +113,17 @@ namespace LundunGreybox
                     double e = Math.Min(s1, s + 4);
                     Polygon(new List<V2> { Generator.RailPoint(s, -3.45), Generator.RailPoint(e, -3.45), Generator.RailPoint(e, -7.2), Generator.RailPoint(s, -7.2) }, Platform);
                 }
+            }
+            // E7: the Lundun Wheel: its platform, its legs and the rim seen from above (a long white bar along the river)
+            {
+                double ph = Generator.WheelPlatformHalf;
+                Polygon(new List<V2> { Generator.WheelToWorld(-ph, Generator.WheelPlatformFar), Generator.WheelToWorld(ph, Generator.WheelPlatformFar),
+                                       Generator.WheelToWorld(ph, Generator.WheelPlatformNear), Generator.WheelToWorld(-ph, Generator.WheelPlatformNear) }, WheelDeck);
+                foreach (int sa in new[] { -1, 1 })
+                    foreach (int sc in new[] { -1, 1 })
+                        Capsule(Generator.WheelToWorld(sa * Generator.WheelLegAlong, sc * Generator.WheelLegAcross), Generator.WheelToWorld(0, sc * Generator.WheelAxleHalf), 1.0, WheelRim);
+                Capsule(Generator.WheelToWorld(-Generator.WheelCapsuleR - 2, 0), Generator.WheelToWorld(Generator.WheelCapsuleR + 2, 0), 2.6, WheelRim);
+                Capsule(Generator.WheelToWorld(0, -Generator.WheelAxleHalf), Generator.WheelToWorld(0, Generator.WheelAxleHalf), 1.6, WheelRim);
             }
             return img;
         }
