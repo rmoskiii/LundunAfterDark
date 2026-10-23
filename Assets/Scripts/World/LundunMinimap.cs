@@ -81,8 +81,15 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
         LundunTube tube = LundunTube.Instance;
         if (tube != null && tube.Markers != null)
             foreach (Transform t in tube.Markers) AddStatic(t, new Color(0.11f, 0.15f, 0.4f), "U", 24, false, 1f);
-        LundunTrain train = FindAnyObjectByType<LundunTrain>();
-        if (train != null && train.StationMarker != null) AddStatic(train.StationMarker, new Color(0.17f, 0.55f, 0.38f), "R", 24, false, 1f);   // L6: Rye Lane station
+        LundunMapRegistry reg = LundunMapRegistry.Instance;            // E0: stations, landmarks, shops from the expansions
+        if (reg != null)
+            foreach (LundunMapRegistry.Entry e in reg.Entries)
+            {
+                Transform t = reg.Marker(e.id);
+                if (t == null) continue;
+                string letter = LundunMapRegistry.Letter(e.kind);
+                AddStatic(t, e.kind == "landmark" ? new Color(0.92f, 0.92f, 0.92f) : LundunMapRegistry.Colour(e.kind), letter ?? "L", e.label ? 26 : 24, false, 1f);
+            }
         if (poiGroup != null)
             foreach (Transform t in poiGroup)
             {

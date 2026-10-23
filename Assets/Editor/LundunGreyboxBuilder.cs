@@ -542,7 +542,7 @@ public static class LundunGreyboxBuilder
     {
         TextAsset json = AssetDatabase.LoadAssetAtPath<TextAsset>(JsonPath);
         if (json == null) { Dialog("Can't find " + JsonPath + ".\nCopy LundunWorld.json into Assets/World."); return null; }
-        LundunWorldData d = JsonUtility.FromJson<LundunWorldData>(json.text);
+        LundunWorldData d = LundunExpansionBuilder.Parse(json.text);
         if (d == null || d.roads == null || d.roads.Length == 0 || d.junctions == null) { Dialog("LundunWorld.json didn't load (no roads)."); return null; }
         if (d.schemaVersion != "1.1") Debug.LogWarning("[Lundun] World data schema " + d.schemaVersion + " (expected 1.1).");
         return d;

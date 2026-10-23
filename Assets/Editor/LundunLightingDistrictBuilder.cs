@@ -33,7 +33,7 @@ public static class LundunLightingDistrictBuilder
         if (json == null) { EditorUtility.DisplayDialog("Lundun", "Can't find " + JsonPath, "OK"); return; }
         try
         {
-            LundunWorldData data = JsonUtility.FromJson<LundunWorldData>(json.text);
+            LundunWorldData data = LundunExpansionBuilder.Parse(json.text);
             EditorUtility.DisplayProgressBar("Lundun", "Working out the lamps…", 0.1f);
             GreyboxResult world = Generator.Build(data);
             int lampMeshes = RefreshLamps(world);

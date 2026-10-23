@@ -96,4 +96,64 @@ using System;
     public LwPoi[] pois;
     public LwSpawn[] spawns;
     public LwExistingStreet existingStreet;
+    /// E0: the map expansions (LundunExpansion.json), kept apart so the base city is built exactly as before.
+    [NonSerialized] public LundunExpansionData expansion;
+}
+
+/// E0: the map expansions, Assets/World/LundunExpansion.json. Read after the base world and never mixed into it:
+/// the generator builds the base city exactly as it always has, then each expansion area with its own random seeds.
+/// worldBounds is the bigger playable area: the ground, the hedge round the edge and the map picture grow to it.
+[Serializable] public class LundunExpansionData
+{
+    public string schemaVersion;
+    public LwBounds worldBounds;
+    public LwRoad[] roads = new LwRoad[0];
+    public LwJunction[] junctions = new LwJunction[0];
+    public LwPoly[] districts = new LwPoly[0];
+    public LwPoly[] parks = new LwPoly[0];
+    public LwPoi[] pois = new LwPoi[0];
+}
+
+/// E0: reading the world files the same way everywhere (the editor menus and the game).
+public static class LundunWorldFiles
+{
+    public const string BasePath = "Assets/World/LundunWorld.json";
+    public const string ExpansionPath = "Assets/World/LundunExpansion.json";
+
+    /// For building the city: the base world with the expansion's bounds; everything else in the expansion
+    /// waits in data.expansion for the expansion builders.
+    public static LundunWorldData Parse(string baseJson, string expansionJson)
+    {
+        LundunWorldData d = UnityEngine.JsonUtility.FromJson<LundunWorldData>(baseJson);
+        if (d == null || string.IsNullOrEmpty(expansionJson)) return d;
+        LundunExpansionData x = UnityEngine.JsonUtility.FromJson<LundunExpansionData>(expansionJson);
+        if (x == null) return d;
+        d.expansion = x;
+        if (x.worldBounds != null && x.worldBounds.wallMaxX > x.worldBounds.wallMinX) d.worldBounds = x.worldBounds;
+        return d;
+    }
+
+    /// For the game (map labels, the GPS road graph, places): the base world with the expansion's roads,
+    /// junctions, districts, parks and places added on the end.
+    public static LundunWorldData ParseCombined(string baseJson, string expansionJson)
+    {
+        LundunWorldData d = Parse(baseJson, expansionJson);
+        if (d == null || d.expansion == null) return d;
+        LundunExpansionData x = d.expansion;
+        d.roads = Join(d.roads, x.roads);
+        d.junctions = Join(d.junctions, x.junctions);
+        d.districts = Join(d.districts, x.districts);
+        d.parks = Join(d.parks, x.parks);
+        d.pois = Join(d.pois, x.pois);
+        return d;
+    }
+
+    static T[] Join<T>(T[] a, T[] b)
+    {
+        if (b == null || b.Length == 0) return a;
+        if (a == null || a.Length == 0) return b;
+        T[] r = new T[a.Length + b.Length];
+        Array.Copy(a, r, a.Length); Array.Copy(b, 0, r, a.Length, b.Length);
+        return r;
+    }
 }

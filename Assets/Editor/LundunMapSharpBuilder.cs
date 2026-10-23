@@ -21,12 +21,16 @@ public static class LundunMapSharpBuilder
     {
         TextAsset json = AssetDatabase.LoadAssetAtPath<TextAsset>(JsonPath);
         if (json == null) { EditorUtility.DisplayDialog("Lundun", "Can't find " + JsonPath, "OK"); return; }
-        LundunWorldData data = JsonUtility.FromJson<LundunWorldData>(json.text);
+        LundunWorldData data = LundunExpansionBuilder.Parse(json.text);
         MapImage img;
         try
         {
             EditorUtility.DisplayProgressBar("Lundun", "Drawing the map at 0.5 m per pixel…", 0.3f);
-            img = MapRaster.Render(data, Generator.Build(data), MetresPerPixel);
+            // E0: as fine as 0.5 m per pixel, but no side over 4096 pixels (the map grows with the expansions)
+            LwBounds wb = data.worldBounds;
+            double side = System.Math.Max(wb.wallMaxX - wb.wallMinX, wb.wallMaxZ - wb.wallMinZ) + 60;
+            double mpp = System.Math.Max(MetresPerPixel, System.Math.Ceiling(side / 4096.0 * 100) / 100);
+            img = MapRaster.Render(data, Generator.Build(data), mpp);
 
             EditorUtility.DisplayProgressBar("Lundun", "Saving " + img.width + "×" + img.height + "…", 0.7f);
             Texture2D t = new Texture2D(img.width, img.height, TextureFormat.RGBA32, false);
@@ -74,7 +78,7 @@ public static class LundunMapSharpBuilder
             fixedUp++;
         }
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
-        Debug.Log("[Lundun] Map redrawn: " + img.width + "×" + img.height + " (0.5 m per pixel), iPhone: 4096 ASTC 4x4. " +
+        Debug.Log("[Lundun] Map redrawn: " + img.width + "×" + img.height + " (" + img.metresPerPixel + " m per pixel), iPhone: 4096 ASTC 4x4. " +
                   fixedUp + " map components lined up. Press Cmd+S.");
     }
 }

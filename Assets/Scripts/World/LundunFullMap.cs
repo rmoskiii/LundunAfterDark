@@ -291,7 +291,7 @@ public class LundunFullMap : MonoBehaviour
             case "landmark": return "Landmark";
             case "mission": return "Job";
             case "pin": return "Map pin";
-            default: return "";
+            default: return LundunMapRegistry.CardName(kind);
         }
     }
 
@@ -347,9 +347,9 @@ public class LundunFullMap : MonoBehaviour
         // places
         if (nav != null)
         {
-            foreach (string kind in new[] { "landmark", "mission", "rail", "tube", "police", "hospital", "safehouse" })
+            foreach (string kind in KindOrder(new[] { "landmark", "mission", "rail", "tube", "police", "hospital", "safehouse" }, nav))
                 foreach (LundunNavigation.Destination d in nav.Destinations)
-                    if (d.kind == kind) AddItem(d.kind, d.name, d.position);
+                    if (d.kind == kind) AddItem(d.kind, d.name, d.position, d.label);
         }
         LundunBikes bikes = LundunBikes.Instance;
         if (bikes != null && bikes.Markers != null)
@@ -372,7 +372,22 @@ public class LundunFullMap : MonoBehaviour
         BuildDrawer();
     }
 
-    void AddItem(string kind, string name, Vector3 pos)
+    /// E0: the built-in kinds in their usual order, then any other kinds the expansions registered.
+    static List<string> KindOrder(string[] builtIn, LundunNavigation nav)
+    {
+        List<string> r = new List<string>(builtIn);
+        if (nav != null)
+            foreach (LundunNavigation.Destination d in nav.Destinations)
+                if (!r.Contains(d.kind) && LundunMapRegistry.Known(d.kind)) r.Add(d.kind);
+        return r;
+    }
+
+    static string LetterFor(string kind)
+    {
+        return kind == "safehouse" ? "S" : kind == "hospital" ? "H" : kind == "police" ? "P" : LundunMapRegistry.Letter(kind);
+    }
+
+    void AddItem(string kind, string name, Vector3 pos, bool label = false)
     {
         Color col; string letter = null; Sprite glyph = null; float size = 34;
         switch (kind)
@@ -384,7 +399,10 @@ public class LundunFullMap : MonoBehaviour
             case "bike": col = new Color(0.1f, 0.68f, 0.64f); glyph = LundunHudArt.Bike; size = 26; break;
             case "mission": col = new Color(1f, 0.82f, 0.2f, 0.75f); letter = name.Length > 0 ? name.Substring(0, 1) : "?"; break;
             case "rail": col = KindColour("rail"); letter = "R"; size = 34; break;
-            default: col = new Color(0.92f, 0.92f, 0.92f, 0.9f); size = 14; break;
+            default:
+                if (LundunMapRegistry.Known(kind)) { col = LundunMapRegistry.Colour(kind); letter = LundunMapRegistry.Letter(kind); size = 34; }
+                else { col = new Color(0.92f, 0.92f, 0.92f, 0.9f); size = 14; }
+                break;
         }
         RectTransform ic = Disc(blipLayer, col, size);
         if (letter != null)
@@ -394,7 +412,7 @@ public class LundunFullMap : MonoBehaviour
         }
         else if (glyph != null) Glyph(ic, glyph, Color.white, 0.68f);
         Anchor(ic, pos);
-        if (kind == "landmark")
+        if (kind == "landmark" || label)
         {
             TextMeshProUGUI l = Label(labelLayer, name, pos, 20, new Color(1f, 1f, 1f, 0.75f));
             l.fontStyle = FontStyles.Italic;
@@ -430,7 +448,7 @@ public class LundunFullMap : MonoBehaviour
 
         // filters, down the left
         float y = -150f;
-        foreach (string kind in new[] { "safehouse", "hospital", "police", "tube", "rail", "bike", "landmark" })
+        foreach (string kind in KindOrder(new[] { "safehouse", "hospital", "police", "tube", "rail", "bike", "landmark" }, LundunNavigation.Instance))
         {
             bool any = false;
             foreach (Item it in items) if (it.kind == kind) { any = true; break; }
@@ -489,7 +507,7 @@ public class LundunFullMap : MonoBehaviour
         RectTransform d = Disc(r, col, 38);
         d.anchorMin = d.anchorMax = new Vector2(0, 0.5f); d.anchoredPosition = new Vector2(7f + 19f, 0f);
         c.disc = d.GetComponent<Image>();
-        string letter = kind == "safehouse" ? "S" : kind == "hospital" ? "H" : kind == "police" ? "P" : kind == "rail" ? "R" : null;
+        string letter = LetterFor(kind);
         if (letter != null) { TextMeshProUGUI t = Text(d, letter, 25, new Color(0.04f, 0.05f, 0.06f)); Stretch(t.rectTransform); }
         else if (kind == "tube") Glyph(d, LundunHudArt.Tube, Color.white, 0.68f);
         else if (kind == "bike") Glyph(d, LundunHudArt.Bike, Color.white, 0.68f);
@@ -520,7 +538,7 @@ public class LundunFullMap : MonoBehaviour
             case "tube": return "UNDERGROUND";
             case "bike": return "BIKE DOCKS";
             case "rail": return "RAIL";
-            default: return "LANDMARKS";
+            default: return LundunMapRegistry.ChipName(kind);
         }
     }
 
@@ -536,14 +554,14 @@ public class LundunFullMap : MonoBehaviour
             case "rail": return new Color(0.17f, 0.55f, 0.38f);
             case "mission": return new Color(1f, 0.82f, 0.2f);
             case "route": case "pin": return Purple;
-            default: return new Color(0.92f, 0.92f, 0.92f);
+            default: return LundunMapRegistry.Colour(kind);
         }
     }
 
     void SetCardIcon(string kind)
     {
         cardDisc.color = KindColour(kind);
-        string letter = kind == "safehouse" ? "S" : kind == "hospital" ? "H" : kind == "police" ? "P" : kind == "rail" ? "R" : null;
+        string letter = LetterFor(kind);
         cardLetter.text = letter ?? "";
         cardGlyph.gameObject.SetActive(letter == null);
         if (letter == null)
@@ -567,7 +585,7 @@ public class LundunFullMap : MonoBehaviour
         for (int i = listContainer.childCount - 1; i >= 0; i--) Destroy(listContainer.GetChild(i).gameObject);
         listContainer.offsetMax = new Vector2(listContainer.offsetMax.x, -110f);
 
-        foreach (string kind in new[] { "safehouse", "hospital", "police", "tube", "rail", "landmark", "mission" })
+        foreach (string kind in KindOrder(new[] { "safehouse", "hospital", "police", "tube", "rail", "landmark", "mission" }, LundunNavigation.Instance))
             foreach (Item it in items)
                 if (it.kind == kind)
                 {
@@ -604,7 +622,7 @@ public class LundunFullMap : MonoBehaviour
         Button b = r.gameObject.AddComponent<Button>(); b.targetGraphic = bg; b.onClick.AddListener(onClick);
         RectTransform d = Disc(r, KindColour(kind), 44);
         d.anchorMin = d.anchorMax = new Vector2(0, 0.5f); d.anchoredPosition = new Vector2(11f + 22f, 0f);
-        string letter = kind == "safehouse" ? "S" : kind == "hospital" ? "H" : kind == "police" ? "P" : kind == "rail" ? "R" : kind == "mission" ? text.Substring(0, 1) : null;
+        string letter = kind == "mission" ? text.Substring(0, 1) : LetterFor(kind);
         if (letter != null) { TextMeshProUGUI t = Text(d, letter, 29, new Color(0.04f, 0.05f, 0.06f)); Stretch(t.rectTransform); }
         else Glyph(d, kind == "tube" ? LundunHudArt.Tube : LundunHudArt.Star, kind == "tube" ? Color.white : new Color(0.04f, 0.05f, 0.06f), 0.66f);
         TextMeshProUGUI l = Text(r, text, 27, Color.white);

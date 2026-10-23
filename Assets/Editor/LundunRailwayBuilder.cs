@@ -39,10 +39,12 @@ public static class LundunRailwayBuilder
             LundunBuildingKitBuilder.EnsureMaterials(true);
 
             EditorUtility.DisplayProgressBar("Lundun", "Laying the line…", 0.25f);
-            LundunWorldData data = JsonUtility.FromJson<LundunWorldData>(json.text);
+            LundunWorldData data = LundunExpansionBuilder.Parse(json.text);
             GreyboxResult world = Generator.Build(data);
             int pieces = BuildRailway(worldRoot, world);
             BuildTrain();
+            double[] way = Generator.RailStationEntrance();         // E0: on the map, via the registry
+            if (way != null) LundunExpansionBuilder.Register("RAIL_RYE_LANE", LundunTrain.StationName, "rail", new Vector3((float)way[0], (float)way[1], (float)way[2]), false);
             foreach (string l in world.log) if (l.StartsWith("railway")) log = l;
 
             EditorUtility.DisplayProgressBar("Lundun", "Street lamps…", 0.45f);
@@ -66,7 +68,7 @@ public static class LundunRailwayBuilder
     }
 
     /// L6b: the Rye Lane shuttle: three cars and the LundunTrain that runs them (a scene object of its own, so menu 1 keeps it).
-    static void BuildTrain()
+    public static void BuildTrain()
     {
         GameObject old = GameObject.Find("LundunTrain");
         if (old != null) Object.DestroyImmediate(old);

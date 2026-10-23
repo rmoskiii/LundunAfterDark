@@ -9,9 +9,11 @@ public class LundunNavigation : MonoBehaviour
 {
     public static LundunNavigation Instance { get; private set; }
 
-    public class Destination { public string id, name, kind; public Vector3 position; }
+    public class Destination { public string id, name, kind; public Vector3 position; public bool label; }
 
     [SerializeField] private TextAsset worldJson;
+    [Tooltip("E0: the map expansions (LundunExpansion.json), set by Lundun → 26")]
+    [SerializeField] private TextAsset expansionJson;
     [SerializeField] private Transform waypointBeam;        // tall purple beam at the waypoint
     [SerializeField] private TextMeshProUGUI toast;          // "Arrived" message
     [SerializeField] private float arriveDistance = 18f;
@@ -39,7 +41,7 @@ public class LundunNavigation : MonoBehaviour
         Destinations = new List<Destination>();
         if (worldJson != null)
         {
-            World = JsonUtility.FromJson<LundunWorldData>(worldJson.text);
+            World = LundunWorldFiles.ParseCombined(worldJson.text, expansionJson != null ? expansionJson.text : null);   // E0: plus the expansions
             graph = new LundunRoadGraph(World);
             LundunPlaces places = FindAnyObjectByType<LundunPlaces>();
             foreach (LwPoi p in World.pois)
@@ -54,10 +56,11 @@ public class LundunNavigation : MonoBehaviour
             if (places != null)
                 foreach (LundunPlaces.Place pl in places.Places)
                     Destinations.Add(new Destination { id = pl.id, name = pl.name, kind = pl.kind, position = pl.door });
-            // L6: Lundun Rail stations (the way in from the street)
-            LundunTrain train = FindAnyObjectByType<LundunTrain>();
-            if (train != null && train.Entrance != Vector3.zero)
-                Destinations.Add(new Destination { id = "RAIL_RYE_LANE", name = LundunTrain.StationName, kind = "rail", position = train.Entrance });
+            // E0: everything the expansions put on the map (stations, landmarks, shops…), one list
+            LundunMapRegistry reg = FindAnyObjectByType<LundunMapRegistry>();
+            if (reg != null)
+                foreach (LundunMapRegistry.Entry e in reg.Entries)
+                    Destinations.Add(new Destination { id = e.id, name = e.name, kind = e.kind, position = e.position, label = e.label });
         }
         else Debug.LogWarning("[Lundun] LundunNavigation has no world JSON — GPS off.");
         if (waypointBeam != null) waypointBeam.gameObject.SetActive(false);

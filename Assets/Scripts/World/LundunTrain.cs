@@ -19,7 +19,7 @@ public class LundunTrain : MonoBehaviour
     [SerializeField] private Vector3 entrance;                          // the station's street entrance (for the map and GPS)
 
     [Header("Running")]
-    [SerializeField] private float maxSpeed = 16f;                      // m/s (about 36 mph)
+    [SerializeField] private float maxSpeed = 20f;                      // m/s (about 45 mph; slower on curves and into the station)
     [SerializeField] private float acceleration = 0.7f;
     [SerializeField] private float braking = 0.9f;
     [SerializeField] private float curveGrip = 1.1f;                    // sideways m/s² allowed on curves

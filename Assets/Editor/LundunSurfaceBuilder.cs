@@ -32,7 +32,7 @@ public static class LundunSurfaceBuilder
     {
         TextAsset json = AssetDatabase.LoadAssetAtPath<TextAsset>(JsonPath);
         if (json == null) { EditorUtility.DisplayDialog("Lundun", "Can't find " + JsonPath, "OK"); return; }
-        LundunWorldData data = JsonUtility.FromJson<LundunWorldData>(json.text);
+        LundunWorldData data = LundunExpansionBuilder.Parse(json.text);
         Transform world = Root("World");
         if (world == null) { EditorUtility.DisplayDialog("Lundun", "No World object in the scene.", "OK"); return; }
         Ensure("Assets/World", "Generated"); Ensure("Assets/World/Generated", "Surface");
@@ -93,7 +93,7 @@ public static class LundunSurfaceBuilder
         if (world != null)
         {
             TextAsset json = AssetDatabase.LoadAssetAtPath<TextAsset>(JsonPath);
-            if (json != null) PavementUVs(world, JsonUtility.FromJson<LundunWorldData>(json.text), true);
+            if (json != null) PavementUVs(world, LundunExpansionBuilder.Parse(json.text), true);
             RoofUVs(world, true);
             Transform shade = world.Find("ContactShade");
             if (shade != null) Object.DestroyImmediate(shade.gameObject);

@@ -32,7 +32,7 @@ public static class LundunMinimapBuilder
 
         TextAsset json = AssetDatabase.LoadAssetAtPath<TextAsset>(JsonPath);
         if (json == null) { Dialog("Can't find " + JsonPath); return; }
-        LundunWorldData data = JsonUtility.FromJson<LundunWorldData>(json.text);
+        LundunWorldData data = LundunExpansionBuilder.Parse(json.text);
 
         try
         {

@@ -67,6 +67,8 @@ public static class LundunFullMapBuilder
 
         SerializedObject nso = new SerializedObject(nav);
         nso.FindProperty("worldJson").objectReferenceValue = json;
+        SerializedProperty xjp = nso.FindProperty("expansionJson");                       // E0: the map expansions too
+        if (xjp != null) xjp.objectReferenceValue = AssetDatabase.LoadAssetAtPath<TextAsset>(LundunWorldFiles.ExpansionPath);
         nso.FindProperty("waypointBeam").objectReferenceValue = beam.transform;
         nso.FindProperty("toast").objectReferenceValue = toast;
         nso.ApplyModifiedPropertiesWithoutUndo();

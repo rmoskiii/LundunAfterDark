@@ -33,7 +33,7 @@ public static class LundunParkedBuilder
 
         LundunDressingBuilder.Build();          // furniture
         LundunStreetsBuilder.Build();           // markings and bays (and district paving)
-        try { Park(JsonUtility.FromJson<LundunWorldData>(json.text), scene); }
+        try { Park(LundunExpansionBuilder.Parse(json.text), scene); }
         catch (System.Exception e)
         {
             Debug.LogException(e);

@@ -42,7 +42,9 @@ namespace LundunGreybox
         static RailPlan MakeRailPlan()
         {
             List<V2> p = new List<V2>();
-            for (double z = -300; z < 150; z += 10) p.Add(new V2(615, z));                                     // up through the gap
+            // E0: the line starts beyond the south edge of the map, wherever that is (−300 for the original city)
+            double zStart = Math.Min(-300, Math.Floor((W.worldBounds.wallMinZ - 100) / 10) * 10);
+            for (double z = zStart; z < 150; z += 10) p.Add(new V2(615, z));                                   // up through the gap
             for (double z = 150; z < 250; z += 4) { double t = (z - 150) / 100; p.Add(new V2(615 + 10 * (1 - Math.Cos(Math.PI * t)), z)); }
             for (double z = 250; z < 466; z += 8) p.Add(new V2(635, z));
             V2 d1 = new V2(1, -0.148).Norm;                                                                   // then east, along the river side
@@ -728,7 +730,8 @@ namespace LundunGreybox
             for (double s = 0; s < end; s += 2) { V2 p = RAt(s, -RailTrack); pts.Add(new[] { p.x, RailHead, p.z }); }
             V2 e = RAt(end, -RailTrack); pts.Add(new[] { e.x, RailHead, e.z });
             stationFront = end - 1.0;
-            depotFront = 150;                                    // out beyond the edge of the map, behind the hedge
+            double lat;                                          // out beyond the edge of the map, behind the hedge
+            depotFront = RailProject(railPlan.line, new V2(615, W.worldBounds.wallMinZ - 30), out lat);
             V2 ps = RAt(stationFront - 30, -(PlatformEdge + 1.6));
             platformSpot = new[] { ps.x, PlatformTop + 0.05, ps.z };
             return pts;

@@ -31,7 +31,7 @@ public static class LundunDressingBuilder
         if (scene.name != "Lundun") { Dialog("Open the Lundun scene first."); return; }
         TextAsset json = AssetDatabase.LoadAssetAtPath<TextAsset>(DataPath);
         if (json == null) { Dialog("Can't find " + DataPath + "."); return; }
-        LundunWorldData data = JsonUtility.FromJson<LundunWorldData>(json.text);
+        LundunWorldData data = LundunExpansionBuilder.Parse(json.text);
 
         try
         {

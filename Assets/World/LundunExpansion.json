@@ -1,0 +1,18 @@
+{
+    "schemaVersion": "1.0",
+    "worldBounds": {
+        "groundMinX": -300.0,
+        "groundMaxX": 1900.0,
+        "groundMinZ": -1130.0,
+        "groundMaxZ": 2080.0,
+        "wallMinX": -120.0,
+        "wallMaxX": 1720.0,
+        "wallMinZ": -950.0,
+        "wallMaxZ": 1900.0
+    },
+    "roads": [],
+    "junctions": [],
+    "districts": [],
+    "parks": [],
+    "pois": []
+}

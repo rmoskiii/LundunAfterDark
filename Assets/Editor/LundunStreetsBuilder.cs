@@ -37,7 +37,7 @@ public static class LundunStreetsBuilder
         if (scene.name != "Lundun") { EditorUtility.DisplayDialog("Lundun", "Open the Lundun scene first.", "OK"); return; }
         TextAsset json = AssetDatabase.LoadAssetAtPath<TextAsset>(JsonPath);
         if (json == null) { EditorUtility.DisplayDialog("Lundun", "Can't find " + JsonPath, "OK"); return; }
-        LundunWorldData data = JsonUtility.FromJson<LundunWorldData>(json.text);
+        LundunWorldData data = LundunExpansionBuilder.Parse(json.text);
         try
         {
             // 1. district paving (and the rest of the V4 surface pass)
