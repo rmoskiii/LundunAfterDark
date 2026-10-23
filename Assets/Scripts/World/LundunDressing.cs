@@ -65,12 +65,20 @@ public class LundunDressing : MonoBehaviour
                 for (int i = 0; i < area.StationNames.Length && i < area.StationTops.Length; i++)
                     tube.AddStation(area.StationNames[i], area.StationTops[i], i < area.StationOut.Length ? area.StationOut[i] : Vector3.forward);
         }
-        // R9: Lundun Cycles
-        if (bikeDocks.Length > 0 && bikeFrame != null && bikeWheel != null)
+        // R9: Lundun Cycles (E3: with the expansion areas' docks too)
+        List<Vector4> docks = new List<Vector4>(bikeDocks), docksOut = new List<Vector4>(bikeDocksOut);
+        while (docksOut.Count < docks.Count) docksOut.Add(new Vector4(0f, 1f, 0f, 0f));
+        foreach (LundunExpansionArea area in FindObjectsByType<LundunExpansionArea>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            for (int i = 0; i < area.BikeDocks.Length; i++)
+            {
+                docks.Add(area.BikeDocks[i]);
+                docksOut.Add(i < area.BikeDocksOut.Length ? area.BikeDocksOut[i] : new Vector4(0f, 1f, 0f, 0f));
+            }
+        if (docks.Count > 0 && bikeFrame != null && bikeWheel != null)
         {
             LundunBikes bikes = GetComponent<LundunBikes>();
             if (bikes == null) bikes = gameObject.AddComponent<LundunBikes>();
-            bikes.Init(bikeDocks, bikeDocksOut, bikeFrame, bikeWheel, bikeMaterial);
+            bikes.Init(docks.ToArray(), docksOut.ToArray(), bikeFrame, bikeWheel, bikeMaterial);
         }
         // runtime copies, so playing never edits the material files
         if (glowMaterial != null) glowRuntime = new Material(glowMaterial);

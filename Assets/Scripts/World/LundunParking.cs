@@ -17,7 +17,15 @@ public class LundunParking : MonoBehaviour
 
     private float nextCull;
 
-    void Awake() { Instance = this; }
+    void Awake()
+    {
+        Instance = this;
+        // E3: the expansion areas' bays too (their static parked cars stay with them)
+        System.Collections.Generic.List<Vector4> all = new System.Collections.Generic.List<Vector4>(slots);
+        foreach (LundunExpansionArea area in FindObjectsByType<LundunExpansionArea>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            all.AddRange(area.ParkingBays);
+        slots = all.ToArray();
+    }
     void OnDestroy() { if (Instance == this) Instance = null; }
 
     public void SetData(Vector4[] s, Renderer[] b) { slots = s; blocks = b; }

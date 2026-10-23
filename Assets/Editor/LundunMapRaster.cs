@@ -70,7 +70,7 @@ namespace LundunGreybox
             {
                 List<V2> poly = new List<V2>();
                 foreach (LwPoint p in park.polygon) poly.Add(new V2(p.x, p.z));
-                Polygon(poly, park.name != null && park.name.EndsWith("Square") ? Service : Park);     // E1: town squares are paved
+                Polygon(poly, park.name != null && (park.name.EndsWith("Square") || park.name.EndsWith("Market")) ? Service : Park);     // E1: town squares are paved (E3: and the market)
             }
 
             foreach (BuildingInfo bd in allBuildings)
@@ -117,12 +117,15 @@ namespace LundunGreybox
                 for (int i = 0; i + 1 < pts.Count; i++) Capsule(pts[i], pts[i + 1], 1.8, RailDark);
                 for (double s = 0; s < rp.length - 1; s += 16)
                     Capsule(Generator.RailPoint(s, 0), Generator.RailPoint(Math.Min(rp.length, s + 8), 0), 1.0, RailLight);
-                double s0 = Generator.RailStationStart + 1, s1 = rp.length - 1;
-                for (double s = s0; s < s1; s += 4)
-                {
-                    double e = Math.Min(s1, s + 4);
-                    Polygon(new List<V2> { Generator.RailPoint(s, -3.45), Generator.RailPoint(e, -3.45), Generator.RailPoint(e, -7.2), Generator.RailPoint(s, -7.2) }, Platform);
-                }
+                List<double[]> plats = new List<double[]> { new[] { Generator.RailStationStart + 1, rp.length - 1 } };
+                double[] bp = Generator.BrixtunPlatform();            // E2: Brixtun station's platform too
+                if (bp != null) plats.Add(bp);
+                foreach (double[] pl in plats)
+                    for (double s = pl[0]; s < pl[1]; s += 4)
+                    {
+                        double e = Math.Min(pl[1], s + 4);
+                        Polygon(new List<V2> { Generator.RailPoint(s, -3.45), Generator.RailPoint(e, -3.45), Generator.RailPoint(e, -7.2), Generator.RailPoint(s, -7.2) }, Platform);
+                    }
             }
             // E7: the Lundun Wheel: its platform, its legs and the rim seen from above (a long white bar along the river)
             {

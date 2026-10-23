@@ -106,6 +106,11 @@ public static class LundunRailwayBuilder
         double[] way = Generator.RailStationEntrance();
         t.SetData(path, cars, (float)station, (float)depot, new Vector3((float)spot[0], (float)spot[1], (float)spot[2]),
                   way != null ? new Vector3((float)way[0], (float)way[1], (float)way[2]) : path[path.Length - 1]);
+        // E2: Rye Lane ⇄ Brixtun when the railway has Brixtun station (otherwise out to the depot, as before)
+        double bFront; double[] bSpot; double[] bWay = Generator.BrixtunStationEntrance();
+        if (Generator.TrainBrixtunStop(pts, out bFront, out bSpot) && bWay != null)
+            t.SetBrixtun((float)bFront, new Vector3((float)bSpot[0], (float)bSpot[1], (float)bSpot[2]), new Vector3((float)bWay[0], (float)bWay[1], (float)bWay[2]));
+        else t.SetBrixtun(-1f, Vector3.zero, Vector3.zero);
         // park it at the platform in the editor too
         for (int k = 0; k < 3; k++)
         {

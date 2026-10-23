@@ -6,6 +6,8 @@ using UnityEngine.UI;
 /// sounds its horn, runs south over Old Kent Lane and the Ring and out past the edge of the map, waits, and comes back.
 /// Walk up the stairs behind the station passage to the platform; while the doors are open "RIDE THE TRAIN" appears,
 /// and James rides the round trip (the camera follows the train). Don't stand on the tracks.
+/// E2: with Brixtun built (Lundun → 28) it runs Rye Lane ⇄ Brixtun instead: it stops at Brixtun with its doors open,
+/// then comes back. A ride goes one way: board at either station, get off at the other.
 /// Built by Lundun → 25 (the path, the cars and their colliders). Builds its own little UI.
 public class LundunTrain : MonoBehaviour
 {
@@ -17,6 +19,10 @@ public class LundunTrain : MonoBehaviour
     [SerializeField] private Vector3 platformSpot;                      // where James gets off
     [SerializeField] private float carLength = 19.4f, carGap = 0.6f;
     [SerializeField] private Vector3 entrance;                          // the station's street entrance (for the map and GPS)
+    [Header("E2: Brixtun (filled in by Lundun → 28; front < 0 = no Brixtun, run to the depot)")]
+    [SerializeField] private float brixtunFront = -1f;                  // where the buffer end of car 0 stops at Brixtun
+    [SerializeField] private Vector3 brixtunSpot;                       // where James gets off there
+    [SerializeField] private Vector3 brixtunEntrance;
 
     [Header("Running")]
     [SerializeField] private float maxSpeed = 20f;                      // m/s (about 45 mph; slower on curves and into the station)
@@ -54,7 +60,15 @@ public class LundunTrain : MonoBehaviour
         path = p; cars = c; stationFront = station; depotFront = depot; platformSpot = spot; entrance = way;
     }
 
+    /// E2: the Brixtun stop (front < 0 removes it).
+    public void SetBrixtun(float front, Vector3 spot, Vector3 way) { brixtunFront = front; brixtunSpot = spot; brixtunEntrance = way; }
+    public bool HasBrixtun { get { return brixtunFront > 0f && brixtunFront < stationFront - 100f; } }
+    /// True while stopped at a station with the doors open (Rye Lane, or Brixtun on the E2 service).
+    bool AtPlatform { get { return state == State.AtStation || (state == State.AtEnd && HasBrixtun); } }
+    float EndFront { get { return HasBrixtun ? brixtunFront : depotFront; } }
+
     public const string StationName = "Rye Lane Station";
+    public const string BrixtunName = "Brixtun Station";
     /// The station's street entrance, and a marker there for the minimap.
     public Vector3 Entrance { get { return entrance; } }
     public Transform StationMarker { get; private set; }
@@ -128,10 +142,16 @@ public class LundunTrain : MonoBehaviour
                 break;
             case State.AtEnd:
                 v = 0f;
-                if (Time.time >= waitUntil) state = State.Inbound;
+                if (HasBrixtun && !chimed && Time.time > waitUntil - 4f) { chimed = true; Play(chime, 0.7f); }
+                if (Time.time >= waitUntil) { state = State.Inbound; if (HasBrixtun) { leftStation = true; Play(horn, 1f); } }
                 break;
             case State.Outbound:
-                if (Drive(depotFront, -1, dt)) { state = State.AtEnd; waitUntil = Time.time + dwellAtEnd; }
+                if (Drive(EndFront, -1, dt))
+                {
+                    state = State.AtEnd; chimed = false;
+                    waitUntil = Time.time + (HasBrixtun ? dwellAtStation : dwellAtEnd);
+                    if (HasBrixtun && riding && leftStation) Invoke(nameof(GetOff), 1.5f);     // one way: Rye Lane → Brixtun
+                }
                 break;
             case State.Inbound:
                 if (Drive(stationFront, 1, dt))
@@ -242,14 +262,15 @@ public class LundunTrain : MonoBehaviour
         bool show = false; string text = "";
         if (riding)
         {
-            show = state == State.AtStation && !leftStation;
+            show = AtPlatform && !leftStation;
             text = "GET OFF";
         }
-        else if (state == State.AtStation && Time.time < waitUntil - 4f && NearTrain())
+        else if (AtPlatform && Time.time < waitUntil - 4f && NearTrain())
         {
             bool wanted = WantedSystem.Instance != null && WantedSystem.Instance.Stars > 0;
             show = true;
-            text = wanted ? "DOORS CLOSED\n<size=70%>Police incident</size>" : "RIDE THE TRAIN\n<size=70%>Rye Lane line, there and back</size>";
+            string where = !HasBrixtun ? "Rye Lane line, there and back" : state == State.AtStation ? "To Brixtun" : "To Rye Lane";
+            text = wanted ? "DOORS CLOSED\n<size=70%>Police incident</size>" : "RIDE THE TRAIN\n<size=70%>" + where + "</size>";
             promptGo.GetComponent<Button>().interactable = !wanted;
         }
         if (show) { promptText.text = text; if (riding) promptGo.GetComponent<Button>().interactable = true; }
@@ -286,7 +307,8 @@ public class LundunTrain : MonoBehaviour
         playerGo.SetActive(false);
         if (cam != null) cam.SetTarget(rideCam, true);
         promptGo.SetActive(false);
-        if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast("Rye Lane line\nRound trip, about 3 minutes");
+        if (LundunNavigation.Instance != null)
+            LundunNavigation.Instance.ShowToast(!HasBrixtun ? "Rye Lane line\nRound trip, about 3 minutes" : state == State.AtStation ? "Rye Lane line\nTo Brixtun, about 2 minutes" : "Rye Lane line\nTo Rye Lane, about 2 minutes");
     }
 
     void GetOff()
@@ -296,8 +318,10 @@ public class LundunTrain : MonoBehaviour
         CancelInvoke(nameof(GetOff));
         if (playerGo != null)
         {
-            Vector3 along = (PointAt(stationFront) - PointAt(stationFront - 10f)).normalized;
-            playerGo.transform.SetPositionAndRotation(platformSpot + Vector3.up * 0.1f, Quaternion.LookRotation(-along, Vector3.up));
+            bool brix = HasBrixtun && state == State.AtEnd;          // E2: off at whichever station the train is in
+            float at = brix ? brixtunFront : stationFront;
+            Vector3 along = (PointAt(at) - PointAt(at - 10f)).normalized;
+            playerGo.transform.SetPositionAndRotation((brix ? brixtunSpot : platformSpot) + Vector3.up * 0.1f, Quaternion.LookRotation(-along, Vector3.up));
             playerGo.SetActive(true);
             if (cam != null) cam.SetTarget(playerGo.transform, false);
         }

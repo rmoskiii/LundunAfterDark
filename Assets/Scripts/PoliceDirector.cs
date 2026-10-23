@@ -38,6 +38,13 @@ public class PoliceDirector : MonoBehaviour
         if (GetComponent<LundunPatrols>() == null) gameObject.AddComponent<LundunPatrols>();
         // W3: roadblocks (4★+, while driving)
         if (GetComponent<LundunRoadblocks>() == null) gameObject.AddComponent<LundunRoadblocks>();
+        // E3: the expansion areas' own fixed spawn points join the fallback list
+        List<Transform> all = new List<Transform>();
+        if (spawnPoints != null) all.AddRange(spawnPoints);
+        int before = all.Count;
+        foreach (LundunExpansionArea area in FindObjectsByType<LundunExpansionArea>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (Transform t in area.PoliceSpawns) if (t != null && !all.Contains(t)) all.Add(t);
+        if (all.Count > before) spawnPoints = all.ToArray();
     }
 
     void OnDestroy() { if (instance == this) instance = null; }

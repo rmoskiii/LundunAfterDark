@@ -191,6 +191,7 @@ namespace LundunGreybox
             BuildParks(R);
             BuildBuildings(R);
             BuildRailLights(R);
+            BuildMarkers(R);                // E3: police spawn points along its roads (no random numbers)
             List<MeshData> split = new List<MeshData>();
             foreach (MeshData m in R.meshes) { if (m.chunk) split.AddRange(Chunk(m)); else split.Add(m); }
             R.meshes = split;
@@ -228,7 +229,9 @@ namespace LundunGreybox
         }
 
         // ------------------------------------------------------------------ squares (paved, not parks)
-        static bool IsSquare(LwPoly park) { return ExpansionMode && park.name != null && park.name.EndsWith("Square"); }
+        static bool IsSquare(LwPoly park) { return ExpansionMode && park.name != null && (park.name.EndsWith("Square") || park.name.EndsWith("Market")); }
+        /// E3: a market square (paved like a town square; its stalls come from DressMarket instead of trees and benches).
+        static bool IsMarket(LwPoly park) { return ExpansionMode && park.name != null && park.name.EndsWith("Market"); }
 
         /// A town square's paving: 3 m squares of pale stone with a darker border, at pavement height, walkable.
         static void SquarePaving(GreyboxResult R, List<V2> poly)
@@ -273,6 +276,7 @@ namespace LundunGreybox
                 {
                     double s = (rp.line.ch[i] + rp.line.ch[i + 1]) / 2;
                     double r = (RailKind(s) == 'E' ? RailHW + RailDeck * BankSlope : RailStationHW) + 2.5;
+                    if (InBrixStation(s)) r = 13.5;                        // E2: room for Brixtun station's stairs and the way round to them
                     MarkSegment(rp.line.p[i], rp.line.p[i + 1], r);
                 }
             }
@@ -323,6 +327,45 @@ namespace LundunGreybox
             return p;
         }
         static readonly Dictionary<KitPlan, int> specialSign = new Dictionary<KitPlan, int>();
+
+        // ------------------------------------------------------------------ E3: the expansion's places for the map registry
+        /// Where an expansion's landmark buildings, squares, market and station are (their street entrances), after
+        /// BuildExpansion. Sorted by id.
+        public class MapPlace { public string id, name, kind; public double x, z; public bool label; }
+
+        public static List<MapPlace> ExpansionPlaces()
+        {
+            List<MapPlace> list = new List<MapPlace>();
+            foreach (KeyValuePair<BuildingInfo, Special> kv in specialPlans)
+            {
+                BuildingInfo b = kv.Key; Special sp = kv.Value;
+                V2 f = sp.face.Norm;
+                double ext = Math.Abs(V2.Dot(b.dir.Norm, f)) > 0.7 ? b.len / 2 : b.dep / 2;
+                V2 p = b.c + f * (ext + 3);
+                string kind = sp.type == KitType.DeptStore ? "shop" : sp.type == KitType.MusicHall ? "venue" : "landmark";
+                list.Add(new MapPlace { id = "BRX_" + Slug(sp.name), name = sp.name, kind = kind, x = p.x, z = p.z, label = false });
+            }
+            foreach (LwPoly park in W.parks)
+            {
+                if (!IsSquare(park)) continue;
+                List<V2> poly = Pts(park.polygon);
+                double minX = double.MaxValue, maxX = double.MinValue, minZ = double.MaxValue, maxZ = double.MinValue;
+                foreach (V2 q in poly) { minX = Math.Min(minX, q.x); maxX = Math.Max(maxX, q.x); minZ = Math.Min(minZ, q.z); maxZ = Math.Max(maxZ, q.z); }
+                if (IsMarket(park)) list.Add(new MapPlace { id = "MARKET_" + Slug(park.name), name = park.name, kind = "market", x = minX + 1.5, z = (minZ + maxZ) / 2, label = true });
+                else list.Add(new MapPlace { id = "LANDMARK_" + Slug(park.name), name = park.name, kind = "landmark", x = (minX + maxX) / 2, z = (minZ + maxZ) / 2, label = true });
+            }
+            double[] st = BrixtunStationEntrance();
+            if (st != null) list.Add(new MapPlace { id = "RAIL_BRIXTUN", name = "Brixtun Station", kind = "rail", x = st[0], z = st[2], label = false });
+            list.Sort((m, n) => string.CompareOrdinal(m.id, n.id));
+            return list;
+        }
+
+        static string Slug(string name)
+        {
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            foreach (char ch in name.ToUpperInvariant()) { if (char.IsLetterOrDigit(ch)) sb.Append(ch); else if (ch == ' ' && sb.Length > 0 && sb[sb.Length - 1] != '_') sb.Append('_'); }
+            return sb.ToString().Trim('_');
+        }
 
         // ------------------------------------------------------------------ lights under the expansion's rail bridges
         static void BuildRailLights(GreyboxResult R)

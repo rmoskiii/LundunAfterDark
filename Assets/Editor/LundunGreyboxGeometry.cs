@@ -850,7 +850,7 @@ namespace LundunGreybox
                 double minX = double.MaxValue, maxX = double.MinValue, minZ = double.MaxValue, maxZ = double.MinValue;
                 foreach (V2 q in poly) { minX = Math.Min(minX, q.x); maxX = Math.Max(maxX, q.x); minZ = Math.Min(minZ, q.z); maxZ = Math.Max(maxZ, q.z); }
                 double area = Math.Abs(PolyArea(poly));
-                int want = (int)(area / (square ? 520 : 140));
+                int want = IsMarket(park) ? 0 : (int)(area / (square ? 520 : 140));      // E3: the market has stalls, not trees
                 List<V2> placed = new List<V2>();
                 for (int tries = 0; tries < want * 20 && placed.Count < want; tries++)
                 {

@@ -1,4 +1,4 @@
-// Lundun → 28  Brixtun (E1)
+// Lundun → 28  Brixtun (E1, E2, E3)
 // Builds Brixtun, south of the Ring, from Assets/World/LundunExpansion.json, under its own object
 // "LundunExpansion/Brixtun" (the city's menus never touch it, and it never touches theirs):
 //   Roads, Junctions, Parks (Windward Square, Brockmere Park), Buildings (Victorian parades with shops, terraces,
@@ -6,6 +6,10 @@
 //   Detail   lamps, street dressing, markings and grit, shop light (switched off far away by LundunStreaming)
 //   Colliders  the dressing's solid bits
 //   NavLinks   where Brixtun's roads cross onto the Ring (the city and Brixtun bake their NavMesh separately)
+//   E2: Brixtun station on the viaduct (built with the railway, in World/Railway): the train now runs Rye Lane ⇄ Brixtun
+//   E3: Parked (static parked cars + bays kept for real ones), PoliceSpawns, bike docks (in the dressing), and Market:
+//       the stalls (in the dressing) and LundunMarketCrowd, the traders and shoppers
+//   Map: Brixtun station, the market, Windward Square, the Regal Hall, the department stores and the library
 // Brixtun is built like Peckam (the town centre) and Gilmore (the estate), with its own shops, postcode, tags and
 // landmark buildings, its own random numbers, and its own dressing texture.
 // The city's side: where Brixtun Road, Atlantic Road, Stockwell Road, Loughborough Road and Denmore Hill meet the
@@ -28,6 +32,7 @@ public static class LundunBrixtunBuilder
 {
     const string Dir = "Assets/World/Expansions/Brixtun";
     const string MeshPath = Dir + "/BrixtunMeshes.asset";
+    const string ParkedPath = Dir + "/BrixtunParked.asset";
     const string AtlasPath = Dir + "/BrixtunDressingAtlas.png";
     const string GenDir = "Assets/World/Generated";
     const string RootName = "LundunExpansion", AreaName = "Brixtun";
@@ -36,7 +41,7 @@ public static class LundunBrixtunBuilder
 
     static Mesh container;
 
-    [MenuItem("Lundun/28  Brixtun (E1)", false, 34)]
+    [MenuItem("Lundun/28  Brixtun (E1–E3)", false, 34)]
     public static void Build()
     {
         Scene scene = SceneManager.GetActiveScene();
@@ -90,6 +95,23 @@ public static class LundunBrixtunBuilder
             int spills = BuildSpill(detail, x, xd);
             int links = BuildLinks(area, data);
 
+            // E3: street life
+            EditorUtility.DisplayProgressBar("Lundun", "Parked cars, police, bikes, the market…", 0.85f);
+            Vector4[] bays; Renderer[] parked;
+            int cars = BuildParked(area, xs, out bays, out parked);
+            Transform[] police = BuildPoliceSpawns(area, x);
+            Vector4[] docks = new Vector4[xd.bikeDocks.Count], docksOut = new Vector4[xd.bikeDocks.Count];
+            for (int i = 0; i < docks.Length; i++)
+            {
+                BikeDockInfo k = xd.bikeDocks[i];
+                docks[i] = new Vector4((float)k.x, (float)k.z, (float)k.alongX, (float)k.alongZ);
+                docksOut[i] = new Vector4((float)k.outX, (float)k.outZ, 0f, 0f);
+            }
+            int stalls = BuildMarket(area, xd);
+            List<Generator.MapPlace> places = Generator.ExpansionPlaces();
+            foreach (Generator.MapPlace mp in places)
+                LundunExpansionBuilder.Register(mp.id, mp.id == "RAIL_BRIXTUN" ? LundunTrain.BrixtunName : mp.name, mp.kind, new Vector3((float)mp.x, 0f, (float)mp.z), mp.label);
+
             // the runtime bit: lamps for the real lamp lights, the Tube station, the signs' glow
             LundunExpansionArea rt = area.gameObject.AddComponent<LundunExpansionArea>();
             Vector3[] lamps = new Vector3[x.lamps.Count]; int[] styles = new int[x.lamps.Count];
@@ -103,13 +125,16 @@ public static class LundunBrixtunBuilder
             }
             rt.SetData(AreaName, lamps, styles, names, tops, outs);
             rt.SetLook(glow, globe);
+            rt.SetStreetLife(docks, docksOut, bays, parked, police);
             EditorUtility.SetDirty(rt);
 
             StreamDetail();
             AssetDatabase.SaveAssets();
             log = "[Lundun] E1 Brixtun: " + string.Join("\n", x.log.ToArray()) + "\n" + parts + " street / building pieces, " + dressing + " dressing pieces, " +
                   streets + " marking and litter blocks, " + spills + " shop lights, " + links + " NavMesh links onto the Ring, stations: " + string.Join(", ", names) +
-                  ".\nCity side: " + marks + " marking blocks, " + pieces + " junction and railway pieces, the lamps.";
+                  ".\nE3: " + cars + " parked cars (" + bays.Length + " bays kept for real ones), " + police.Length + " police spawn points, " + docks.Length +
+                  " bike docks, " + stalls + " market stalls; on the map: " + places.Count + " places." +
+                  "\nCity side: " + marks + " marking blocks, " + pieces + " junction and railway pieces (with Brixtun station), the lamps.";
         }
         catch (Exception e)
         {
@@ -120,7 +145,7 @@ public static class LundunBrixtunBuilder
         }
         EditorUtility.ClearProgressBar();
 
-        LundunRailwayBuilder.BuildTrain();         // the line's south end has moved
+        LundunRailwayBuilder.BuildTrain();         // the line's south end has moved; E2: Rye Lane ⇄ Brixtun
         LundunDressingBuilder.Build();             // the railway's fences follow the new route
         LundunMapSharpBuilder.Build();             // Brixtun on the map picture
         LundunLightingDistrictBuilder.ApplyLook();
@@ -447,6 +472,70 @@ public static class LundunBrixtunBuilder
             GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic);
         }
         return spots.Count;
+    }
+
+    // ------------------------------------------------------------------ E3: street life
+    /// Brixtun's parked cars, baked like the city's (Lundun → 23) into its own asset; the bays kept for real cars go to
+    /// LundunParking at runtime (via LundunExpansionArea).
+    static int BuildParked(Transform area, StreetResult xs, out Vector4[] bays, out Renderer[] parked)
+    {
+        bays = new Vector4[0]; parked = new Renderer[0];
+        List<ParkSlot> slots = Generator.ParkingSlots(xs);
+        Transform root = Child(area, "Parked");
+        List<Renderer> renderers; List<Vector4> free; int cars, painted; List<string> missing;
+        if (!LundunParkedBuilder.Bake(slots, root, ParkedPath, out renderers, out free, out cars, out painted, out missing))
+        {
+            Debug.LogWarning("[Lundun] No car prefabs in Assets/Vehicles/Prefabs (Lundun → 10): Brixtun has no parked cars.");
+            return 0;
+        }
+        bays = free.ToArray(); parked = renderers.ToArray();
+        return cars;
+    }
+
+    /// Fixed police spawn points along Brixtun's roads (the fallback when PoliceDirector can't find a road spot).
+    static Transform[] BuildPoliceSpawns(Transform area, GreyboxResult x)
+    {
+        Transform root = Child(area, "PoliceSpawns");
+        List<Transform> list = new List<Transform>();
+        foreach (Marker m in x.markers)
+        {
+            if (m.group != "PoliceSpawns") continue;
+            GameObject g = new GameObject("SP_POLICE_BRX_" + (list.Count + 1).ToString("00"));
+            g.transform.SetParent(root, false);
+            g.transform.SetPositionAndRotation(new Vector3((float)m.x, (float)m.y, (float)m.z), Quaternion.Euler(0f, (float)m.yaw, 0f));
+            list.Add(g.transform);
+        }
+        return list.ToArray();
+    }
+
+    /// The market's people: where they walk, the spot in front of each stall, the traders' places.
+    static int BuildMarket(Transform area, DressingResult xd)
+    {
+        MarketInfo mi = xd.market;
+        if (mi == null || mi.stalls.Count == 0) return 0;
+        const float y = PaveTop;
+        GameObject go = new GameObject("Market");
+        go.transform.SetParent(area, false);
+        Vector3[] nodes = new Vector3[mi.nodes.Count];
+        for (int i = 0; i < nodes.Length; i++) nodes[i] = new Vector3((float)mi.nodes[i].x, y, (float)mi.nodes[i].z);
+        int[] ea = new int[mi.edges.Count], eb = new int[mi.edges.Count];
+        for (int i = 0; i < ea.Length; i++) { ea[i] = mi.edges[i][0]; eb[i] = mi.edges[i][1]; }
+        Vector3[] spots = new Vector3[mi.spots.Count], look = new Vector3[mi.spots.Count]; int[] sn = new int[mi.spots.Count];
+        for (int i = 0; i < spots.Length; i++)
+        {
+            double[] s = mi.spots[i];
+            spots[i] = new Vector3((float)s[0], y, (float)s[1]); look[i] = new Vector3((float)s[2], y, (float)s[3]); sn[i] = (int)s[4];
+        }
+        Vector3[] tAt = new Vector3[mi.traders.Count], tFace = new Vector3[mi.traders.Count];
+        for (int i = 0; i < tAt.Length; i++)
+        {
+            double[] t = mi.traders[i];
+            tAt[i] = new Vector3((float)t[0], y, (float)t[1]); tFace[i] = new Vector3((float)t[2], 0f, (float)t[3]);
+        }
+        LundunMarketCrowd crowd = go.AddComponent<LundunMarketCrowd>();
+        crowd.SetData(nodes, ea, eb, spots, look, sn, mi.gates.ToArray(), tAt, tFace);
+        EditorUtility.SetDirty(crowd);
+        return mi.stalls.Count;
     }
 
     // ------------------------------------------------------------------ NavMesh links across the seam

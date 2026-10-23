@@ -118,11 +118,16 @@ namespace LundunGreybox
             { 700, 925 }, { 380, 925 }, { 790, 330 }, { 950, 900 }, { 560, 1000 }, { 330, 300 },
             { 1150, 760 }, { 1250, 545 }, { 640, 545 }, { 1000, 220 } };
 
+        /// E3: Brixtun's docks (besides the one at Windward Square's Tube): by the station, and along the main roads.
+        static readonly double[,] BrixtunDockAnchors = {
+            { 442, -100 }, { 440, -150 }, { 620, -322 }, { 330, -308 }, { 262, -150 }, { 702, -240 }, { 560, -502 }, { 560, -700 }, { 840, -140 } };
+
         static void DressBikeDocks()
         {
             List<V2> anchors = new List<V2>();
             foreach (StationInfo st in D.stations) anchors.Add(new V2(st.x, st.z));      // one by every Underground station
-            for (int i = 0; i < DockAnchors.GetLength(0); i++) anchors.Add(new V2(DockAnchors[i, 0], DockAnchors[i, 1]));
+            double[,] fixedAnchors = ExpansionMode ? BrixtunDockAnchors : DockAnchors;     // E3: Brixtun's own
+            for (int i = 0; i < fixedAnchors.GetLength(0); i++) anchors.Add(new V2(fixedAnchors[i, 0], fixedAnchors[i, 1]));
             int made = 0;
             foreach (V2 anchor in anchors)
             {

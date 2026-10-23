@@ -30,11 +30,14 @@ namespace LundunGreybox
         const double BrixViaductZ0 = -380, BrixViaductZ1 = 2;     // the viaduct runs from here on the west side to here on the way north
 
         static bool InBrixViaduct(double s) { return railPlan.sBrix0 >= 0 && s >= railPlan.sBrix0 && s <= railPlan.sBrix1; }
+        /// E2: Brixtun station, on the viaduct between the Brixtun Road and Atlantic Road bridges (platform on the right, south).
+        static bool InBrixStation(double s) { return railPlan.sBrixSt0 >= 0 && s > railPlan.sBrixSt0 - 0.01 && s < railPlan.sBrixSt1 - 0.01; }
         public class RailPlan
         {
             public Line line;
             public double length, sViaduct, sStation0;
             public double sBrix0 = -1, sBrix1 = -1;       // E1: the Brixtun viaduct (−1 = none)
+            public double sBrixSt0 = -1, sBrixSt1 = -1;   // E2: Brixtun station, abutment to abutment (−1 = none)
             public List<RailSpanInfo> spans = new List<RailSpanInfo>();
             public RailSpanInfo rye;
         }
@@ -115,8 +118,23 @@ namespace LundunGreybox
             }
             rp.spans.Sort((m, n) => m.s0.CompareTo(n.s0));
             rp.sStation0 = rp.rye != null ? rp.rye.s1 + AbutLen : rp.length - 60;
+            // E2: Brixtun station fills the viaduct between its Brixtun Road and Atlantic Road bridges
+            RailSpanInfo bRoad = null, bAtl = null;
+            foreach (RailSpanInfo sp in rp.spans)
+            {
+                if (!sp.expansion || !InBrixViaductOf(rp, (sp.s0 + sp.s1) / 2)) continue;
+                if (sp.road == "Brixtun Road") bRoad = sp;
+                else if (sp.road == "Atlantic Road") bAtl = sp;
+            }
+            if (bRoad != null && bAtl != null && bAtl.s0 - bRoad.s1 - 2 * AbutLen > 40)
+            {
+                rp.sBrixSt0 = bRoad.s1 + AbutLen;
+                rp.sBrixSt1 = bAtl.s0 - AbutLen;
+            }
             return rp;
         }
+
+        static bool InBrixViaductOf(RailPlan rp, double s) { return rp.sBrix0 >= 0 && s >= rp.sBrix0 && s <= rp.sBrix1; }
 
         /// Chainage of the nearest point on the line, and the signed distance from it (positive = left of the direction of travel).
         static double RailProject(Line line, V2 q, out double lateral)
@@ -139,7 +157,7 @@ namespace LundunGreybox
         }
 
         /// Half width of the structure on one side (+1 left, -1 right): the station is wider on the right.
-        static double RailHalf(double s, int side) { return side < 0 && s > railPlan.sStation0 - 0.01 ? RailStationHW : RailHW; }
+        static double RailHalf(double s, int side) { return side < 0 && (s > railPlan.sStation0 - 0.01 || InBrixStation(s)) ? RailStationHW : RailHW; }
 
         /// 'E' embankment, 'W' walled approach, 'A' bridge abutment, 'S' bridge span, 'V' viaduct
         static char RailKind(double s)
@@ -173,7 +191,7 @@ namespace LundunGreybox
         static V2 RAt(double s, double lat) { V2 n; V2 p = RP(s, out n); return p + n * lat; }
 
         // ================================================================== building it
-        static MeshData rA, rB, rBank, rTrack, rStation, rRamp, rLights;
+        static MeshData rA, rB, rBank, rTrack, rStation, rStationA, rRamp, rLights;
 
         static void BuildRailway(GreyboxResult R)
         {
@@ -184,6 +202,7 @@ namespace LundunGreybox
             rBank = new MeshData("Railway_Bank", "Railway", "RailBank", true) { navArea = 1 };
             rTrack = new MeshData("Railway_Track", "Railway", KitMatA, false) { navIgnore = true };
             rStation = new MeshData("Railway_Station", "Railway", KitMatB, false) { navIgnore = true };
+            rStationA = new MeshData("Railway_StationA", "Railway", KitMatA, false) { navIgnore = true };    // E2: Brixtun's name boards (atlas A)
             rRamp = new MeshData("Railway_Walkways", "Railway", "ColliderOnly", true) { navArea = 1 };       // invisible: smooth stairs, platform edge
             rLights = new MeshData("Railway_StationLights", "Railway", LampHeadMats[3], false) { navIgnore = true };
             RailPlan rp = railPlan;
@@ -229,10 +248,17 @@ namespace LundunGreybox
                 foreach (RailSpanInfo sp in rp.spans) if (sp.s1 > from && sp.s0 < rp.sBrix1 - ViaductFoot) inside.Add(sp);
                 foreach (RailSpanInfo sp in inside)
                 {
-                    if (sp.s0 - AbutLen - from > 2) Arches(from, sp.s0 - AbutLen, rb, ref bay, false);
+                    if (sp.s0 - AbutLen - from > 2) Arches(from, sp.s0 - AbutLen, rb, ref bay, InBrixStation(from + 0.1));     // E2: the station's first bay is its way in
                     from = sp.s1 + AbutLen;
                 }
                 if (rp.sBrix1 - ViaductFoot - from > 2) Arches(from, rp.sBrix1 - ViaductFoot, rb, ref bay, false);
+                // E2: the steps where Brixtun station widens and narrows again
+                if (rp.sBrixSt0 >= 0)
+                    foreach (double se in new[] { rp.sBrixSt0, rp.sBrixSt1 })
+                    {
+                        V2 n; V2 c = RP(se, out n);
+                        BrickWall(rA, c - n * RailHW, c - n * RailStationHW, RDir(se) * (se == rp.sBrixSt0 ? -1 : 1), -0.05, RailParapet);
+                    }
             }
 
             // 3. the bridges
@@ -256,9 +282,10 @@ namespace LundunGreybox
             }
 
             foreach (MeshData m in new[] { rA, rB, rBank, rTrack, rStation, rRamp, rLights }) R.meshes.Add(m);
+            if (rStationA.tri.Count > 0) R.meshes.Add(rStationA);
             List<int> fk = new List<int>(fit.Keys); fk.Sort();
             foreach (int k in fk) R.meshes.Add(fit[k]);
-            R.log.Add(string.Format("railway: {0:0} m of line, {1} arches, {2} bridges, Rye Lane station", rp.length, bay, rp.spans.Count));
+            R.log.Add(string.Format("railway: {0:0} m of line, {1} arches, {2} bridges, Rye Lane station{3}", rp.length, bay, rp.spans.Count, rp.sBrixSt0 >= 0 ? ", Brixtun station" : ""));
         }
 
         /// +1 if the abutment between a and b faces a span ahead of it, -1 if behind, 0 if neither.
@@ -461,7 +488,10 @@ namespace LundunGreybox
             {
                 V2 o; RP((a + b) / 2, out o); o = o * side;
                 V2 oa = RAt(a, side * 5.0), ob = RAt(b, side * 5.0), ia = RAt(a, side * 4.5), ib = RAt(b, side * 4.5);
-                FaceUV(rB, KitArt.B_Girder, oa, ob, o, GirderY0, GirderY1, uStart, V2.Dist(oa, ob), 0, 1, false);
+                double gl = V2.Dist(oa, ob);
+                if (sp.expansion)      // E2: Brixtun's own girders, the name in the middle of the span
+                    FaceUV(rA, KitArt.A_BrixGirder, oa, ob, o, GirderY0, GirderY1, Math.Max(0, 16 - gl / 2), gl, 0, 1, false);
+                else FaceUV(rB, KitArt.B_Girder, oa, ob, o, GirderY0, GirderY1, uStart, gl, 0, 1, false);
                 SwQuad(rB, KitArt.S_Green, new P3(ia, GirderY0, 0, 0), new P3(ib, GirderY0, 0, 0), new P3(ib, GirderY1, 0, 0), new P3(ia, GirderY1, 0, 0), -o.x, 0, -o.z);
                 SwQuad(rB, KitArt.S_Green, new P3(ia, GirderY1, 0, 0), new P3(ib, GirderY1, 0, 0), new P3(ob, GirderY1, 0, 0), new P3(oa, GirderY1, 0, 0), 0, 1, 0);
                 SwQuad(rB, KitArt.S_Green, new P3(ia, GirderY0, 0, 0), new P3(ib, GirderY0, 0, 0), new P3(ob, GirderY0, 0, 0), new P3(oa, GirderY0, 0, 0), 0, -1, 0);
@@ -488,7 +518,7 @@ namespace LundunGreybox
             for (double s = 0; s < end; s += 4)
             {
                 double s1 = Math.Min(end + 0.5, s + 4);
-                double hr = s >= rp.sStation0 ? PlatformEdge : 3.9;
+                double hr = s >= rp.sStation0 || InBrixStation(s + 0.01) ? PlatformEdge : 3.9;
                 SwQuad(rTrack, KitArt.S_MidGrey, new P3(RAt(s, 3.9), RailBallast, 0, 0), new P3(RAt(s1, 3.9), RailBallast, 0, 0), new P3(RAt(s1, -hr), RailBallast, 0, 0), new P3(RAt(s, -hr), RailBallast, 0, 0), 0, 1, 0);
                 V2 o; RP(s, out o);
                 SwQuad(rTrack, KitArt.S_MidGrey, new P3(RAt(s, 3.9), RailDeck, 0, 0), new P3(RAt(s1, 3.9), RailDeck, 0, 0), new P3(RAt(s1, 3.9), RailBallast, 0, 0), new P3(RAt(s, 3.9), RailBallast, 0, 0), o.x, 0, o.z);
@@ -526,8 +556,15 @@ namespace LundunGreybox
         static void Station()
         {
             RailPlan rp = railPlan;
-            if (rp.rye == null) return;
-            double p0 = rp.sStation0 + 1, p1 = rp.length - 1;
+            if (rp.rye != null) StationAt(rp.sStation0, rp.length, false);
+            if (rp.sBrixSt0 >= 0) StationAt(rp.sBrixSt0, rp.sBrixSt1, true);       // E2
+        }
+
+        /// A side platform on the right of the line from st0 to st1 (abutment to buffers at Rye Lane, abutment to
+        /// abutment at Brixtun), its canopy, name boards and the stairs up from the passage arch.
+        static void StationAt(double st0, double st1, bool brix)
+        {
+            double p0 = st0 + 1, p1 = st1 - 1;
             double inner = RailStationHW - 0.35;
             // platform
             for (double s = p0; s < p1; s += 4)
@@ -569,11 +606,15 @@ namespace LundunGreybox
                 V2 a = RAt(s - 1.2, -6.5), b = RAt(s + 1.2, -6.5);
                 RBox(rStation, KitArt.S_Navy, RAt(s - 1.15, -6.55), RDir(s), 0.04, 0.04, PlatformTop, 9.2, false);
                 RBox(rStation, KitArt.S_Navy, RAt(s + 1.15, -6.55), RDir(s), 0.04, 0.04, PlatformTop, 9.2, false);
-                FaceUV(rStation, KitArt.B_Station, a, b, o, 8.75, 9.2, unit * 6.4, 6.4, 0, 1, false);
+                if (brix && unit == 0) FaceUV(rStationA, KitArt.A_BrixtunSigns, a, b, o, 8.75, 9.2, StationBoardUnit * 6.4, 6.4, 0, 1, false);    // E2: BRIXTUN
+                else FaceUV(rStation, KitArt.B_Station, a, b, o, 8.75, 9.2, unit * 6.4, 6.4, 0, 1, false);
                 SwQuad(rStation, KitArt.S_Navy, new P3(RAt(s - 1.2, -6.56), 8.75, 0, 0), new P3(RAt(s + 1.2, -6.56), 8.75, 0, 0), new P3(RAt(s + 1.2, -6.56), 9.2, 0, 0), new P3(RAt(s - 1.2, -6.56), 9.2, 0, 0), -o.x, 0, -o.z);
             }
-            StationStairs();
+            StationStairs(st0, p0, p1);
         }
+
+        /// E2: the BRIXTUN name board's unit in the building kit's Brixtun signs strip (atlas A).
+        const int StationBoardUnit = 4;
 
         // ------------------------------------------------------------------ the way in: through an arch, then up the stairs
         /// The first station bay is open right through: a whitewashed passage under the tracks with lights in the vault,
@@ -608,7 +649,8 @@ namespace LundunGreybox
                 Func<double, V2> Wf = side > 0 ? Wn : Ws;
                 V2 o = on * side;
                 V2 a = Wf(1.25) - o * 0.15, b = Wf(6.75) - o * 0.15;
-                FaceUV(rStation, KitArt.B_Station, a, b, o, 2.9, 3.95, (side > 0 ? 0 : 4) * 6.4, 6.4, 0, 1, false);
+                if (side > 0 && InBrixStation(s0 + 0.1)) FaceUV(rStationA, KitArt.A_BrixtunSigns, a, b, o, 2.9, 3.95, StationBoardUnit * 6.4, 6.4, 0, 1, false);   // E2
+                else FaceUV(rStation, KitArt.B_Station, a, b, o, 2.9, 3.95, (side > 0 ? 0 : 4) * 6.4, 6.4, 0, 1, false);
                 SwQuad(rStation, KitArt.S_Navy, new P3(a - o * 0.03, 2.9, 0, 0), new P3(b - o * 0.03, 2.9, 0, 0), new P3(b - o * 0.03, 3.95, 0, 0), new P3(a - o * 0.03, 3.95, 0, 0), -o.x, 0, -o.z);
             }
         }
@@ -617,12 +659,13 @@ namespace LundunGreybox
         /// built against the viaduct in brick, to a landing that steps down onto the platform over the parapet.
         /// The steps are for looks; a smooth invisible ramp under them is what you walk on.
         public static double StairFoot { get { return railPlan == null ? 0 : railPlan.sStation0 + 21.0; } }
+        const double StairFromStart = 21.0;
         const double StepRise = 0.175, StepGo = 0.28, StairIn = RailStationHW, StairOut = RailStationHW + 2.25, StairWall = 0.25;
         const int StepsPerFlight = 22;
 
-        static void StationStairs()
+        static void StationStairs(double st0, double p0, double p1)
         {
-            double f0 = StairFoot, run = StepsPerFlight * StepGo, h1 = StepsPerFlight * StepRise;     // 6.16 m, 3.85 m
+            double f0 = st0 + StairFromStart, run = StepsPerFlight * StepGo, h1 = StepsPerFlight * StepRise;     // 6.16 m, 3.85 m
             double l0 = f0 + run, l1 = l0 + 1.6, f2 = l1 + run, t1 = f2 + 2.6, top = RailParapet;
             double rail = 1.1;
             // steps
@@ -660,14 +703,13 @@ namespace LundunGreybox
             RBox(rLights, -1, RAt((l0 + l1) / 2, -StairIn - 0.12), RDir(l0), 0.3, 0.06, h1 + 2.3, h1 + 2.4, true);
             RBox(rLights, -1, RAt((f2 + t1) / 2, -RailStationHW + 0.1), RDir(f2), 0.3, 0.06, top + 2.3, top + 2.4, true);
             // the back of the platform: an invisible wall behind the railing, open where the stairs come up
-            double p0 = railPlan.sStation0 + 1, p1 = railPlan.length - 1;
             foreach (double[] iv in new[] { new[] { p0, f2 - 0.1 }, new[] { t1 + 0.1, p1 } })
                 for (double s = iv[0]; s < iv[1] - 0.01; s += 4)
                     RBoxAlong(rRamp, -1, s, Math.Min(iv[1], s + 4), -(RailStationHW - 0.18), 0.12, PlatformTop, PlatformTop + 1.5);
         }
 
         /// Opening in the station railing for the stairs (Dress leaves this gap).
-        static bool StairGap(double s) { double f2 = StairFoot + 2 * StepsPerFlight * StepGo + 1.6; return s > f2 - 0.2 && s < f2 + 2.7; }
+        static bool StairGap(double s, double st0) { double f2 = st0 + StairFromStart + 2 * StepsPerFlight * StepGo + 1.6; return s > f2 - 0.2 && s < f2 + 2.7; }
 
         static void FlatSlab(MeshData m, double a, double b, double latIn, double latOut, double y)
         {
@@ -758,6 +800,47 @@ namespace LundunGreybox
             return new[] { p.x, 0.0, p.z };
         }
 
+        /// E2: Brixtun station's street entrance: in front of its passage arch, on the market side (null without it).
+        public static double[] BrixtunStationEntrance()
+        {
+            if (railPlan == null || railPlan.sBrixSt0 < 0) return null;
+            double L = railPlan.sBrixSt1 - railPlan.sBrixSt0, bay = L / Math.Max(1, (int)Math.Round(L / 8.0));
+            V2 p = RAt(railPlan.sBrixSt0 + bay / 2, RailHW + 2.0);
+            return new[] { p.x, 0.0, p.z };
+        }
+
+        /// E2: Brixtun station's platform, start and end along the line (null without it). For the map.
+        public static double[] BrixtunPlatform()
+        {
+            if (railPlan == null || railPlan.sBrixSt0 < 0) return null;
+            return new[] { railPlan.sBrixSt0 + 1, railPlan.sBrixSt1 - 1 };
+        }
+
+        /// E2: where the train stops at Brixtun, measured along TrainPath's points (front of car 0, the east end), and
+        /// where James steps off. False without the station.
+        public static bool TrainBrixtunStop(List<double[]> pts, out double front, out double[] spot)
+        {
+            front = 0; spot = null;
+            if (railPlan == null || railPlan.sBrixSt0 < 0 || pts.Count < 2) return false;
+            double p0 = railPlan.sBrixSt0 + 1, p1 = railPlan.sBrixSt1 - 1;
+            double train = 3 * TrainCarLength + 2 * TrainCarGap;
+            double sf = Math.Min(p1 - 0.5, (p0 + p1) / 2 + train / 2);
+            // TrainPath's points are every 2 m of the line; the train measures along the points themselves
+            double cum = 0; int i = 1;
+            for (; i < pts.Count && (i - 1) * 2.0 < sf; i++)
+            {
+                double seg = Dist3(pts[i - 1], pts[i]);
+                if (i * 2.0 >= sf) { cum += seg * (sf - (i - 1) * 2.0) / 2.0; break; }
+                cum += seg;
+            }
+            front = cum;
+            V2 ps = RAt((p0 + p1) / 2 + 6, -(PlatformEdge + 1.6));
+            spot = new[] { ps.x, PlatformTop + 0.05, ps.z };
+            return true;
+        }
+
+        static double Dist3(double[] a, double[] b) { double dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2]; return Math.Sqrt(dx * dx + dy * dy + dz * dz); }
+
         /// A point on the railway: s metres along it, lat metres to the left (right if negative). For the map.
         public static V2 RailPoint(double s, double lat) { return RAt(s, lat); }
         public static double RailStationStart { get { return railPlan == null ? 0 : railPlan.sStation0; } }
@@ -784,7 +867,7 @@ namespace LundunGreybox
         {
             if (railPlan == null) return;
             RailPlan rp = railPlan;
-            Random rr = new Random(9090), rx = new Random(9191);       // E1: the expansions' bridges get their own numbers
+            Random rr = new Random(9090);       // E1/E2: the expansions' bridges get their own numbers, in their own dressing (DressRailTags)
             double toe = RailHW + RailDeck * BankSlope + 0.8;
             UVRect link = A["chainlink"], rail = A["railing"], post = S("grey");
             // chain-link along the foot of the bank
@@ -801,10 +884,30 @@ namespace LundunGreybox
                 }
             }
             // graffiti where drivers see it: the bridge abutments, and the walls of the approaches
-            Random cityRr = rr;
+            // (E2: the expansions' bridges are tagged by their own dressing, in their own writers' tags: RailTags)
+            RailTags(rr, false);
+
+            // the stations' back railings, on top of the parapet (E2: Brixtun's too)
+            List<double[]> plats = new List<double[]> { new[] { rp.sStation0, rp.length } };
+            if (rp.sBrixSt0 >= 0) plats.Add(new[] { rp.sBrixSt0, rp.sBrixSt1 });
+            foreach (double[] pl in plats)
+                for (double s = pl[0] + 0.5; s + 2 < pl[1] - 0.3; s += 2)
+                {
+                    if (StairGap(s, pl[0]) || StairGap(s + 2, pl[0])) continue;
+                    V2 a = RAt(s, -(RailStationHW - 0.18)), b = RAt(s + 2, -(RailStationHW - 0.18)), o; RP(s + 1, out o);
+                    VQuad(mCut, a, b, RailParapet, RailParapet + 1.1, rail, o);
+                    VQuad(mCut, b, a, RailParapet, RailParapet + 1.1, rail, o * -1);
+                }
+        }
+
+        /// Tags on the bridge abutments and the walls of the approaches: the city's bridges (city dressing), or the
+        /// expansions' (their own dressing, so they get that area's tags; E2).
+        static void RailTags(Random rr, bool expansion)
+        {
+            RailPlan rp = railPlan;
             foreach (RailSpanInfo sp in rp.spans)
             {
-                rr = sp.expansion ? rx : cityRr;
+                if (sp.expansion != expansion) continue;
                 foreach (int facing in new[] { 1, -1 })
                 {
                     double s = facing > 0 ? sp.s0 : sp.s1;
@@ -823,20 +926,15 @@ namespace LundunGreybox
                         if (rr.NextDouble() < 0.3) continue;
                         double sm = w0 + 3 + rr.NextDouble() * (WallRun - 6), w = 1.8 + rr.NextDouble() * 0.5, y0 = 0.3 + rr.NextDouble() * 0.4;
                         V2 o; RP(sm, out o); o = o * side;
-                        VQuad(mCut, RAt(sm - w, side * (RailHW + 0.04)), RAt(sm + w, side * (RailHW + 0.04)), y0, y0 + w * 2 / 2.33, A["tag_" + rr.Next(Tags.Length)], o);
+                        VQuad(mCut, RAt(sm - w, side * (RailHalf(sm, side) + 0.04)), RAt(sm + w, side * (RailHalf(sm, side) + 0.04)), y0, y0 + w * 2 / 2.33, A["tag_" + rr.Next(Tags.Length)], o);
                         D.Count("railway graffiti");
                     }
                 }
             }
-            // the station's back railing, on top of the parapet
-            for (double s = rp.sStation0 + 0.5; s + 2 < rp.length - 0.3; s += 2)
-            {
-                if (StairGap(s) || StairGap(s + 2)) continue;
-                V2 a = RAt(s, -(RailStationHW - 0.18)), b = RAt(s + 2, -(RailStationHW - 0.18)), o; RP(s + 1, out o);
-                VQuad(mCut, a, b, RailParapet, RailParapet + 1.1, rail, o);
-                VQuad(mCut, b, a, RailParapet, RailParapet + 1.1, rail, o * -1);
-            }
         }
+
+        /// E2: run by an expansion's Dress: its bridges' tags (same random numbers as before, so the same places).
+        static void DressRailTags() { if (railPlan != null) RailTags(new Random(9191), true); }
 
         // ------------------------------------------------------------------ helpers (kit atlas UVs)
         static void SwQuad(MeshData m, int sw, P3 a, P3 b, P3 c, P3 d, double nx, double ny, double nz)

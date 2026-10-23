@@ -59,11 +59,45 @@ public static class LundunParkedBuilder
         StreetResult streets = Generator.Streets(data, world, dressed);
         List<ParkSlot> slots = Generator.ParkingSlots(streets);
 
+        GameObject old = GameObject.Find(RootName);
+        GameObject root = new GameObject(RootName);
+        List<Renderer> renderers; List<Vector4> free; int cars, painted; List<string> missing;
+        if (!Bake(slots, root.transform, MeshPath, out renderers, out free, out cars, out painted, out missing))
+        {
+            Object.DestroyImmediate(root);                 // the old parked cars stay
+            EditorUtility.DisplayDialog("Lundun", "No car prefabs in " + PrefabDir + ". Run Lundun → 10 Make Cars from Models first.", "OK");
+            return;
+        }
+        if (old != null) Object.DestroyImmediate(old);
+
+        // the bays kept for real cars
+        LundunParking lp = root.AddComponent<LundunParking>();
+        lp.SetData(free.ToArray(), renderers.ToArray());
+        EditorUtility.SetDirty(lp);
+
+        AssetDatabase.SaveAssets();
+        EditorSceneManager.MarkSceneDirty(scene);
+        Dictionary<string, int> byModel = new Dictionary<string, int>();
+        foreach (ParkSlot s in slots) if (!s.forPopulation) { int n; byModel.TryGetValue(s.model, out n); byModel[s.model] = n + 1; }
+        List<string> parts = new List<string>(); foreach (var kv in byModel) parts.Add(kv.Key + " " + kv.Value);
+        Debug.Log("[Lundun] Parked " + cars + " cars (" + string.Join(", ", parts.ToArray()) + ") in " + renderers.Count + " baked pieces; " + free.Count +
+                  " bays kept for stealable cars." + (missing.Count > 0 ? "  Missing prefabs (used a saloon instead): " + string.Join(", ", missing.ToArray()) : "") +
+                  (painted == 0 ? "  Note: these car models have no 'Paint' material, so they keep their original colours." : "") +
+                  "\nNext: Lundun → 3 Bake Navigation, then Cmd+S.");
+    }
+
+    /// Bakes the static parked cars for these slots under root (per 100 m block, per painted material, colliders under
+    /// root/Colliders), into a mesh asset at meshPath. Also returns the bays kept for real cars. False if there are no
+    /// car prefabs at all. (E3: Brixtun's menu uses it too.)
+    public static bool Bake(List<ParkSlot> slots, Transform root, string meshPath, out List<Renderer> renderers, out List<Vector4> free,
+                            out int cars, out int painted, out List<string> missing)
+    {
+        renderers = new List<Renderer>(); free = new List<Vector4>(); cars = 0; painted = 0;
         if (!AssetDatabase.IsValidFolder(Dir)) AssetDatabase.CreateFolder("Assets/World", "Parked");
         if (!AssetDatabase.IsValidFolder(Dir + "/Paint")) AssetDatabase.CreateFolder(Dir, "Paint");
 
         Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
-        List<string> missing = new List<string>();
+        missing = new List<string>();
         foreach (ParkSlot s in slots)
         {
             if (s.forPopulation || prefabs.ContainsKey(s.model)) continue;
@@ -73,18 +107,15 @@ public static class LundunParkedBuilder
         }
         GameObject fallback = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabDir + "/Veh_sedan.prefab");
         if (fallback == null) foreach (var kv in prefabs) if (kv.Value != null) { fallback = kv.Value; break; }
-        if (fallback == null) { EditorUtility.DisplayDialog("Lundun", "No car prefabs in " + PrefabDir + ". Run Lundun → 10 Make Cars from Models first.", "OK"); return; }
+        if (fallback == null) return false;
 
-        GameObject old = GameObject.Find(RootName);
-        if (old != null) Object.DestroyImmediate(old);
-        AssetDatabase.DeleteAsset(MeshPath);
-        GameObject root = new GameObject(RootName);
-        Transform cols = new GameObject("Colliders").transform; cols.SetParent(root.transform, false);
+        AssetDatabase.DeleteAsset(meshPath);
+        Transform cols = new GameObject("Colliders").transform; cols.SetParent(root, false);
 
         // gather every car part, per 100 m block, per (painted) material
         Dictionary<string, Dictionary<Material, List<CombineInstance>>> blocks = new Dictionary<string, Dictionary<Material, List<CombineInstance>>>();
         Dictionary<string, Material> paints = new Dictionary<string, Material>();
-        int cars = 0, painted = 0;
+        cars = 0; painted = 0;
         EditorUtility.DisplayProgressBar("Lundun", "Parking cars…", 0.3f);
         foreach (ParkSlot s in slots)
         {
@@ -129,7 +160,7 @@ public static class LundunParkedBuilder
         // bake
         EditorUtility.DisplayProgressBar("Lundun", "Baking parked cars…", 0.7f);
         Mesh container = null;
-        List<Renderer> renderers = new List<Renderer>();
+        renderers.Clear();
         List<string> keys = new List<string>(blocks.Keys); keys.Sort();
         foreach (string key in keys)
             foreach (var kv in blocks[key])
@@ -137,9 +168,9 @@ public static class LundunParkedBuilder
                 Mesh mesh = new Mesh { name = "Parked_" + key + "_" + kv.Key.name, indexFormat = IndexFormat.UInt32 };
                 mesh.CombineMeshes(kv.Value.ToArray(), true, true);
                 mesh.RecalculateBounds();
-                if (container == null) { AssetDatabase.CreateAsset(mesh, MeshPath); container = mesh; } else AssetDatabase.AddObjectToAsset(mesh, container);
+                if (container == null) { AssetDatabase.CreateAsset(mesh, meshPath); container = mesh; } else AssetDatabase.AddObjectToAsset(mesh, container);
                 GameObject g = new GameObject(mesh.name);
-                g.transform.SetParent(root.transform, false);
+                g.transform.SetParent(root, false);
                 g.AddComponent<MeshFilter>().sharedMesh = mesh;
                 MeshRenderer r = g.AddComponent<MeshRenderer>();
                 r.sharedMaterial = kv.Key;
@@ -149,21 +180,9 @@ public static class LundunParkedBuilder
             }
 
         // the bays kept for real cars
-        List<Vector4> free = new List<Vector4>();
+        free = new List<Vector4>();
         foreach (ParkSlot s in slots) if (s.forPopulation) free.Add(new Vector4((float)s.x, (float)s.z, (float)s.yaw, (float)s.length));
-        LundunParking lp = root.AddComponent<LundunParking>();
-        lp.SetData(free.ToArray(), renderers.ToArray());
-        EditorUtility.SetDirty(lp);
-
-        AssetDatabase.SaveAssets();
-        EditorSceneManager.MarkSceneDirty(scene);
-        Dictionary<string, int> byModel = new Dictionary<string, int>();
-        foreach (ParkSlot s in slots) if (!s.forPopulation) { int n; byModel.TryGetValue(s.model, out n); byModel[s.model] = n + 1; }
-        List<string> parts = new List<string>(); foreach (var kv in byModel) parts.Add(kv.Key + " " + kv.Value);
-        Debug.Log("[Lundun] Parked " + cars + " cars (" + string.Join(", ", parts.ToArray()) + ") in " + renderers.Count + " baked pieces; " + free.Count +
-                  " bays kept for stealable cars." + (missing.Count > 0 ? "  Missing prefabs (used a saloon instead): " + string.Join(", ", missing.ToArray()) : "") +
-                  (painted == 0 ? "  Note: these car models have no 'Paint' material, so they keep their original colours." : "") +
-                  "\nNext: Lundun → 3 Bake Navigation, then Cmd+S.");
+        return true;
     }
 
     static bool InBumper(Transform t) { for (; t != null; t = t.parent) if (t.GetComponent<CarBumper>() != null) return true; return false; }
