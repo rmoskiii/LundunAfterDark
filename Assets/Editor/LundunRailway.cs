@@ -23,11 +23,18 @@ namespace LundunGreybox
         const double GirderY0 = 5.5, GirderY1 = 8.1, DeckSoffit = 5.6, BeamY = 5.42;
         const double PlatformTop = 7.45, PlatformEdge = 3.45, CanopyY = 10.4;
 
-        public class RailSpanInfo { public string road; public double s0, s1; }
+        public class RailSpanInfo { public string road; public double s0, s1; public bool expansion; }
+
+        // E1: the route through Brixtun (see MakeRailPlan)
+        const double BrixWestX = 120, BrixWestZ0 = -160, BrixR1 = 80, BrixLineZ = -80, BrixR2 = 60;
+        const double BrixViaductZ0 = -380, BrixViaductZ1 = 2;     // the viaduct runs from here on the west side to here on the way north
+
+        static bool InBrixViaduct(double s) { return railPlan.sBrix0 >= 0 && s >= railPlan.sBrix0 && s <= railPlan.sBrix1; }
         public class RailPlan
         {
             public Line line;
             public double length, sViaduct, sStation0;
+            public double sBrix0 = -1, sBrix1 = -1;       // E1: the Brixtun viaduct (−1 = none)
             public List<RailSpanInfo> spans = new List<RailSpanInfo>();
             public RailSpanInfo rye;
         }
@@ -44,7 +51,16 @@ namespace LundunGreybox
             List<V2> p = new List<V2>();
             // E0: the line starts beyond the south edge of the map, wherever that is (−300 for the original city)
             double zStart = Math.Min(-300, Math.Floor((W.worldBounds.wallMinZ - 100) / 10) * 10);
-            for (double z = zStart; z < 150; z += 10) p.Add(new V2(615, z));                                   // up through the gap
+            // E1: its final route through Brixtun: up from the south edge west of the town, a curve east onto a viaduct
+            // across Stockwell Road, Brixtun Road and Atlantic Road (where Brixtun station will be), a curve north,
+            // and up through the gap between Gilmore and Peckam as before
+            List<V2> south = new List<V2>();
+            for (double z = zStart; z < BrixWestZ0; z += 10) south.Add(new V2(BrixWestX, z));
+            for (int i = 0; i <= 16; i++) { double a = Math.PI - Math.PI / 2 * i / 16; south.Add(new V2(BrixWestX + BrixR1 + BrixR1 * Math.Cos(a), BrixWestZ0 + BrixR1 * Math.Sin(a))); }
+            for (double sx = BrixWestX + BrixR1 + 10; sx < 615 - BrixR2 - 0.01; sx += 10) south.Add(new V2(sx, BrixLineZ));
+            for (int i = 0; i <= 14; i++) { double a = -Math.PI / 2 + Math.PI / 2 * i / 14; south.Add(new V2(615 - BrixR2 + BrixR2 * Math.Cos(a), BrixLineZ + BrixR2 + BrixR2 * Math.Sin(a))); }
+            for (double z = BrixLineZ + BrixR2 + 10; z < 150; z += 10) south.Add(new V2(615, z));               // up through the gap
+            p.AddRange(south);
             for (double z = 150; z < 250; z += 4) { double t = (z - 150) / 100; p.Add(new V2(615 + 10 * (1 - Math.Cos(Math.PI * t)), z)); }
             for (double z = 250; z < 466; z += 8) p.Add(new V2(635, z));
             V2 d1 = new V2(1, -0.148).Norm;                                                                   // then east, along the river side
@@ -62,11 +78,21 @@ namespace LundunGreybox
             double lat; rp.sViaduct = RailProject(rp.line, new V2(635, 400), out lat);
 
             List<string> ids = new List<string>(roads.Keys); ids.Sort();
+            // E1: the expansions' roads it crosses get bridges too
+            List<RoadInfo> crossed = new List<RoadInfo>();
             foreach (string id in ids)
             {
-                RoadInfo ri = roads[id];
+                string nm = roads[id].r.name;
+                if (nm == "Lundun Ring South" || nm == "Old Kent Lane" || nm == "Rye Lane") crossed.Add(roads[id]);
+            }
+            if (W.expansion != null && W.expansion.roads != null)
+                foreach (LwRoad xr in W.expansion.roads)
+                    crossed.Add(new RoadInfo { r = xr, line = new Line(Pts(xr.points)), w = xr.width, pave = ClassPave(xr.roadClass), cls = xr.roadClass });
+            rp.sBrix0 = RailProject(rp.line, new V2(BrixWestX, BrixViaductZ0), out lat);
+            rp.sBrix1 = RailProject(rp.line, new V2(615, BrixViaductZ1), out lat);
+            foreach (RoadInfo ri in crossed)
+            {
                 string nm = ri.r.name;
-                if (nm != "Lundun Ring South" && nm != "Old Kent Lane" && nm != "Rye Lane") continue;
                 for (int i = 0; i + 1 < rp.line.p.Count; i++)
                     for (int j = 0; j + 1 < ri.line.p.Count; j++)
                     {
@@ -82,7 +108,7 @@ namespace LundunGreybox
                         bool dup = false;
                         foreach (RailSpanInfo o in rp.spans) if (o.road == nm && Math.Abs((o.s0 + o.s1) / 2 - sc) < 2) dup = true;
                         if (dup) continue;                                                  // the line passes exactly through a vertex
-                        RailSpanInfo sp = new RailSpanInfo { road = nm, s0 = sc - half, s1 = sc + half };
+                        RailSpanInfo sp = new RailSpanInfo { road = nm, s0 = sc - half, s1 = sc + half, expansion = !roads.ContainsKey(ri.r.id) };
                         rp.spans.Add(sp);
                         if (nm == "Rye Lane") rp.rye = sp;
                     }
@@ -123,7 +149,7 @@ namespace LundunGreybox
                 if (s >= sp.s0 && s <= sp.s1) return 'S';
                 if ((s >= sp.s0 - AbutLen && s < sp.s0) || (s > sp.s1 && s <= sp.s1 + AbutLen)) return 'A';
             }
-            if (s >= railPlan.sViaduct) return 'V';
+            if (s >= railPlan.sViaduct || InBrixViaduct(s)) return 'V';
             foreach (RailSpanInfo sp in railPlan.spans)
                 if ((s >= sp.s0 - AbutLen - WallRun && s < sp.s0) || (s > sp.s1 && s <= sp.s1 + AbutLen + WallRun)) return 'W';
             return 'E';
@@ -168,6 +194,7 @@ namespace LundunGreybox
                 foreach (double c in new[] { sp.s0 - AbutLen - WallRun, sp.s0 - AbutLen, sp.s0, sp.s1, sp.s1 + AbutLen, sp.s1 + AbutLen + WallRun })
                     if (c > 0 && c < rp.length) cuts.Add(c);
             cuts.Add(rp.sViaduct + ViaductFoot);
+            if (rp.sBrix0 >= 0) { cuts.Add(rp.sBrix0); cuts.Add(rp.sBrix0 + ViaductFoot); cuts.Add(rp.sBrix1 - ViaductFoot); cuts.Add(rp.sBrix1); }
             cuts.Sort();
             for (int i = 0; i + 1 < cuts.Count; i++)
             {
@@ -175,6 +202,7 @@ namespace LundunGreybox
                 if (b - a < 0.01) continue;
                 char k = RailKind((a + b) / 2);
                 if (a >= rp.sViaduct + ViaductFoot - 0.01 && k == 'V') continue;      // arches: below
+                if (k == 'V' && rp.sBrix0 >= 0 && a >= rp.sBrix0 + ViaductFoot - 0.01 && b <= rp.sBrix1 - ViaductFoot + 0.01) continue;
                 if (k == 'E') Embankment(a, b, i > 0 && RailKind(a - 0.5) != 'E', b < rp.length && RailKind(b + 0.5) != 'E');
                 else if (k == 'W' || k == 'A' || k == 'V') Solid(a, b, k == 'A' ? SpanFacing(a, b) : 0);
                 else if (k == 'S') { }
@@ -192,6 +220,20 @@ namespace LundunGreybox
             }
             else Arches(rp.sViaduct + ViaductFoot, rp.length, rr, ref bay, false);
             EndWall(rp.length);
+            // E1: Brixtun's arches, between its bridges (their own random numbers, after the rest)
+            if (rp.sBrix0 >= 0)
+            {
+                Random rb = new Random(6262);
+                double from = rp.sBrix0 + ViaductFoot;
+                List<RailSpanInfo> inside = new List<RailSpanInfo>();
+                foreach (RailSpanInfo sp in rp.spans) if (sp.s1 > from && sp.s0 < rp.sBrix1 - ViaductFoot) inside.Add(sp);
+                foreach (RailSpanInfo sp in inside)
+                {
+                    if (sp.s0 - AbutLen - from > 2) Arches(from, sp.s0 - AbutLen, rb, ref bay, false);
+                    from = sp.s1 + AbutLen;
+                }
+                if (rp.sBrix1 - ViaductFoot - from > 2) Arches(from, rp.sBrix1 - ViaductFoot, rb, ref bay, false);
+            }
 
             // 3. the bridges
             int bi = 0;
@@ -731,7 +773,7 @@ namespace LundunGreybox
             V2 e = RAt(end, -RailTrack); pts.Add(new[] { e.x, RailHead, e.z });
             stationFront = end - 1.0;
             double lat;                                          // out beyond the edge of the map, behind the hedge
-            depotFront = RailProject(railPlan.line, new V2(615, W.worldBounds.wallMinZ - 30), out lat);
+            depotFront = RailProject(railPlan.line, new V2(railPlan.line.p[0].x, W.worldBounds.wallMinZ - 30), out lat);
             V2 ps = RAt(stationFront - 30, -(PlatformEdge + 1.6));
             platformSpot = new[] { ps.x, PlatformTop + 0.05, ps.z };
             return pts;
@@ -742,7 +784,7 @@ namespace LundunGreybox
         {
             if (railPlan == null) return;
             RailPlan rp = railPlan;
-            Random rr = new Random(9090);
+            Random rr = new Random(9090), rx = new Random(9191);       // E1: the expansions' bridges get their own numbers
             double toe = RailHW + RailDeck * BankSlope + 0.8;
             UVRect link = A["chainlink"], rail = A["railing"], post = S("grey");
             // chain-link along the foot of the bank
@@ -759,8 +801,10 @@ namespace LundunGreybox
                 }
             }
             // graffiti where drivers see it: the bridge abutments, and the walls of the approaches
+            Random cityRr = rr;
             foreach (RailSpanInfo sp in rp.spans)
             {
+                rr = sp.expansion ? rx : cityRr;
                 foreach (int facing in new[] { 1, -1 })
                 {
                     double s = facing > 0 ? sp.s0 : sp.s1;

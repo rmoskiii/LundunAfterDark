@@ -60,6 +60,10 @@ public class LundunDressing : MonoBehaviour
             LundunTube tube = GetComponent<LundunTube>();
             if (tube == null) tube = gameObject.AddComponent<LundunTube>();
             tube.Init(stationNames, stationPositions);
+            // E1: the expansion areas' stations (built by their own menus)
+            foreach (LundunExpansionArea area in FindObjectsByType<LundunExpansionArea>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                for (int i = 0; i < area.StationNames.Length && i < area.StationTops.Length; i++)
+                    tube.AddStation(area.StationNames[i], area.StationTops[i], i < area.StationOut.Length ? area.StationOut[i] : Vector3.forward);
         }
         // R9: Lundun Cycles
         if (bikeDocks.Length > 0 && bikeFrame != null && bikeWheel != null)

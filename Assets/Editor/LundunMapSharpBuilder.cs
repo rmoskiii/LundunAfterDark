@@ -30,7 +30,11 @@ public static class LundunMapSharpBuilder
             LwBounds wb = data.worldBounds;
             double side = System.Math.Max(wb.wallMaxX - wb.wallMinX, wb.wallMaxZ - wb.wallMinZ) + 60;
             double mpp = System.Math.Max(MetresPerPixel, System.Math.Ceiling(side / 4096.0 * 100) / 100);
-            img = MapRaster.Render(data, Generator.Build(data), mpp);
+            // E1: the expansion areas too (built first; then the city again, which the map's places need)
+            GreyboxResult xr = Generator.BuildExpansion(data);
+            LundunWorldData xw = Generator.ExpansionWorld;
+            GreyboxResult city = Generator.Build(data);
+            img = MapRaster.Render(data, city, mpp, xr.buildings.Count > 0 ? xw : null, xr);
 
             EditorUtility.DisplayProgressBar("Lundun", "Saving " + img.width + "×" + img.height + "…", 0.7f);
             Texture2D t = new Texture2D(img.width, img.height, TextureFormat.RGBA32, false);

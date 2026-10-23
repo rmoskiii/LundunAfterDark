@@ -31,9 +31,9 @@ namespace LundunGreybox
         public const string StreetDecalMat = "Street_Decals", StreetSettsMat = "Street_Setts";
 
         static readonly HashSet<string> CobbledRoads = new HashSet<string> { "Knightsbury Mews", "Choumert Grove", "Warehouse Lane", "Dock Street", "Wharf Road" };
-        static readonly HashSet<string> BusLaneRoads = new HashSet<string> { "Old Kent Lane", "Rye Lane", "Oxbridge Street", "Commercial Way" };
+        static readonly HashSet<string> BusLaneRoads = new HashSet<string> { "Old Kent Lane", "Rye Lane", "Oxbridge Street", "Commercial Way", "Brixtun Road", "Coldharbor Lane" };   // E1: Brixtun's too
         static readonly HashSet<string> NoLineRoads = new HashSet<string> { "Knightsbury Mews" };
-        static readonly HashSet<string> ShopStreets = new HashSet<string> { "Peckam High Street", "Brompton Road", "Tower Plaza" };
+        static readonly HashSet<string> ShopStreets = new HashSet<string> { "Peckam High Street", "Brompton Road", "Tower Plaza", "Electric Parade", "Atlantic Road" };
 
         // heights: road 0.02, junction plates 0.025, setts 0.042 (over the old centre line), bus lane 0.032, wear 0.034, iron 0.036,
         // existing white lines 0.04, new lines and text 0.044, zebras 0.048

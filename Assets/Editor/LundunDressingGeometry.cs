@@ -53,7 +53,7 @@ namespace LundunGreybox
 
                 // Underground entrance: at the edge nearest a road with a pavement, stairs heading into the park
                 ParkPlan st = null;
-                if (StationNames.ContainsKey(park.name))
+                if (StationTable.ContainsKey(park.name))
                 {
                     double best = double.MaxValue; V2 bestP = cen, bestIn = new V2(0, 1);
                     for (int i = 0; i < poly.Count; i++)
@@ -73,11 +73,12 @@ namespace LundunGreybox
                             if (gap < best) { best = gap; bestP = p; bestIn = inward; }
                         }
                     }
-                    st = new ParkPlan { park = park.name, kind = "station", label = StationNames[park.name], edge = bestP, dir = bestIn, c = bestP + bestIn * 7.5, hl = 4.5, hw = 2.4 };
+                    st = new ParkPlan { park = park.name, kind = "station", label = StationTable[park.name], edge = bestP, dir = bestIn, c = bestP + bestIn * 7.5, hl = 4.5, hw = 2.4 };
                     plans.Add(st);
                 }
 
-                // Football cage: as near the middle as fits, long side along the park's long side
+                // Football cage: as near the middle as fits, long side along the park's long side (E1: not in a town square)
+                if (IsSquare(park)) continue;
                 double minX = double.MaxValue, maxX = double.MinValue, minZ = double.MaxValue, maxZ = double.MinValue;
                 foreach (V2 q in poly) { minX = Math.Min(minX, q.x); maxX = Math.Max(maxX, q.x); minZ = Math.Min(minZ, q.z); maxZ = Math.Max(maxZ, q.z); }
                 V2 along = (maxX - minX) >= (maxZ - minZ) ? new V2(1, 0) : new V2(0, 1);
@@ -159,14 +160,15 @@ namespace LundunGreybox
             A = PaintAtlas();
             D.atlas = A;
             foreach (LampInfo l in lampList) Claim(new V2(l.x, l.z), 1.2);
+            if (!ExpansionMode) foreach (V2 g in joinGhostLamps) Claim(g, 1.2);     // E1: lamps taken out where expansion roads join
 
-            DressPlaces();                  // R7: hospitals, police stations, safehouses (first, so nothing else lands on them)
+            if (!ExpansionMode) DressPlaces();      // R7: hospitals, police stations, safehouses (first, so nothing else lands on them)
             List<ParkPlan> plans = PlanParks();
             DressParks(plans);
             DressEstateCage();
             DressBusStops();
             DressCrossings();
-            DressBikeDocks();               // R9: Lundun Cycles
+            if (!ExpansionMode) DressBikeDocks();   // R9: Lundun Cycles (E1: the expansions' docks come later)
             DressJunctionCorners();
             DressStreetPlates();
             DressShopFronts();
@@ -178,7 +180,7 @@ namespace LundunGreybox
             DressGraffitiWalls();
             DressFurniture();               // L3: district furniture (its own random seed, after everything else)
             DressGrit();                    // L4: bin bags and fly-tipping (its own random seed, last)
-            DressRailway();                 // L6: the railway's fences and graffiti (its own random seed, after everything)
+            if (!ExpansionMode) DressRailway();     // L6: the railway's fences and graffiti (its own random seed, after everything; the city does all of it)
 
             foreach (MeshData m in new[] { mSolid, mCut, mGlow }) D.meshes.AddRange(Chunk(m));
             int v = 0; foreach (MeshData m in D.meshes) v += m.VertexCount;
@@ -237,8 +239,8 @@ namespace LundunGreybox
             DressAtlas a = new DressAtlas(2048, 4096, 99);
             foreach (var kv in Swatches) a.Swatch(kv.Key, Col.Hex(kv.Value));
             a.UndergroundLogo("ug_logo");
-            foreach (var kv in StationNames) a.StationBoard("ug_" + kv.Value, kv.Value);
-            foreach (string[][] list in new[] { PeckamShops, KnightShops, GilmoreShops, CanaryShops })
+            foreach (var kv in StationTable) a.StationBoard("ug_" + kv.Value, kv.Value);
+            foreach (string[][] list in new[] { AreaShops(PeckamShops), KnightShops, GilmoreShops, CanaryShops })
                 foreach (string[] s in list) a.Sign("shop_" + s[0], 640, 80, s[0], Col.Hex(s[1]), Col.Hex(s[2]), Col.Hex(s[2]));
             foreach (string p in Pubs) a.Sign("pub_" + p, 640, 80, p, Col.Hex("1f3b2c"), Col.Hex("d9b45a"), new Col(0, 0, 0, 0), 0.42);
             List<string> rids = new List<string>(roads.Keys); rids.Sort();
@@ -248,7 +250,7 @@ namespace LundunGreybox
                 if (ri.pave > 0 && ri.cls != "bridge") a.StreetPlate(PlateKey(ri), ri.r.name.ToUpperInvariant(), RoadCode(ri));
             }
             for (int i = 0; i < Ads.Length; i++) { string[] d = Ads[i]; a.Billboard("ad_" + i, d[0], d[1], Col.Hex(d[2]), Col.Hex(d[3]), Col.Hex(d[4]), Col.Hex(d[5])); }
-            for (int i = 0; i < Tags.Length; i++) a.Graffiti("tag_" + i, Tags[i], i);
+            for (int i = 0; i < AreaTags.Length; i++) a.Graffiti("tag_" + i, AreaTags[i], i);
             a.ChainLink("chainlink"); a.Railing("railing"); a.Stairwell("stairs");
             a.OfficeWindows("officewin"); a.HomeWindows("homewin"); a.Battenburg("battenburg"); a.HSign("sign_H");
             a.Sign("sign_AE", 640, 80, "EMERGENCY  A&E", Col.Hex("c8102e"), Col.Hex("ffffff"), new Col(0, 0, 0, 0), 0.5);
@@ -279,6 +281,7 @@ namespace LundunGreybox
                 }
             string best = null; int bn = 0;
             foreach (var kv in votes) if (kv.Value > bn) { bn = kv.Value; best = kv.Key; }
+            if (ExpansionMode) return "SW2";                                   // E1: Brixtun
             string code;
             return best != null && districtCode.TryGetValue(best, out code) ? code : "SE1";
         }
@@ -867,7 +870,7 @@ namespace LundunGreybox
                     bool pub = (dist == "D_KNIGHT" || dist == "D_GILMOR") && nearJunction && pubs < Pubs.Length && u == 0 && drng.NextDouble() < 0.6;
                     if (pub) { Pub(uc, n, t, unitW, Pubs[pubs++]); continue; }
                     if (drng.NextDouble() > chance) continue;
-                    string[][] list = dist == "D_PECKAM" ? PeckamShops : dist == "D_KNIGHT" ? KnightShops : dist == "D_CANARY" ? CanaryShops : GilmoreShops;
+                    string[][] list = dist == "D_PECKAM" ? AreaShops(PeckamShops) : dist == "D_KNIGHT" ? KnightShops : dist == "D_CANARY" ? CanaryShops : GilmoreShops;
                     if (dist == "D_GILMOR" && gilShops >= 4) continue;
                     if (dist == "D_GILMOR") gilShops++;
                     string[] shop = list[drng.Next(list.Length)];
@@ -1150,7 +1153,7 @@ namespace LundunGreybox
         {
             foreach (BuildingInfo b in blds)
             {
-                double chance = b.district == "D_GILMOR" ? 0.6 : b.district == "D_PECKAM" ? 0.3 : 0;
+                double chance = b.district == "D_GILMOR" ? 0.6 : b.district == "D_PECKAM" ? (ExpansionMode ? 0.5 : 0.3) : 0;      // E1: Brixtun has more
                 if (drng.NextDouble() > chance) continue;
                 V2 f = b.dir.Norm, l = f.Left;
                 // the ends of terraces / blocks (side walls), plus long walls on the estate

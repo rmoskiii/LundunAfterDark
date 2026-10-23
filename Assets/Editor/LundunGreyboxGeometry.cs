@@ -236,8 +236,10 @@ namespace LundunGreybox
         public static GreyboxResult Build(LundunWorldData world)
         {
             W = world; rng = new Random(Seed);
+            ExpansionMode = false;
             GreyboxResult R = new GreyboxResult();
             Prepare();
+            PrepareJoins();             // E1: where the expansions' roads meet ours (nothing changes without them)
             BuildGround(R);
             BuildRiver(R);
             BuildRoads(R);
@@ -355,8 +357,8 @@ namespace LundunGreybox
                 double rad = 0;
                 foreach (LwLeg leg in j.legs)
                 {
-                    RoadInfo ri = roads[leg.road];
-                    double ch = ChainageAt(ri, j.id);
+                    RoadInfo ri = LegRoad(leg.road);                 // E1: (in an expansion, a city road it joins)
+                    double ch = LegChainage(ri, j);
                     double ahead = leg.toward == "end" ? Math.Min(ch + 6, ri.line.Length) : Math.Max(ch - 6, 0);
                     V2 dd; V2 q = ri.line.At(ahead, out dd);
                     ji.legDir.Add((q - ji.c).Norm); ji.legRoad.Add(ri);
@@ -602,7 +604,7 @@ namespace LundunGreybox
                     case "street": lines.Add(new[] { 0.0, 1, 0.12 }); break;
                     case "bridge": lines.Add(new[] { 0.0, 0, 0.15 }); lines.Add(new[] { hw - 0.4, 0, 0.2 }); lines.Add(new[] { -hw + 0.4, 0, 0.2 }); break;
                 }
-                List<double[]> keep = Keep(L, Concat(ri.boxCut, ri.trimAll), 1.0);
+                List<double[]> keep = Keep(L, Concat(ri.boxCut, ri.trimAll, JoinCuts(ri)), 1.0);
                 foreach (double[] ln in lines)
                     foreach (double[] iv in keep)
                     {
@@ -647,6 +649,8 @@ namespace LundunGreybox
             foreach (JInfo ji in juncs.Values)
             {
                 if (InBox(ji.c)) continue;
+                if (JoinPlate(m, ji.j.id, y)) continue;           // E1: a junction an expansion road joins (the city builds it, wider)
+                if (ExpansionMode && TouchesCity(ji)) continue;
                 List<V2> pts = new List<V2>();
                 for (int k = 0; k < ji.legDir.Count; k++)
                 {
@@ -662,6 +666,7 @@ namespace LundunGreybox
                 foreach (V2 q in hull) poly.Add(new P3(q, y));
                 m.FanUp(poly);
             }
+            NewJoinPlates(m, y);                                  // E1: new junctions on the city's roads
             R.meshes.Add(m);
         }
 
@@ -732,8 +737,9 @@ namespace LundunGreybox
             };
             Dictionary<string, List<V2>> dpoly = new Dictionary<string, List<V2>>();
             foreach (LwPoly d in W.districts) dpoly[d.id] = Pts(d.polygon);
-            railPlan = UseRailway ? MakeRailPlan() : null;      // L6: the railway (no random numbers: nothing else moves)
+            if (!ExpansionMode) railPlan = UseRailway ? MakeRailPlan() : null;      // L6: the railway (no random numbers: nothing else moves); E1: the expansions keep the city's
             railLamps.Clear();
+            joinGhostLamps.Clear();
             foreach (RoadInfo ri in roads.Values)
             {
                 if (ri.cls == "service") continue;
@@ -748,6 +754,10 @@ namespace LundunGreybox
                         V2 dir; V2 c = ri.line.At(ch, out dir);
                         V2 pos = c + dir.Left * (s * lateral);
                         if (InBox(pos) || NearOtherRoad(pos, ri, 1.0)) continue;
+                        // E1: an expansion road joins here: no lamp (its spot stays taken, so the dressing doesn't shift)
+                        bool joined = false;
+                        foreach (double[] iv in JoinCuts(ri)) if (ch > iv[0] - 4 && ch < iv[1] + 4) { joined = true; break; }
+                        if (joined) { joinGhostLamps.Add(pos); continue; }
                         V2 toRoad = dir.Left * -s;
                         int style;
                         switch (DistrictAt(pos, dpoly))
@@ -834,12 +844,13 @@ namespace LundunGreybox
             foreach (LwPoly park in W.parks)
             {
                 List<V2> poly = Pts(park.polygon);
+                bool square = IsSquare(park);                     // E1: a paved town square, not a park
                 List<P3> p3 = new List<P3>(); foreach (V2 q in poly) p3.Add(new P3(q, 0.012));
-                grass.FanUp(p3);
+                if (square) SquarePaving(R, poly); else grass.FanUp(p3);
                 double minX = double.MaxValue, maxX = double.MinValue, minZ = double.MaxValue, maxZ = double.MinValue;
                 foreach (V2 q in poly) { minX = Math.Min(minX, q.x); maxX = Math.Max(maxX, q.x); minZ = Math.Min(minZ, q.z); maxZ = Math.Max(maxZ, q.z); }
                 double area = Math.Abs(PolyArea(poly));
-                int want = (int)(area / 140);
+                int want = (int)(area / (square ? 520 : 140));
                 List<V2> placed = new List<V2>();
                 for (int tries = 0; tries < want * 20 && placed.Count < want; tries++)
                 {
@@ -874,30 +885,32 @@ namespace LundunGreybox
 
         // ------------------------------------------------------------------ buildings
         static int NX, NZ; static bool[] blocked, occupied;
+        /// E1: where the building grid starts (0, 0 for the city; the expansions start theirs further south).
+        static double GX0, GZ0;
 
         static int CellIndex(V2 q)
         {
-            int ix = (int)Math.Floor(q.x / Cell), iz = (int)Math.Floor(q.z / Cell);
+            int ix = (int)Math.Floor((q.x - GX0) / Cell), iz = (int)Math.Floor((q.z - GZ0) / Cell);
             if (ix < 0 || iz < 0 || ix >= NX || iz >= NZ) return -1;
             return iz * NX + ix;
         }
 
         static void MarkSegment(V2 a, V2 b, double r)
         {
-            int x0 = Math.Max(0, (int)((Math.Min(a.x, b.x) - r) / Cell)), x1 = Math.Min(NX - 1, (int)((Math.Max(a.x, b.x) + r) / Cell));
-            int z0 = Math.Max(0, (int)((Math.Min(a.z, b.z) - r) / Cell)), z1 = Math.Min(NZ - 1, (int)((Math.Max(a.z, b.z) + r) / Cell));
+            int x0 = Math.Max(0, (int)((Math.Min(a.x, b.x) - r - GX0) / Cell)), x1 = Math.Min(NX - 1, (int)((Math.Max(a.x, b.x) + r - GX0) / Cell));
+            int z0 = Math.Max(0, (int)((Math.Min(a.z, b.z) - r - GZ0) / Cell)), z1 = Math.Min(NZ - 1, (int)((Math.Max(a.z, b.z) + r - GZ0) / Cell));
             for (int iz = z0; iz <= z1; iz++)
                 for (int ix = x0; ix <= x1; ix++)
                 {
-                    V2 c = new V2((ix + 0.5) * Cell, (iz + 0.5) * Cell);
+                    V2 c = new V2((ix + 0.5) * Cell + GX0, (iz + 0.5) * Cell + GZ0);
                     if (Line.SegDist(c, a, b) <= r) blocked[iz * NX + ix] = true;
                 }
         }
 
         static void MarkRect(double x0, double x1, double z0, double z1)
         {
-            for (int iz = Math.Max(0, (int)(z0 / Cell)); iz <= Math.Min(NZ - 1, (int)(z1 / Cell)); iz++)
-                for (int ix = Math.Max(0, (int)(x0 / Cell)); ix <= Math.Min(NX - 1, (int)(x1 / Cell)); ix++)
+            for (int iz = Math.Max(0, (int)((z0 - GZ0) / Cell)); iz <= Math.Min(NZ - 1, (int)((z1 - GZ0) / Cell)); iz++)
+                for (int ix = Math.Max(0, (int)((x0 - GX0) / Cell)); ix <= Math.Min(NX - 1, (int)((x1 - GX0) / Cell)); ix++)
                     blocked[iz * NX + ix] = true;
         }
 
@@ -920,7 +933,9 @@ namespace LundunGreybox
 
         static void BuildBuildings(GreyboxResult R)
         {
+            GX0 = 0; GZ0 = 0;
             NX = (int)Math.Ceiling(1600 / Cell); NZ = (int)Math.Ceiling(1200 / Cell);
+            if (ExpansionMode) { GX0 = ExpGridX0; GZ0 = ExpGridZ0; NX = (int)Math.Ceiling(ExpGridW / Cell); NZ = (int)Math.Ceiling(ExpGridH / Cell); }
             blocked = new bool[NX * NZ]; occupied = new bool[NX * NZ];
             foreach (RoadInfo ri in roads.Values)
             {
@@ -933,12 +948,16 @@ namespace LundunGreybox
                 List<V2> poly = Pts(park.polygon);
                 for (int k = 0; k < NX * NZ; k++)
                 {
-                    V2 c = new V2((k % NX + 0.5) * Cell, (k / NX + 0.5) * Cell);
+                    V2 c = new V2((k % NX + 0.5) * Cell + GX0, (k / NX + 0.5) * Cell + GZ0);
                     if (InPoly(c, poly) || EdgeDist(c, poly) < 2) blocked[k] = true;
                 }
             }
-            MarkRect(boxX0 - 10, boxX1 + 10, boxZ0 - 10, boxZ1 + 10);
-            MarkRect(300, 360, 355, 405);                                       // estate courtyard (M1 on foot)
+            if (!ExpansionMode)
+            {
+                MarkRect(boxX0 - 10, boxX1 + 10, boxZ0 - 10, boxZ1 + 10);
+                MarkRect(300, 360, 355, 405);                                   // estate courtyard (M1 on foot)
+            }
+            else ExpansionBlocks(R);                                            // E1: the railway, the city's roads, the special buildings
             foreach (LwPoi p in W.pois) if (!p.id.StartsWith("LM_")) MarkSegment(new V2(p.x, p.z), new V2(p.x, p.z), 12);
             foreach (LwSpawn s in W.spawns) MarkSegment(new V2(s.x, s.z), new V2(s.x, s.z), 6);
 
@@ -948,6 +967,7 @@ namespace LundunGreybox
             foreach (LwJunction j in W.junctions) if (j.id == "J10") circus = new V2(j.x, j.z);
 
             // 1. Estate tower (one, fixed): first free spot spiralling out from the west of the estate
+            if (!ExpansionMode)
             {
                 List<V2> est; if (dpoly.TryGetValue("D_GILMOR", out est))
                     for (int k = 0; k < 400; k++)
@@ -979,7 +999,7 @@ namespace LundunGreybox
                         V2 d2; V2 mid = ri.line.At(Math.Min(ch + len / 2, L), out d2);
                         double setback = ri.w / 2 + Math.Max(ri.pave, ri.verge) + 2.2 + dep / 2 + rng.NextDouble() * 1.5;
                         V2 c = mid + d2.Left * (s * setback);
-                        if (rng.NextDouble() > 0.08 && TryPlace(R, did, dpoly[did], c, d2, len, dep, h, rule.gap))
+                        if (rng.NextDouble() > (ExpansionMode ? ExpEmptyLots : 0.08) && TryPlace(R, did, dpoly[did], c, d2, len, dep, h, rule.gap))
                             ch += len + rule.gap + rng.NextDouble() * 3;
                         else ch += 4;
                     }
@@ -1005,7 +1025,7 @@ namespace LundunGreybox
                 }
             }
 
-            int cleared = ClearPlots(R);                                       // R7: room for hospitals, police stations, safehouses
+            int cleared = ExpansionMode ? 0 : ClearPlots(R);                   // R7: room for hospitals, police stations, safehouses
             if (cleared > 0) R.log.Add("  " + cleared + " buildings cleared for hospitals / police stations / safehouses");
 
             // L1: the building kit (terraces, parades, estates, towers…) on exactly these plots. The plain boxes below

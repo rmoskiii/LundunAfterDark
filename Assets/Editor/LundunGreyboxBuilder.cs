@@ -317,6 +317,24 @@ public static class LundunGreyboxBuilder
         Component surface = EnsureNavigationSurface();
         if (surface == null) return;
         Selection.activeGameObject = surface.gameObject;
+        Component x = EnsureExpansionSurface();                       // E1: the expansions bake on their own (null without any)
+        Bake(x != null ? new Object[] { surface, x } : new Object[] { surface });
+    }
+
+    /// E1: rebakes just the expansion areas (much quicker than the whole city).
+    [MenuItem("Lundun/3b Bake Navigation – Expansions only", false, 3)]
+    public static void BakeExpansionNavigation()
+    {
+        if (SceneManager.GetActiveScene().name != "Lundun") { Dialog("Open the Lundun scene first."); return; }
+        if (EnsureNavigationSurface() == null) return;                 // (keeps the city's surface out of the expansions)
+        Component x = EnsureExpansionSurface();
+        if (x == null) { Dialog("There are no expansion areas yet."); return; }
+        Selection.activeGameObject = x.gameObject;
+        Bake(new Object[] { x });
+    }
+
+    static void Bake(Object[] surfaces)
+    {
         try
         {
             Type mgr = FindType("Unity.AI.Navigation.Editor.NavMeshAssetManager");
@@ -325,8 +343,8 @@ public static class LundunGreyboxBuilder
             MethodInfo start = mgr == null ? null : mgr.GetMethod("StartBakingSurfaces", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (instance != null && start != null)
             {
-                start.Invoke(instance, new object[] { new Object[] { surface } });
-                Debug.Log("[Lundun] NavMesh bake started (progress bar bottom-right). Takes a minute or two. Then press Play.");
+                start.Invoke(instance, new object[] { surfaces });
+                Debug.Log("[Lundun] NavMesh bake started for " + surfaces.Length + " area(s) (progress bar bottom-right). Takes a minute or two. Then press Play.");
                 return;
             }
         }
@@ -782,7 +800,9 @@ public static class LundunGreyboxBuilder
             int l = LayerMask.NameToLayer(layer);
             if (l >= 0) mask &= ~(1 << l);
         }
-        SetInt(so, "m_CollectObjects", 0);          // All
+        // E1: with expansion areas the city keeps to its side of the seam (they bake separately: Lundun → 3b)
+        if (HasExpansions()) SetVolume(so, nav.transform, new Vector3(-500f, -40f, NavSeamZ), new Vector3(2200f, 400f, 2400f));
+        else SetInt(so, "m_CollectObjects", 0);          // All
         SetInt(so, "m_UseGeometry", 1);             // Physics colliders
         SetInt(so, "m_LayerMask", mask);
         SetBool(so, "m_OverrideVoxelSize", true);
@@ -791,6 +811,59 @@ public static class LundunGreyboxBuilder
         SetInt(so, "m_TileSize", 256);
         so.ApplyModifiedPropertiesWithoutUndo();
         return s;
+    }
+
+    /// E1: where the city's NavMesh stops and the expansions' starts (just south of the Ring). Roads crossing it are
+    /// joined by NavMesh links (made by the expansion menus).
+    public const float NavSeamZ = 22f;
+
+    /// E1: the expansion areas' own NavMesh surface ("Navigation_Expansions"), everything south of the seam. Null if
+    /// there are no expansion areas.
+    static Component EnsureExpansionSurface()
+    {
+        if (!HasExpansions()) return null;
+        Type t = FindType("Unity.AI.Navigation.NavMeshSurface");
+        if (t == null) return null;
+        Component city = EnsureNavigationSurface();
+        Transform navT = FindRoot("Navigation_Expansions");
+        GameObject nav = navT != null ? navT.gameObject : new GameObject("Navigation_Expansions");
+        nav.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+        Component s = nav.GetComponent(t);
+        if (s == null) s = nav.AddComponent(t);
+        SerializedObject so = new SerializedObject(s);
+        if (city != null)
+        {
+            SerializedProperty cm = new SerializedObject(city).FindProperty("m_LayerMask");
+            if (cm != null) SetInt(so, "m_LayerMask", cm.intValue);
+        }
+        SetVolume(so, nav.transform, new Vector3(-500f, -40f, -1400f), new Vector3(2200f, 400f, NavSeamZ));
+        SetInt(so, "m_UseGeometry", 1);
+        SetBool(so, "m_OverrideVoxelSize", true);
+        SetFloat(so, "m_VoxelSize", 0.25f);
+        SetBool(so, "m_OverrideTileSize", true);
+        SetInt(so, "m_TileSize", 256);
+        so.ApplyModifiedPropertiesWithoutUndo();
+        return s;
+    }
+
+    /// Collect by volume: the box from min to max (world space).
+    static void SetVolume(SerializedObject so, Transform t, Vector3 min, Vector3 max)
+    {
+        SetInt(so, "m_CollectObjects", 1);           // Volume
+        Vector3 a = t.InverseTransformPoint(min), b = t.InverseTransformPoint(max);
+        Vector3 lo = Vector3.Min(a, b), hi = Vector3.Max(a, b);
+        SerializedProperty c = so.FindProperty("m_Center"), z = so.FindProperty("m_Size");
+        if (c != null) c.vector3Value = (lo + hi) * 0.5f;
+        if (z != null) z.vector3Value = hi - lo;
+    }
+
+    /// Are there expansion areas (roads in LundunExpansion.json)?
+    public static bool HasExpansions()
+    {
+        TextAsset x = AssetDatabase.LoadAssetAtPath<TextAsset>(LundunWorldFiles.ExpansionPath);
+        if (x == null) return false;
+        LundunExpansionData d = JsonUtility.FromJson<LundunExpansionData>(x.text);
+        return d != null && d.roads != null && d.roads.Length > 0;
     }
 
     static void SetInt(SerializedObject so, string p, int v) { SerializedProperty sp = so.FindProperty(p); if (sp != null) sp.intValue = v; else Debug.LogWarning("[Lundun] Property not found: " + p); }

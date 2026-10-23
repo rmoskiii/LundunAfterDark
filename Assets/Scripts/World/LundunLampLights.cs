@@ -53,6 +53,14 @@ public class LundunLampLights : MonoBehaviour
         all.AddRange(lamps);
         for (int i = 0; i < lamps.Length; i++)
             colours.Add(colourByDistrict && styles != null && i < styles.Length ? LundunLampColours.ForStyle(styles[i]) : colour);
+        // E1: the expansion areas' lamps (built by their own menus)
+        foreach (LundunExpansionArea area in FindObjectsByType<LundunExpansionArea>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            for (int i = 0; i < area.Lamps.Length; i++)
+            {
+                all.Add(area.Lamps[i]);
+                int st = i < area.LampStyles.Length ? area.LampStyles[i] : 0;
+                colours.Add(colourByDistrict ? LundunLampColours.ForStyle(st) : colour);
+            }
 
         // Take over the hand-placed high-street lamp lights
         bool copied = false;

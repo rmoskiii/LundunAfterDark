@@ -63,6 +63,22 @@ public class LundunTube : MonoBehaviour
     void Awake() { Instance = this; }
     void OnDestroy() { if (Instance == this) Instance = null; }
 
+    /// E1: another station (an expansion area's), after Init. outDir = the way out onto the street.
+    public void AddStation(string stationName, Vector3 top, Vector3 outDir)
+    {
+        if (names == null) return;
+        int n = names.Length;
+        System.Array.Resize(ref names, n + 1); System.Array.Resize(ref tops, n + 1);
+        System.Array.Resize(ref facing, n + 1); System.Array.Resize(ref markers, n + 1);
+        names[n] = stationName; tops[n] = top;
+        outDir.y = 0f;
+        facing[n] = Quaternion.LookRotation(outDir.sqrMagnitude > 0.01f ? outDir.normalized : Vector3.forward);
+        GameObject m = new GameObject("Tube_" + stationName);
+        m.transform.SetParent(transform, false);
+        m.transform.position = top;
+        markers[n] = m.transform;
+    }
+
     void Start()
     {
         vehicles = FindAnyObjectByType<VehicleSystem>();

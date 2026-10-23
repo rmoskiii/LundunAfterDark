@@ -38,8 +38,19 @@ namespace LundunGreybox
 
         static MapImage img;
 
-        public static MapImage Render(LundunWorldData W, GreyboxResult R, double metresPerPixel)
+        /// E1: X / XR = an expansion area (Generator.ExpansionWorld and BuildExpansion's result), drawn with the city.
+        public static MapImage Render(LundunWorldData W, GreyboxResult R, double metresPerPixel, LundunWorldData X = null, GreyboxResult XR = null)
         {
+            List<LwPoly> allParks = new List<LwPoly>(W.parks);
+            List<BuildingInfo> allBuildings = new List<BuildingInfo>(R.buildings);
+            List<LwRoad> allRoads = new List<LwRoad>(W.roads);
+            Dictionary<string, LwRoadClass> cls = new Dictionary<string, LwRoadClass>();
+            foreach (LwRoadClass c in W.roadClasses) cls[c.name] = c;
+            if (X != null && XR != null)
+            {
+                allParks.AddRange(X.parks); allBuildings.AddRange(XR.buildings); allRoads.AddRange(X.roads);
+                foreach (LwRoadClass c in X.roadClasses) if (!cls.ContainsKey(c.name)) cls[c.name] = c;
+            }
             LwBounds b = W.worldBounds;
             img = new MapImage { metresPerPixel = metresPerPixel, minX = b.wallMinX - 30, minZ = b.wallMinZ - 30 };
             img.width = (int)Math.Ceiling((b.wallMaxX + 30 - img.minX) / metresPerPixel);
@@ -55,14 +66,14 @@ namespace LundunGreybox
             for (int i = 0; i + 1 < rc.Count; i++) Capsule(rc[i], rc[i + 1], 39, Bank);
             for (int i = 0; i + 1 < rc.Count; i++) Capsule(rc[i], rc[i + 1], 35, Water);
 
-            foreach (LwPoly park in W.parks)
+            foreach (LwPoly park in allParks)
             {
                 List<V2> poly = new List<V2>();
                 foreach (LwPoint p in park.polygon) poly.Add(new V2(p.x, p.z));
-                Polygon(poly, Park);
+                Polygon(poly, park.name != null && park.name.EndsWith("Square") ? Service : Park);     // E1: town squares are paved
             }
 
-            foreach (BuildingInfo bd in R.buildings)
+            foreach (BuildingInfo bd in allBuildings)
             {
                 V2 f = bd.dir.Norm, l = f.Left;
                 double hl = bd.len / 2, hd = bd.dep / 2;
@@ -82,16 +93,14 @@ namespace LundunGreybox
             catch (Exception) { /* no places planned: draw the map without them */ }
 
             // roads: pavements first, then carriageways from minor to major so big roads sit on top
-            Dictionary<string, LwRoadClass> cls = new Dictionary<string, LwRoadClass>();
-            foreach (LwRoadClass c in W.roadClasses) cls[c.name] = c;
-            foreach (LwRoad r in W.roads)
+            foreach (LwRoad r in allRoads)
             {
                 double p = cls[r.roadClass].pavement;
                 if (p > 0) Polyline(r.points, r.width / 2 + p, Pavement);
             }
             string[] order = { "service", "street", "arterial", "bridge", "ring" };
             foreach (string o in order)
-                foreach (LwRoad r in W.roads)
+                foreach (LwRoad r in allRoads)
                     if (r.roadClass == o) Polyline(r.points, r.width / 2, ColourFor(o));
 
             // the hand-built high street's side road (not in the world data)

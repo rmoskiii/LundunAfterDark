@@ -21,7 +21,8 @@ namespace LundunGreybox
         public static bool UseBuildingKit = true;
         public const string KitMatA = "Bld_Kit_A", KitMatB = "Bld_Kit_B";
 
-        public enum KitType { Terrace, Parade, Pub, Infill, Stucco, Mansion, Georgian, Tower, Office, Warehouse, EstTower, Deck, Maisonette, EstParade, Garages }
+        public enum KitType { Terrace, Parade, Pub, Infill, Stucco, Mansion, Georgian, Tower, Office, Warehouse, EstTower, Deck, Maisonette, EstParade, Garages,
+            DeptStore, MusicHall, Civic }        // E1: Brixtun's landmark buildings
 
         public class KitPlan
         {
@@ -113,7 +114,7 @@ namespace LundunGreybox
             switch (b.district)
             {
                 case "D_PECKAM":
-                    if (onRoad && (PeckamParadeRoads.Contains(p.road) || cls == "arterial"))
+                    if (onRoad && (PeckamParadeRoads.Contains(p.road) || cls == "arterial" || (ExpansionMode && BrixtunParadeRoads.Contains(p.road))))
                     {
                         if (p.nearJunction && peckamPubs < 6 && x < 0.3) { p.type = KitType.Pub; peckamPubs++; }
                         else p.type = KitType.Parade;
@@ -155,7 +156,7 @@ namespace LundunGreybox
             foreach (BuildingInfo b in R.buildings)
             {
                 Random kr = new Random(KitSeed(b));
-                KitPlan p = PlanBuilding(b, kr, ref pubs);
+                KitPlan p = SpecialPlan(b) ?? PlanBuilding(b, kr, ref pubs);     // E1: an expansion's landmark buildings are planned by hand
                 kitPlans[b] = p;
                 string ck = "_" + (int)Math.Floor((b.c.x - ChunkOrigin) / ChunkSize) + "_" + (int)Math.Floor((b.c.z - ChunkOrigin) / ChunkSize);
                 Kit k = new Kit { A = ChunkMesh(chunks, KitMatA + ck, KitMatA), B = ChunkMesh(chunks, KitMatB + ck, KitMatB), p = p, rnd = kr, h = b.h };
@@ -176,6 +177,9 @@ namespace LundunGreybox
                     case KitType.Maisonette: k.Maisonette(false, double.NaN); break;
                     case KitType.EstParade: k.Maisonette(true, double.NaN); break;
                     case KitType.Garages: k.Garages(); break;
+                    case KitType.DeptStore: k.DeptStore(); break;
+                    case KitType.MusicHall: k.MusicHall(); break;
+                    case KitType.Civic: k.Civic(); break;
                 }
                 string tn = p.type.ToString();
                 int c; KitCounts.TryGetValue(tn, out c); KitCounts[tn] = c + 1;
@@ -195,7 +199,7 @@ namespace LundunGreybox
         }
 
         // ================================================================== the builder for one plot
-        class Kit
+        partial class Kit
         {
             public MeshData A, B; public KitPlan p; public Random rnd; public double h;
             const double Tex = KitArt.RepeatM;
