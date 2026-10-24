@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// E5: the PICK UP / STEAL button, shown when you're standing by something you can take (one for the whole game,
-/// made the first time a store's items appear).
+/// made the first time a store's items appear). E6: also the LIFT button, when you're standing in a store's lift.
 public class LundunShopPrompt : MonoBehaviour
 {
     [SerializeField] private float reach = 1.9f;
@@ -13,6 +13,8 @@ public class LundunShopPrompt : MonoBehaviour
     private TextMeshProUGUI label;
     private Image back;
     private LundunShopItem offered;
+    private LundunShopInterior liftShop;
+    private int liftIndex, liftStop;
     private VehicleSystem vehicles;
     private float nextCheck;
 
@@ -31,9 +33,18 @@ public class LundunShopPrompt : MonoBehaviour
         if (Time.time < nextCheck) return;
         nextCheck = Time.time + 0.15f;
         offered = Nearest();
-        if (offered == null) { buttonGo.SetActive(false); return; }
-        label.text = (offered.IsSteal ? "STEAL" : "PICK UP") + "\n<size=70%>" + offered.DisplayName + "</size>";
-        back.color = offered.IsSteal ? new Color(0.55f, 0.08f, 0.1f, 0.92f) : new Color(0.12f, 0.16f, 0.29f, 0.92f);
+        liftShop = offered == null ? NearestLift(out liftIndex, out liftStop) : null;
+        if (offered == null && liftShop == null) { buttonGo.SetActive(false); return; }
+        if (offered != null)
+        {
+            label.text = (offered.IsSteal ? "STEAL" : "PICK UP") + "\n<size=70%>" + offered.DisplayName + "</size>";
+            back.color = offered.IsSteal ? new Color(0.55f, 0.08f, 0.1f, 0.92f) : new Color(0.12f, 0.16f, 0.29f, 0.92f);
+        }
+        else
+        {
+            label.text = liftShop.LiftLabel(liftIndex, liftStop);
+            back.color = new Color(0.16f, 0.17f, 0.18f, 0.92f);
+        }
         buttonGo.SetActive(true);
     }
 
@@ -56,7 +67,24 @@ public class LundunShopPrompt : MonoBehaviour
         return best;
     }
 
-    void OnPress() { if (offered != null) offered.Take(); offered = null; buttonGo.SetActive(false); nextCheck = Time.time + 0.6f; }
+    /// E6: the store lift you're standing in, if any.
+    LundunShopInterior NearestLift(out int lift, out int stop)
+    {
+        lift = -1; stop = -1;
+        PlayerHealth ph = PlayerHealth.Instance;
+        if (ph == null || ph.IsDead || !ph.OnFoot || VehicleSystem.Locked) return null;
+        Vector3 feet = ph.Body.position - Vector3.up * LundunPlaces.FeetOffset(ph.Body);
+        foreach (LundunShopInterior s in LundunShopInterior.All)
+            if (s != null && s.LiftCount > 0 && s.LiftAt(feet, out lift, out stop)) return s;
+        return null;
+    }
+
+    void OnPress()
+    {
+        if (offered != null) offered.Take();
+        else if (liftShop != null) liftShop.Ride(liftIndex, liftStop);
+        offered = null; liftShop = null; buttonGo.SetActive(false); nextCheck = Time.time + 0.8f;
+    }
 
     void BuildUI()
     {

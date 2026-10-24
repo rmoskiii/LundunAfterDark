@@ -4,7 +4,7 @@
 // expansion roads from LundunExpansion.json; this file builds what sits between them:
 //   stores     Basketful and Grocera (supermarkets), ValuStack (budget) and FLATPAK Home Store (a huge box, charcoal and
 //              orange): clad walls with a band in the shop's colours, a glazed entrance under a canopy, rooftop plant,
-//              dock doors on the yard side (not enterable yet)
+//              dock doors on the yard side (E5/E6: all four can be walked into)
 //   car parks  level with the pavements, with marked bays, kerbed islands with trees and tall LED lamp columns, a lane
 //              along each shop front and a walkway to the doors; dropped kerbs where you drive in
 //   yards      service yards behind or beside the stores, each with a way through to the car park (good for chases);
@@ -44,7 +44,7 @@ namespace LundunGreybox
         static readonly Store[] Stores =
         {
             new Store { id = "FLATPAK", name = "FLATPAK Home Store", sign = "sign_FLATPAK", x0 = 1380, x1 = 1545, z0 = -325, z1 = -215, h = 16, door = 1420, front = -1,
-                        wall = KitArt.S_DarkGrey, band = KitArt.S_Orange, accent = KitArt.S_Orange, yardWest = true },
+                        wall = KitArt.S_DarkGrey, band = KitArt.S_Orange, accent = KitArt.S_Orange, yardWest = true, enterable = true },      // E6: walk in
             new Store { id = "BASKETFUL", name = "Basketful", sign = "sign_BASKETFUL", x0 = 1060, x1 = 1185, z0 = -675, z1 = -590, h = 12, door = 1110, front = 1,
                         wall = KitArt.S_LightGrey, band = KitArt.S_Green, accent = KitArt.S_Orange, yardWest = true, enterable = true },
             new Store { id = "GROCERA", name = "Grocera", sign = "sign_GROCERA", x0 = 1215, x1 = 1330, z0 = -676, z1 = -600, h = 11, door = 1272, front = 1,

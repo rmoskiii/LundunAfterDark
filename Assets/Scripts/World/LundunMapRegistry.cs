@@ -70,6 +70,7 @@ public class LundunMapRegistry : MonoBehaviour
         { "market",   new Kind("MARKETS",    "Market",              "M", new Color(1f, 0.55f, 0.18f)) },
         { "venue",    new Kind("NIGHTLIFE",  "Venue",               "V", new Color(0.62f, 0.4f, 0.95f)) },
         { "attraction", new Kind("ATTRACTIONS", "Attraction",       "A", new Color(0.98f, 0.86f, 0.35f)) },
+        { "homestore", new Kind("HOME STORE", "Home store",         "F", new Color(1f, 0.42f, 0.04f)) },       // E6: FLATPAK
     };
 
     public static bool Known(string kind) { return kind != null && Kinds.ContainsKey(kind); }

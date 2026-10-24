@@ -361,7 +361,8 @@ namespace LundunGreybox
                 foreach (Store s in Stores)
                 {
                     V2 p = s.Door + s.Out * 12;
-                    list.Add(new MapPlace { id = "SHOP_" + s.id, name = s.name, kind = "shop", x = p.x, z = p.z, label = false });
+                    bool home = s.id == "FLATPAK";        // E6: the home store has its own icon, and its name on the map
+                    list.Add(new MapPlace { id = "SHOP_" + s.id, name = s.name, kind = home ? "homestore" : "shop", x = p.x, z = p.z, label = home });
                 }
                 list.Add(new MapPlace { id = "LANDMARK_FERNDALE_RETAIL_PARK", name = RetailParkName, kind = "landmark", x = Roundabout.x + 60, z = Roundabout.z + 70, label = true });
             }

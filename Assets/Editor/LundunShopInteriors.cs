@@ -20,7 +20,13 @@ namespace LundunGreybox
 {
     public class ShopProp { public string kind, name; public MeshData mesh; public double cx, cy, cz, sx, sy, sz, yaw; public double[] debrisUV; }
     public class ShopItem { public string id, name; public bool steal; public MeshData mesh; public double x, y, z; }
-    public class ShopDoor { public double x, z, ax, az, ox, oz, half, top; public MeshData left, right; }
+    public class ShopDoor
+    {
+        public double x, z, ax, az, ox, oz, half, top; public MeshData left, right;
+        public double y;                    // E6: the door's floor (0 = the ground; a lift's first-floor doors are higher)
+        public bool glass = true;           // E6: lift doors are steel (they don't break)
+        public double reach = 4.2;          // E6: how near someone has to be for them to open
+    }
 
     public class ShopInterior
     {
@@ -33,6 +39,17 @@ namespace LundunGreybox
         public List<ShopDoor> doors = new List<ShopDoor>();
         public MarketInfo crowd = new MarketInfo();
         public List<string> log = new List<string>();
+        // E6: a store with a first floor (FLATPAK)
+        public double upperY;                                        // 0 = one floor
+        public double insideTop = 8;                                 // Inside() up to here
+        public List<MeshData> upper = new List<MeshData>();          // the first floor's detail
+        public List<MeshData> walk = new List<MeshData>();           // collider-only (the slopes of stairs and escalators)
+        public List<MeshData> steps = new List<MeshData>();          // the escalators' moving treads (in the shell)
+        public List<ShopLift> lifts = new List<ShopLift>();
+        public List<double[]> escalators = new List<double[]>();     // from x, y, z → to x, y, z (the way it moves), half-width
+        public List<double[]> wells = new List<double[]>();          // x, z, radius: near here you see both floors
+        public List<double> nodeY = new List<double>();              // the crowd's walk points' heights (empty = all on the floor)
+        public List<double[]> walls = new List<double[]>();          // x0, z0, x1, z1, y0, y1: solid walls (for the checks)
     }
 
     public static partial class Generator
@@ -226,7 +243,7 @@ namespace LundunGreybox
             foreach (Store s in Stores)
             {
                 if (!s.enterable) continue;
-                list.Add(BuildShop(s, atlas));
+                list.Add(s.id == "FLATPAK" ? BuildHomeStore(s) : BuildShop(s, atlas));       // E6: FLATPAK has its own layout
             }
             return list;
         }

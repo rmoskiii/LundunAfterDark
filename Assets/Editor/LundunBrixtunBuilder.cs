@@ -1,4 +1,4 @@
-// Lundun → 28  Brixtun + Ferndale Retail Park (E1–E5)
+// Lundun → 28  Brixtun + Ferndale Retail Park (E1–E6)
 // Builds Brixtun, south of the Ring, from Assets/World/LundunExpansion.json, under its own object
 // "LundunExpansion/Brixtun" (the city's menus never touch it, and it never touches theirs):
 //   Roads, Junctions, Parks (Windward Square, Brockmere Park), Buildings (Victorian parades with shops, terraces,
@@ -15,6 +15,9 @@
 //       in the dressing); the stores and the park on the map
 //   E5: Shops: walk-in Basketful, Grocera and ValuStack (LundunShopInterior: the inside switched on near the store,
 //       sliding doors, shoppers and staff, things to pick up or steal, displays and chiller glass that break)
+//   E6: FLATPAK Home Store walk-in too: two floors (ground: market hall, self-serve warehouse, tills, bistro; first:
+//       the showroom's room sets and the café), escalators that carry you, stairs, two lifts; each floor's detail drawn
+//       only when you're on it; on the map with its own icon
 // Brixtun is built like Peckam (the town centre) and Gilmore (the estate), with its own shops, postcode, tags and
 // landmark buildings, its own random numbers, and its own dressing texture.
 // The city's side: where Brixtun Road, Atlantic Road, Stockwell Road, Loughborough Road and Denmore Hill meet the
@@ -47,7 +50,7 @@ public static class LundunBrixtunBuilder
 
     static Mesh container;
 
-    [MenuItem("Lundun/28  Brixtun + Retail Park (E1–E5)", false, 34)]
+    [MenuItem("Lundun/28  Brixtun + Retail Park (E1–E6)", false, 34)]
     public static void Build()
     {
         Scene scene = SceneManager.GetActiveScene();
@@ -114,11 +117,11 @@ public static class LundunBrixtunBuilder
                 docksOut[i] = new Vector4((float)k.outX, (float)k.outZ, 0f, 0f);
             }
             int stalls = BuildMarket(area, xd);
-            EditorUtility.DisplayProgressBar("Lundun", "Fitting out the supermarkets…", 0.9f);
+            EditorUtility.DisplayProgressBar("Lundun", "Fitting out the supermarkets and FLATPAK…", 0.9f);
             string shops = BuildShops(area);
             List<Generator.MapPlace> places = Generator.ExpansionPlaces();
             foreach (Generator.MapPlace mp in places)
-                LundunExpansionBuilder.Register(mp.id, mp.id == "RAIL_BRIXTUN" ? LundunTrain.BrixtunName : mp.name + (mp.kind == "shop" && WalkIn(mp.id) ? " (walk in)" : ""), mp.kind, new Vector3((float)mp.x, 0f, (float)mp.z), mp.label);
+                LundunExpansionBuilder.Register(mp.id, mp.id == "RAIL_BRIXTUN" ? LundunTrain.BrixtunName : mp.name + ((mp.kind == "shop" || mp.kind == "homestore") && WalkIn(mp.id) ? " (walk in)" : ""), mp.kind, new Vector3((float)mp.x, 0f, (float)mp.z), mp.label);
             string retail = shops.Length > 0 ? "\nE5: " + shops : "";
             foreach (string l in x.log) if (l.StartsWith(Generator.RetailParkName)) retail = "\nE4: " + l + "." + retail;
 
@@ -559,11 +562,12 @@ public static class LundunBrixtunBuilder
 
     // ------------------------------------------------------------------ E5: the walk-in supermarkets
     const string ShopAtlasPath = Dir + "/ShopAtlas.png", ShopFloorPath = Dir + "/ShopFloor.png", ShopCeilingPath = Dir + "/ShopCeiling.png";
+    const string HomeAtlasPath = Dir + "/HomeAtlas.png", HomeConcretePath = Dir + "/HomeConcrete.png", HomeStepsPath = Dir + "/HomeSteps.png";
     static Dictionary<string, Material> shopMats;
 
     static bool WalkIn(string placeId)
     {
-        foreach (string s in new[] { "SHOP_BASKETFUL", "SHOP_GROCERA", "SHOP_VALUSTACK" }) if (placeId == s) return true;
+        foreach (string s in new[] { "SHOP_BASKETFUL", "SHOP_GROCERA", "SHOP_VALUSTACK", "SHOP_FLATPAK" }) if (placeId == s) return true;
         return false;
     }
 
@@ -579,23 +583,47 @@ public static class LundunBrixtunBuilder
             GameObject shop = new GameObject("Shop_" + si.id);
             shop.transform.SetParent(root, false);
             Transform shell = Child(shop.transform, "Shell"), detail = Child(shop.transform, "Detail");
+            // E6: a store with a first floor keeps each floor's detail under its own object (Detail/L0, Detail/L1)
+            bool two = si.upperY > 0;
+            Transform[] lv = two ? new[] { Child(detail, "L0"), Child(detail, "L1") } : new[] { detail };
+            float upper = (float)si.upperY;
+            Func<double, int> levelOf = yb => two && yb >= upper - 0.6 ? 1 : 0;
             // shell: always there (floor and walls solid)
             foreach (MeshData md in si.shell) ShopMesh(md, shell, md.collider, md.navArea);
+            // E6: the slopes of the stairs and escalators, the balustrades: colliders only (walkable)
+            foreach (MeshData md in si.walk)
+            {
+                if (md.tri.Count == 0) continue;
+                GameObject g = new GameObject(md.name);
+                g.transform.SetParent(shell, false);
+                g.AddComponent<MeshCollider>().sharedMesh = Save(LundunLightingDistrictBuilder.ToMesh(md));
+                LundunGreyboxBuilder.NavModifier(g, false, md.navArea);
+                GameObjectUtility.SetStaticEditorFlags(g, StaticEditorFlags.BatchingStatic);
+            }
+            // E6: the escalators' moving treads (in the shell: you see them from both floors)
+            List<Renderer> treads = new List<Renderer>();
+            foreach (MeshData md in si.steps)
+            {
+                GameObject g = ShopMesh(md, shell, false, -1);
+                GameObjectUtility.SetStaticEditorFlags(g, (StaticEditorFlags)0);        // its texture scrolls; keep it its own
+                Renderer r = g.GetComponent<Renderer>(); if (r != null) treads.Add(r);
+            }
             // detail: fittings and lights (no colliders: the fixtures get boxes), the fixtures' colliders
-            foreach (MeshData md in si.detail) ShopMesh(md, detail, false, -1);
-            Transform cols = Child(detail, "Colliders");
+            foreach (MeshData md in si.detail) ShopMesh(md, lv[0], false, -1);
+            foreach (MeshData md in si.upper) ShopMesh(md, lv[two ? 1 : 0], false, -1);
+            Transform[] cols = new Transform[lv.Length], brk = new Transform[lv.Length], items = new Transform[lv.Length];
+            for (int k = 0; k < lv.Length; k++) { cols[k] = Child(lv[k], "Colliders"); brk[k] = Child(lv[k], "Breakables"); items[k] = Child(lv[k], "Items"); }
             foreach (DressBox c in si.colliders)
             {
                 GameObject g = new GameObject(c.name);
-                g.transform.SetParent(cols, false);
+                g.transform.SetParent(cols[levelOf(c.cy - c.sy / 2)], false);
                 g.transform.SetPositionAndRotation(new Vector3((float)c.cx, (float)c.cy, (float)c.cz), Quaternion.Euler(0f, (float)c.yaw, 0f));
                 g.AddComponent<BoxCollider>().size = new Vector3((float)c.sx, (float)c.sy, (float)c.sz);
             }
             // things that break
-            Transform brk = Child(detail, "Breakables");
             foreach (ShopProp p in si.breakables)
             {
-                GameObject g = ShopMesh(p.mesh, brk, false, -1, false, p.kind == "glass");     // stacks stay in the NavMesh bake (people go round them)
+                GameObject g = ShopMesh(p.mesh, brk[levelOf(p.cy - p.sy / 2)], false, -1, false, p.kind == "glass");     // stacks stay in the NavMesh bake (people go round them)
                 BoxCollider bc = g.AddComponent<BoxCollider>();
                 bc.center = new Vector3((float)p.cx, (float)p.cy, (float)p.cz);
                 bc.size = new Vector3((float)p.sx, (float)p.sy, (float)Math.Max(0.1, p.sz));
@@ -605,21 +633,21 @@ public static class LundunBrixtunBuilder
                 EditorUtility.SetDirty(b);
             }
             // things to take
-            Transform items = Child(detail, "Items");
             foreach (ShopItem it in si.items)
             {
-                GameObject g = ShopMesh(it.mesh, items, false, -1);
+                GameObject g = ShopMesh(it.mesh, items[levelOf(it.y)], false, -1);
                 LundunShopItem c = g.AddComponent<LundunShopItem>();
                 c.SetData(it.id, it.name, it.steal, new Vector3((float)it.x, (float)it.y, (float)it.z));
                 EditorUtility.SetDirty(c);
             }
-            // the sliding doors (always there: you see them from outside)
+            // the sliding doors (always there: you see them from outside); E6: and the lifts' steel doors on each floor
             List<Transform> lefts = new List<Transform>(), rights = new List<Transform>(); List<Vector3> centres = new List<Vector3>();
+            List<float> halves = new List<float>(), reach = new List<float>();
             foreach (ShopDoor d in si.doors)
             {
-                GameObject door = new GameObject("Doors");
+                GameObject door = new GameObject(d.glass ? "Doors" : "LiftDoors");
                 door.transform.SetParent(shop.transform, false);
-                door.transform.SetPositionAndRotation(new Vector3((float)d.x, 0f, (float)d.z), Quaternion.LookRotation(new Vector3((float)d.ox, 0f, (float)d.oz)));
+                door.transform.SetPositionAndRotation(new Vector3((float)d.x, (float)d.y, (float)d.z), Quaternion.LookRotation(new Vector3((float)d.ox, 0f, (float)d.oz)));
                 foreach (MeshData leaf in new[] { d.left, d.right })
                 {
                     GameObject g = ShopMesh(leaf, door.transform, false, -1, true);
@@ -627,11 +655,15 @@ public static class LundunBrixtunBuilder
                     bool isLeft = leaf == d.left;
                     bc.center = new Vector3(isLeft ? -(float)d.half / 2 : (float)d.half / 2, (float)d.top / 2 + 0.08f, 0f);
                     bc.size = new Vector3((float)d.half, (float)d.top - 0.16f, 0.06f);
-                    LundunBreakable b = g.AddComponent<LundunBreakable>();
-                    b.SetData(LundunBreakable.Kind.Glass, new Vector4(0.5f, 0.5f, 0.5f, 0.5f));
+                    if (d.glass)
+                    {
+                        LundunBreakable b = g.AddComponent<LundunBreakable>();
+                        b.SetData(LundunBreakable.Kind.Glass, new Vector4(0.5f, 0.5f, 0.5f, 0.5f));
+                    }
                     (isLeft ? lefts : rights).Add(g.transform);
                 }
                 centres.Add(door.transform.position);
+                halves.Add((float)d.half); reach.Add((float)d.reach);
             }
             // the people
             GameObject people = new GameObject("People");
@@ -639,21 +671,48 @@ public static class LundunBrixtunBuilder
             MarketInfo mi = si.crowd;
             const float y = 0.16f;
             Vector3[] nodes = new Vector3[mi.nodes.Count];
-            for (int i = 0; i < nodes.Length; i++) nodes[i] = new Vector3((float)mi.nodes[i].x, y, (float)mi.nodes[i].z);
+            for (int i = 0; i < nodes.Length; i++) nodes[i] = new Vector3((float)mi.nodes[i].x, i < si.nodeY.Count ? (float)si.nodeY[i] : y, (float)mi.nodes[i].z);
             int[] ea = new int[mi.edges.Count], eb = new int[mi.edges.Count];
             for (int i = 0; i < ea.Length; i++) { ea[i] = mi.edges[i][0]; eb[i] = mi.edges[i][1]; }
             Vector3[] spots = new Vector3[mi.spots.Count], look = new Vector3[mi.spots.Count]; int[] sn = new int[mi.spots.Count];
-            for (int i = 0; i < spots.Length; i++) { double[] sp = mi.spots[i]; spots[i] = new Vector3((float)sp[0], y, (float)sp[1]); look[i] = new Vector3((float)sp[2], y, (float)sp[3]); sn[i] = (int)sp[4]; }
+            for (int i = 0; i < spots.Length; i++)
+            {
+                double[] sp = mi.spots[i]; float sy = sp.Length > 5 ? (float)sp[5] : y;
+                spots[i] = new Vector3((float)sp[0], sy, (float)sp[1]); look[i] = new Vector3((float)sp[2], sy, (float)sp[3]); sn[i] = (int)sp[4];
+            }
             Vector3[] tAt = new Vector3[mi.traders.Count], tFace = new Vector3[mi.traders.Count];
-            for (int i = 0; i < tAt.Length; i++) { double[] t = mi.traders[i]; tAt[i] = new Vector3((float)t[0], y, (float)t[1]); tFace[i] = new Vector3((float)t[2], 0f, (float)t[3]); }
+            for (int i = 0; i < tAt.Length; i++) { double[] t = mi.traders[i]; tAt[i] = new Vector3((float)t[0], t.Length > 4 ? (float)t[4] : y, (float)t[1]); tFace[i] = new Vector3((float)t[2], 0f, (float)t[3]); }
             LundunMarketCrowd crowd = people.AddComponent<LundunMarketCrowd>();
             crowd.SetData(nodes, ea, eb, spots, look, sn, mi.gates.ToArray(), tAt, tFace);
-            crowd.SetTuning(60f, 75f, 0.55f, 6, tAt.Length);
+            if (two) crowd.SetTuning(110f, 130f, 0.8f, 8, 16);          // E6: a big store: more people, and they run while you're anywhere inside
+            else crowd.SetTuning(60f, 75f, 0.55f, 6, tAt.Length);
             EditorUtility.SetDirty(crowd);
             // the store itself
             LundunShopInterior rt = shop.AddComponent<LundunShopInterior>();
             rt.SetData(si.name, new Vector3((float)si.x0, 0f, (float)si.z0), new Vector3((float)si.x1, 0f, (float)si.z1), detail.gameObject,
                        lefts.ToArray(), rights.ToArray(), centres.ToArray(), (float)Generator.DoorHalf);
+            if (two)
+            {
+                Vector4[] wells = new Vector4[si.wells.Count];
+                for (int i = 0; i < wells.Length; i++) wells[i] = new Vector4((float)si.wells[i][0], (float)si.wells[i][1], (float)si.wells[i][2], 0f);
+                rt.SetLevels(new[] { lv[0].gameObject, lv[1].gameObject }, upper, wells, (float)si.insideTop, halves.ToArray(), reach.ToArray());
+                List<Vector3> path = new List<Vector3>(); List<float> half = new List<float>();
+                foreach (double[] e in si.escalators)
+                {
+                    for (int k = 0; k < 4; k++) path.Add(new Vector3((float)e[k * 3], (float)e[k * 3 + 1], (float)e[k * 3 + 2]));
+                    half.Add((float)e[12]);
+                }
+                rt.SetEscalators(path.ToArray(), half.ToArray(), treads.ToArray());
+                Vector3[] at = new Vector3[si.lifts.Count]; List<float> floors = new List<float>(); List<string> names = new List<string>();
+                for (int i = 0; i < at.Length; i++)
+                {
+                    ShopLift l = si.lifts[i];
+                    at[i] = new Vector3((float)l.x, 0f, (float)l.z);
+                    foreach (double f in l.floors) floors.Add((float)f);
+                    names.AddRange(l.names);
+                }
+                rt.SetLifts(at, floors.ToArray(), names.ToArray());
+            }
             EditorUtility.SetDirty(rt);
             parts.AddRange(si.log);
         }
@@ -691,12 +750,20 @@ public static class LundunBrixtunBuilder
         Texture2D atlas = SaveTexture(ShopAtlasPath, a.W, a.H, a.px, false);
         Texture2D floor = SaveTexture(ShopFloorPath, 256, 256, Generator.ShopTileTexture(false, 256), true);
         Texture2D ceil = SaveTexture(ShopCeilingPath, 256, 256, Generator.ShopTileTexture(true, 256), true);
+        // E6: FLATPAK's own atlas, its concrete floor, the escalator treads
+        DressAtlas h = Generator.HomeAtlas();
+        Texture2D home = SaveTexture(HomeAtlasPath, h.W, h.H, h.px, false);
+        Texture2D conc = SaveTexture(HomeConcretePath, 256, 256, Generator.HomeConcreteTexture(256), true);
+        Texture2D steps = SaveTexture(HomeStepsPath, 64, 64, Generator.HomeStepsTexture(64), true);
         shopMats = new Dictionary<string, Material>
         {
             { Generator.ShopAtlasMat, ShopMaterial(Generator.ShopAtlasMat, atlas, 0.55f, false) },
             { Generator.ShopFloorMat, ShopMaterial(Generator.ShopFloorMat, floor, 0.45f, false) },
             { Generator.ShopCeilingMat, ShopMaterial(Generator.ShopCeilingMat, ceil, 0.6f, false) },
             { Generator.ShopGlassMat, ShopMaterial(Generator.ShopGlassMat, null, 0f, true) },
+            { Generator.HomeAtlasMat, ShopMaterial(Generator.HomeAtlasMat, home, 0.55f, false) },
+            { Generator.HomeConcreteMat, ShopMaterial(Generator.HomeConcreteMat, conc, 0.45f, false) },
+            { Generator.HomeStepsMat, ShopMaterial(Generator.HomeStepsMat, steps, 0.4f, false) },
         };
     }
 
@@ -739,7 +806,7 @@ public static class LundunBrixtunBuilder
         {
             m.SetTexture("_BaseMap", tex);
             m.SetColor("_BaseColor", Color.white);
-            m.SetFloat("_Smoothness", name == Generator.ShopFloorMat ? 0.55f : 0.15f);
+            m.SetFloat("_Smoothness", name == Generator.ShopFloorMat || name == Generator.HomeConcreteMat ? 0.55f : 0.15f);
             m.EnableKeyword("_EMISSION");
             m.SetTexture("_EmissionMap", tex);
             m.SetColor("_EmissionColor", Color.white * glow);
