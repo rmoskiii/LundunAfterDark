@@ -1,4 +1,4 @@
-// Lundun → 28  Brixtun + Ferndale Retail Park (E1–E4)
+// Lundun → 28  Brixtun + Ferndale Retail Park (E1–E5)
 // Builds Brixtun, south of the Ring, from Assets/World/LundunExpansion.json, under its own object
 // "LundunExpansion/Brixtun" (the city's menus never touch it, and it never touches theirs):
 //   Roads, Junctions, Parks (Windward Square, Brockmere Park), Buildings (Victorian parades with shops, terraces,
@@ -13,6 +13,8 @@
 //   E4: RetailPark: Ferndale Retail Park in the south-east (Basketful, Grocera, ValuStack, FLATPAK Home Store, their car
 //       parks and yards, the wasteland, ramps and ruins; its parked cars in RetailParked, its fences, containers and signs
 //       in the dressing); the stores and the park on the map
+//   E5: Shops: walk-in Basketful, Grocera and ValuStack (LundunShopInterior: the inside switched on near the store,
+//       sliding doors, shoppers and staff, things to pick up or steal, displays and chiller glass that break)
 // Brixtun is built like Peckam (the town centre) and Gilmore (the estate), with its own shops, postcode, tags and
 // landmark buildings, its own random numbers, and its own dressing texture.
 // The city's side: where Brixtun Road, Atlantic Road, Stockwell Road, Loughborough Road and Denmore Hill meet the
@@ -45,7 +47,7 @@ public static class LundunBrixtunBuilder
 
     static Mesh container;
 
-    [MenuItem("Lundun/28  Brixtun + Retail Park (E1–E4)", false, 34)]
+    [MenuItem("Lundun/28  Brixtun + Retail Park (E1–E5)", false, 34)]
     public static void Build()
     {
         Scene scene = SceneManager.GetActiveScene();
@@ -112,11 +114,13 @@ public static class LundunBrixtunBuilder
                 docksOut[i] = new Vector4((float)k.outX, (float)k.outZ, 0f, 0f);
             }
             int stalls = BuildMarket(area, xd);
+            EditorUtility.DisplayProgressBar("Lundun", "Fitting out the supermarkets…", 0.9f);
+            string shops = BuildShops(area);
             List<Generator.MapPlace> places = Generator.ExpansionPlaces();
             foreach (Generator.MapPlace mp in places)
-                LundunExpansionBuilder.Register(mp.id, mp.id == "RAIL_BRIXTUN" ? LundunTrain.BrixtunName : mp.name, mp.kind, new Vector3((float)mp.x, 0f, (float)mp.z), mp.label);
-            string retail = "";
-            foreach (string l in x.log) if (l.StartsWith(Generator.RetailParkName)) retail = "\nE4: " + l + ".";
+                LundunExpansionBuilder.Register(mp.id, mp.id == "RAIL_BRIXTUN" ? LundunTrain.BrixtunName : mp.name + (mp.kind == "shop" && WalkIn(mp.id) ? " (walk in)" : ""), mp.kind, new Vector3((float)mp.x, 0f, (float)mp.z), mp.label);
+            string retail = shops.Length > 0 ? "\nE5: " + shops : "";
+            foreach (string l in x.log) if (l.StartsWith(Generator.RetailParkName)) retail = "\nE4: " + l + "." + retail;
 
             // the runtime bit: lamps for the real lamp lights, the Tube station, the signs' glow
             LundunExpansionArea rt = area.gameObject.AddComponent<LundunExpansionArea>();
@@ -551,6 +555,200 @@ public static class LundunBrixtunBuilder
         crowd.SetData(nodes, ea, eb, spots, look, sn, mi.gates.ToArray(), tAt, tFace);
         EditorUtility.SetDirty(crowd);
         return mi.stalls.Count;
+    }
+
+    // ------------------------------------------------------------------ E5: the walk-in supermarkets
+    const string ShopAtlasPath = Dir + "/ShopAtlas.png", ShopFloorPath = Dir + "/ShopFloor.png", ShopCeilingPath = Dir + "/ShopCeiling.png";
+    static Dictionary<string, Material> shopMats;
+
+    static bool WalkIn(string placeId)
+    {
+        foreach (string s in new[] { "SHOP_BASKETFUL", "SHOP_GROCERA", "SHOP_VALUSTACK" }) if (placeId == s) return true;
+        return false;
+    }
+
+    static string BuildShops(Transform area)
+    {
+        List<ShopInterior> list = Generator.ShopInteriors();
+        if (list.Count == 0) return "";
+        ShopMaterials();
+        Transform root = Child(area, "Shops");
+        List<string> parts = new List<string>();
+        foreach (ShopInterior si in list)
+        {
+            GameObject shop = new GameObject("Shop_" + si.id);
+            shop.transform.SetParent(root, false);
+            Transform shell = Child(shop.transform, "Shell"), detail = Child(shop.transform, "Detail");
+            // shell: always there (floor and walls solid)
+            foreach (MeshData md in si.shell) ShopMesh(md, shell, md.collider, md.navArea);
+            // detail: fittings and lights (no colliders: the fixtures get boxes), the fixtures' colliders
+            foreach (MeshData md in si.detail) ShopMesh(md, detail, false, -1);
+            Transform cols = Child(detail, "Colliders");
+            foreach (DressBox c in si.colliders)
+            {
+                GameObject g = new GameObject(c.name);
+                g.transform.SetParent(cols, false);
+                g.transform.SetPositionAndRotation(new Vector3((float)c.cx, (float)c.cy, (float)c.cz), Quaternion.Euler(0f, (float)c.yaw, 0f));
+                g.AddComponent<BoxCollider>().size = new Vector3((float)c.sx, (float)c.sy, (float)c.sz);
+            }
+            // things that break
+            Transform brk = Child(detail, "Breakables");
+            foreach (ShopProp p in si.breakables)
+            {
+                GameObject g = ShopMesh(p.mesh, brk, false, -1, false, p.kind == "glass");     // stacks stay in the NavMesh bake (people go round them)
+                BoxCollider bc = g.AddComponent<BoxCollider>();
+                bc.center = new Vector3((float)p.cx, (float)p.cy, (float)p.cz);
+                bc.size = new Vector3((float)p.sx, (float)p.sy, (float)Math.Max(0.1, p.sz));
+                LundunBreakable b = g.AddComponent<LundunBreakable>();
+                b.SetData(p.kind == "glass" ? LundunBreakable.Kind.Glass : LundunBreakable.Kind.Stack,
+                          new Vector4((float)p.debrisUV[0], (float)p.debrisUV[1], (float)p.debrisUV[2], (float)p.debrisUV[3]));
+                EditorUtility.SetDirty(b);
+            }
+            // things to take
+            Transform items = Child(detail, "Items");
+            foreach (ShopItem it in si.items)
+            {
+                GameObject g = ShopMesh(it.mesh, items, false, -1);
+                LundunShopItem c = g.AddComponent<LundunShopItem>();
+                c.SetData(it.id, it.name, it.steal, new Vector3((float)it.x, (float)it.y, (float)it.z));
+                EditorUtility.SetDirty(c);
+            }
+            // the sliding doors (always there: you see them from outside)
+            List<Transform> lefts = new List<Transform>(), rights = new List<Transform>(); List<Vector3> centres = new List<Vector3>();
+            foreach (ShopDoor d in si.doors)
+            {
+                GameObject door = new GameObject("Doors");
+                door.transform.SetParent(shop.transform, false);
+                door.transform.SetPositionAndRotation(new Vector3((float)d.x, 0f, (float)d.z), Quaternion.LookRotation(new Vector3((float)d.ox, 0f, (float)d.oz)));
+                foreach (MeshData leaf in new[] { d.left, d.right })
+                {
+                    GameObject g = ShopMesh(leaf, door.transform, false, -1, true);
+                    BoxCollider bc = g.AddComponent<BoxCollider>();
+                    bool isLeft = leaf == d.left;
+                    bc.center = new Vector3(isLeft ? -(float)d.half / 2 : (float)d.half / 2, (float)d.top / 2 + 0.08f, 0f);
+                    bc.size = new Vector3((float)d.half, (float)d.top - 0.16f, 0.06f);
+                    LundunBreakable b = g.AddComponent<LundunBreakable>();
+                    b.SetData(LundunBreakable.Kind.Glass, new Vector4(0.5f, 0.5f, 0.5f, 0.5f));
+                    (isLeft ? lefts : rights).Add(g.transform);
+                }
+                centres.Add(door.transform.position);
+            }
+            // the people
+            GameObject people = new GameObject("People");
+            people.transform.SetParent(detail, false);
+            MarketInfo mi = si.crowd;
+            const float y = 0.16f;
+            Vector3[] nodes = new Vector3[mi.nodes.Count];
+            for (int i = 0; i < nodes.Length; i++) nodes[i] = new Vector3((float)mi.nodes[i].x, y, (float)mi.nodes[i].z);
+            int[] ea = new int[mi.edges.Count], eb = new int[mi.edges.Count];
+            for (int i = 0; i < ea.Length; i++) { ea[i] = mi.edges[i][0]; eb[i] = mi.edges[i][1]; }
+            Vector3[] spots = new Vector3[mi.spots.Count], look = new Vector3[mi.spots.Count]; int[] sn = new int[mi.spots.Count];
+            for (int i = 0; i < spots.Length; i++) { double[] sp = mi.spots[i]; spots[i] = new Vector3((float)sp[0], y, (float)sp[1]); look[i] = new Vector3((float)sp[2], y, (float)sp[3]); sn[i] = (int)sp[4]; }
+            Vector3[] tAt = new Vector3[mi.traders.Count], tFace = new Vector3[mi.traders.Count];
+            for (int i = 0; i < tAt.Length; i++) { double[] t = mi.traders[i]; tAt[i] = new Vector3((float)t[0], y, (float)t[1]); tFace[i] = new Vector3((float)t[2], 0f, (float)t[3]); }
+            LundunMarketCrowd crowd = people.AddComponent<LundunMarketCrowd>();
+            crowd.SetData(nodes, ea, eb, spots, look, sn, mi.gates.ToArray(), tAt, tFace);
+            crowd.SetTuning(60f, 75f, 0.55f, 6, tAt.Length);
+            EditorUtility.SetDirty(crowd);
+            // the store itself
+            LundunShopInterior rt = shop.AddComponent<LundunShopInterior>();
+            rt.SetData(si.name, new Vector3((float)si.x0, 0f, (float)si.z0), new Vector3((float)si.x1, 0f, (float)si.z1), detail.gameObject,
+                       lefts.ToArray(), rights.ToArray(), centres.ToArray(), (float)Generator.DoorHalf);
+            EditorUtility.SetDirty(rt);
+            parts.AddRange(si.log);
+        }
+        return string.Join("; ", parts.ToArray()) + ".";
+    }
+
+    /// One of a shop's meshes as a GameObject (the shop materials, no shadows from the flat bits).
+    static GameObject ShopMesh(MeshData md, Transform parent, bool collider, int navArea, bool keepLocal = false, bool ignoreNav = true)
+    {
+        GameObject go = new GameObject(md.name);
+        go.transform.SetParent(parent, keepLocal);
+        if (keepLocal) { go.transform.localPosition = Vector3.zero; go.transform.localRotation = Quaternion.identity; }
+        if (md.tri.Count == 0) return go;
+        Mesh mesh = Save(LundunLightingDistrictBuilder.ToMesh(md));
+        go.AddComponent<MeshFilter>().sharedMesh = mesh;
+        MeshRenderer mr = go.AddComponent<MeshRenderer>();
+        Material m;
+        mr.sharedMaterial = shopMats.TryGetValue(md.material, out m) ? m : LundunGreyboxBuilder.WorldMaterial(md.material);
+        mr.shadowCastingMode = md.material == Generator.ShopAtlasMat && !md.name.StartsWith("Shell") ? ShadowCastingMode.On : ShadowCastingMode.Off;
+        mr.lightProbeUsage = LightProbeUsage.Off; mr.reflectionProbeUsage = ReflectionProbeUsage.Off;
+        if (collider)
+        {
+            go.AddComponent<MeshCollider>().sharedMesh = mesh;
+            if (navArea >= 0) LundunGreyboxBuilder.NavModifier(go, false, navArea);
+        }
+        else if (ignoreNav) LundunGreyboxBuilder.NavModifier(go, true, -1);
+        GameObjectUtility.SetStaticEditorFlags(go, keepLocal ? (StaticEditorFlags)0 : StaticEditorFlags.BatchingStatic);
+        return go;
+    }
+
+    /// The shop materials: the painted atlas and the tiled floor and ceiling, lit from within; and the glass.
+    static void ShopMaterials()
+    {
+        DressAtlas a = Generator.ShopAtlas();
+        Texture2D atlas = SaveTexture(ShopAtlasPath, a.W, a.H, a.px, false);
+        Texture2D floor = SaveTexture(ShopFloorPath, 256, 256, Generator.ShopTileTexture(false, 256), true);
+        Texture2D ceil = SaveTexture(ShopCeilingPath, 256, 256, Generator.ShopTileTexture(true, 256), true);
+        shopMats = new Dictionary<string, Material>
+        {
+            { Generator.ShopAtlasMat, ShopMaterial(Generator.ShopAtlasMat, atlas, 0.55f, false) },
+            { Generator.ShopFloorMat, ShopMaterial(Generator.ShopFloorMat, floor, 0.45f, false) },
+            { Generator.ShopCeilingMat, ShopMaterial(Generator.ShopCeilingMat, ceil, 0.6f, false) },
+            { Generator.ShopGlassMat, ShopMaterial(Generator.ShopGlassMat, null, 0f, true) },
+        };
+    }
+
+    static Texture2D SaveTexture(string path, int w, int h, byte[] px, bool repeat)
+    {
+        Texture2D t = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        Color32[] c = new Color32[w * h];
+        for (int i = 0; i < c.Length; i++) c[i] = new Color32(px[i * 4], px[i * 4 + 1], px[i * 4 + 2], px[i * 4 + 3]);
+        t.SetPixels32(c); t.Apply();
+        File.WriteAllBytes(path, t.EncodeToPNG());
+        Object.DestroyImmediate(t);
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
+        TextureImporter ti = (TextureImporter)AssetImporter.GetAtPath(path);
+        ti.textureType = TextureImporterType.Default; ti.sRGBTexture = true; ti.alphaSource = TextureImporterAlphaSource.None;
+        ti.mipmapEnabled = true; ti.wrapMode = repeat ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
+        ti.filterMode = FilterMode.Bilinear; ti.anisoLevel = repeat ? 4 : 2; ti.maxTextureSize = 4096;
+        ti.SaveAndReimport();
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
+    static Material ShopMaterial(string name, Texture2D tex, float glow, bool glass)
+    {
+        string path = Dir + "/" + name + ".mat";
+        Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
+        Shader sh = Shader.Find("Universal Render Pipeline/Simple Lit");
+        if (sh == null) sh = Shader.Find("Universal Render Pipeline/Lit");
+        if (m == null) { m = new Material(sh); AssetDatabase.CreateAsset(m, path); } else m.shader = sh;
+        if (glass)
+        {
+            m.SetFloat("_Surface", 1f); m.SetFloat("_Blend", 0f);
+            m.SetOverrideTag("RenderType", "Transparent");
+            m.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha); m.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha); m.SetFloat("_ZWrite", 0f);
+            m.SetFloat("_Cull", 0f);
+            m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            m.renderQueue = (int)RenderQueue.Transparent;
+            m.SetColor("_BaseColor", new Color(0.78f, 0.9f, 0.94f, 0.22f));
+            m.SetFloat("_Smoothness", 0.9f);
+        }
+        else
+        {
+            m.SetTexture("_BaseMap", tex);
+            m.SetColor("_BaseColor", Color.white);
+            m.SetFloat("_Smoothness", name == Generator.ShopFloorMat ? 0.55f : 0.15f);
+            m.EnableKeyword("_EMISSION");
+            m.SetTexture("_EmissionMap", tex);
+            m.SetColor("_EmissionColor", Color.white * glow);
+            m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+            m.renderQueue = (int)RenderQueue.Geometry;
+        }
+        m.enableInstancing = false;
+        EditorUtility.SetDirty(m);
+        return m;
     }
 
     // ------------------------------------------------------------------ NavMesh links across the seam

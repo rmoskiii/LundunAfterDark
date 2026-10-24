@@ -192,6 +192,7 @@ public class LundunPatrols : MonoBehaviour
         switch (type)
         {
             case CrimeType.AssaultPedestrian: return respondMinor;
+            case CrimeType.Shoplifting: return respondMinor;          // E5
             case CrimeType.Gunfire: return respondGunfire;
             case CrimeType.HitAndRun: return respondSerious;
             case CrimeType.KillPedestrian: return respondKill;

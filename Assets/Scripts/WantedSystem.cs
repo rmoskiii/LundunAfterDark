@@ -18,6 +18,8 @@ public class WantedSystem : MonoBehaviour
     [SerializeField] private float assaultOfficer = 40f;
     [SerializeField] private float killOfficer = 120f;
     [SerializeField] private float destroyPoliceCar = 100f;
+    [Tooltip("E5: stealing from a shop, seen — just enough for one star")]
+    [SerializeField] private float shoplifting = 22f;
 
     [Header("Heat needed for each star")]
     // 2 kills = 2 stars. Kill a cop on top of that = 3 stars.
@@ -62,6 +64,7 @@ public class WantedSystem : MonoBehaviour
         switch (t)
         {
             case CrimeType.AssaultPedestrian: return 0;
+            case CrimeType.Shoplifting: return 0;
             case CrimeType.Gunfire: return 1;
             case CrimeType.HitAndRun: return 2;
             case CrimeType.KillPedestrian: return 3;
@@ -185,6 +188,7 @@ public class WantedSystem : MonoBehaviour
             CrimeType.AssaultOfficer => assaultOfficer,
             CrimeType.KillOfficer => killOfficer,
             CrimeType.DestroyPoliceCar => destroyPoliceCar,
+            CrimeType.Shoplifting => shoplifting,
             _ => 0f
         };
     }

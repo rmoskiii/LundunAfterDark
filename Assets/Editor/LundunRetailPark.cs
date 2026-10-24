@@ -36,6 +36,7 @@ namespace LundunGreybox
             public int front;                          // which face the entrance is on: +1 = north (z1), −1 = south (z0)
             public int wall, band, accent;             // kit swatches
             public bool yardWest, yardEast;            // dock doors on that side
+            public bool enterable;                     // E5: a doorway you can walk through (the interior comes from LundunShopInteriors)
             public V2 Door { get { return new V2(door, front > 0 ? z1 : z0); } }
             public V2 Out { get { return new V2(0, front); } }
         }
@@ -45,11 +46,11 @@ namespace LundunGreybox
             new Store { id = "FLATPAK", name = "FLATPAK Home Store", sign = "sign_FLATPAK", x0 = 1380, x1 = 1545, z0 = -325, z1 = -215, h = 16, door = 1420, front = -1,
                         wall = KitArt.S_DarkGrey, band = KitArt.S_Orange, accent = KitArt.S_Orange, yardWest = true },
             new Store { id = "BASKETFUL", name = "Basketful", sign = "sign_BASKETFUL", x0 = 1060, x1 = 1185, z0 = -675, z1 = -590, h = 12, door = 1110, front = 1,
-                        wall = KitArt.S_LightGrey, band = KitArt.S_Green, accent = KitArt.S_Orange, yardWest = true },
+                        wall = KitArt.S_LightGrey, band = KitArt.S_Green, accent = KitArt.S_Orange, yardWest = true, enterable = true },
             new Store { id = "GROCERA", name = "Grocera", sign = "sign_GROCERA", x0 = 1215, x1 = 1330, z0 = -676, z1 = -600, h = 11, door = 1272, front = 1,
-                        wall = KitArt.S_Cream, band = KitArt.S_Maroon, accent = KitArt.S_Teal, yardEast = true },
+                        wall = KitArt.S_Cream, band = KitArt.S_Maroon, accent = KitArt.S_Teal, yardEast = true, enterable = true },
             new Store { id = "VALUSTACK", name = "ValuStack", sign = "sign_VALUSTACK", x0 = 1440, x1 = 1545, z0 = -676, z1 = -600, h = 9, door = 1492, front = 1,
-                        wall = KitArt.S_LightGrey, band = KitArt.S_Yellow, accent = KitArt.S_Red, yardWest = true },
+                        wall = KitArt.S_LightGrey, band = KitArt.S_Yellow, accent = KitArt.S_Red, yardWest = true, enterable = true },
         };
 
         /// A car park: its outline, the side the store is on (zStore, away = which way you walk out from the store),
@@ -248,14 +249,21 @@ namespace LundunGreybox
                 V2 a = c[i], b = c[(i + 1) % 4], o = outN[i];
                 bool isFront = (o.z > 0 && s.front > 0) || (o.z < 0 && s.front < 0);
                 double L = V2.Dist(a, b); V2 f = (b - a).Norm;
-                // cladding, the brand band at the top, a white line under it
-                SwQuad(rpWall, s.wall, new P3(a, y0, 0, 0), new P3(b, y0, 0, 0), new P3(b, h - band - 0.25, 0, 0), new P3(a, h - band - 0.25, 0, 0), o.x, 0, o.z);
+                // cladding (E5: with a doorway in an enterable store's front), the brand band at the top, a white line under it
+                bool open = isFront && s.enterable;
+                double tD = V2.Dot(s.Door - a, f);
+                foreach (double[] sp in open ? new[] { new[] { 0, tD - DoorHalf, y0 }, new[] { tD + DoorHalf, L, y0 }, new[] { tD - DoorHalf, tD + DoorHalf, DoorTop } } : new[] { new[] { 0, L, y0 } })
+                    SwQuad(rpWall, s.wall, new P3(a + f * sp[0], sp[2], 0, 0), new P3(a + f * sp[1], sp[2], 0, 0), new P3(a + f * sp[1], h - band - 0.25, 0, 0), new P3(a + f * sp[0], h - band - 0.25, 0, 0), o.x, 0, o.z);
                 SwQuad(rpWall, KitArt.S_White, new P3(a, h - band - 0.25, 0, 0), new P3(b, h - band - 0.25, 0, 0), new P3(b, h - band, 0, 0), new P3(a, h - band, 0, 0), o.x, 0, o.z);
                 SwQuad(rpWall, s.band, new P3(a, h - band, 0, 0), new P3(b, h - band, 0, 0), new P3(b, h, 0, 0), new P3(a, h, 0, 0), o.x, 0, o.z);
                 // ribs every 6 m, and a dark plinth
-                for (double t = 3; t < L - 1; t += 6) RBox(rpWall, KitArt.S_MidGrey, a + f * t + o * 0.06, o, 0.06, 0.08, 0, h - band - 0.25, false);
-                SwQuad(rpWall, KitArt.S_Concrete, new P3(a + o * 0.12, y0, 0, 0), new P3(b + o * 0.12, y0, 0, 0), new P3(b + o * 0.12, 0.9, 0, 0), new P3(a + o * 0.12, 0.9, 0, 0), o.x, 0, o.z);
-                SwQuad(rpWall, KitArt.S_Concrete, new P3(a + o * 0.12, 0.9, 0, 0), new P3(b + o * 0.12, 0.9, 0, 0), new P3(b, 0.9, 0, 0), new P3(a, 0.9, 0, 0), 0, 1, 0);
+                for (double t = 3; t < L - 1; t += 6) { if (open && Math.Abs(t - tD) < DoorHalf + 0.5) continue; RBox(rpWall, KitArt.S_MidGrey, a + f * t + o * 0.06, o, 0.06, 0.08, 0, h - band - 0.25, false); }
+                foreach (double[] sp in open ? new[] { new[] { 0, tD - DoorHalf }, new[] { tD + DoorHalf, L } } : new[] { new[] { 0, L } })
+                {
+                    V2 pa = a + f * sp[0], pb = a + f * sp[1];
+                    SwQuad(rpWall, KitArt.S_Concrete, new P3(pa + o * 0.12, y0, 0, 0), new P3(pb + o * 0.12, y0, 0, 0), new P3(pb + o * 0.12, 0.9, 0, 0), new P3(pa + o * 0.12, 0.9, 0, 0), o.x, 0, o.z);
+                    SwQuad(rpWall, KitArt.S_Concrete, new P3(pa + o * 0.12, 0.9, 0, 0), new P3(pb + o * 0.12, 0.9, 0, 0), new P3(pb, 0.9, 0, 0), new P3(pa, 0.9, 0, 0), 0, 1, 0);
+                }
                 if (isFront) StoreFront(s, o);
                 bool dockSide = (o.x < 0 && s.yardWest) || (o.x > 0 && s.yardEast);
                 if (dockSide) DockDoors(a, b, o, s.id == "FLATPAK" ? 6 : 3);
@@ -281,18 +289,33 @@ namespace LundunGreybox
         {
             V2 door = s.Door, f = o.Left;
             double hw = s.id == "FLATPAK" ? 10 : 7, top = s.id == "FLATPAK" ? 6.0 : 4.4;
-            // glass, set a little proud of the wall
-            SwQuad(rpWall, KitArt.S_Glass, new P3(door - f * hw + o * 0.05, 0.15, 0, 0), new P3(door + f * hw + o * 0.05, 0.15, 0, 0),
-                   new P3(door + f * hw + o * 0.05, top, 0, 0), new P3(door - f * hw + o * 0.05, top, 0, 0), o.x, 0, o.z);
+            // glass, set a little proud of the wall (E5: an enterable store's has the doorway in it; the sliding doors are separate)
+            if (s.enterable)
+            {
+                foreach (double[] sp in new[] { new[] { -hw, -DoorHalf, 0.15 }, new[] { DoorHalf, hw, 0.15 }, new[] { -DoorHalf, DoorHalf, DoorTop + 0.15 } })
+                    SwQuad(rpWall, KitArt.S_Glass, new P3(door + f * sp[0] + o * 0.05, sp[2], 0, 0), new P3(door + f * sp[1] + o * 0.05, sp[2], 0, 0),
+                           new P3(door + f * sp[1] + o * 0.05, top, 0, 0), new P3(door + f * sp[0] + o * 0.05, top, 0, 0), o.x, 0, o.z);
+                RBox(rpWall, s.accent, door + o * 0.1, f, DoorHalf + 0.06, 0.1, DoorTop, DoorTop + 0.15, true);       // the door head
+            }
+            else
+                SwQuad(rpWall, KitArt.S_Glass, new P3(door - f * hw + o * 0.05, 0.15, 0, 0), new P3(door + f * hw + o * 0.05, 0.15, 0, 0),
+                       new P3(door + f * hw + o * 0.05, top, 0, 0), new P3(door - f * hw + o * 0.05, top, 0, 0), o.x, 0, o.z);
             for (double t = -hw; t <= hw + 0.01; t += 1.5)
+            {
+                if (s.enterable && Math.Abs(t) < DoorHalf - 0.01) continue;
                 RBox(rpWall, Math.Abs(t) < 2.3 ? s.accent : KitArt.S_DarkGrey, door + f * t + o * 0.1, o, 0.06, 0.05, 0.15, top, false);
+            }
+            if (s.enterable) foreach (int k in new[] { -1, 1 }) RBox(rpWall, s.accent, door + f * (k * DoorHalf) + o * 0.1, o, 0.08, 0.08, 0.15, DoorTop, false);
             RBox(rpWall, KitArt.S_DarkGrey, door + o * 0.1, f, hw, 0.08, top - 0.12, top + 0.05, true);
-            RBox(rpWall, s.accent, door + o * 0.12, f, 2.4, 0.06, 2.6, 2.9, true);           // over the doors
+            if (!s.enterable) RBox(rpWall, s.accent, door + o * 0.12, f, 2.4, 0.06, 2.6, 2.9, true);           // over the doors
             // the canopy, on two columns
             RBox(rpWall, KitArt.S_LightGrey, door + o * 1.8, f, hw + 1.0, 1.8, top + 0.2, top + 0.65, true);
             RBox(rpWall, s.accent, door + o * 3.62, f, hw + 1.0, 0.04, top + 0.2, top + 0.65, false);
             foreach (int k in new[] { -1, 1 }) RBox(rpWall, KitArt.S_DarkGrey, door + o * 3.3 + f * (k * (hw - 0.5)), o, 0.15, 0.15, 0.15, top + 0.2, false);
         }
+
+        /// E5: an enterable store's doorway (half-width, height).
+        public const double DoorHalf = 2.2, DoorTop = 3.2;
 
         /// Roller-shutter dock doors along a yard wall, with bumpers and a canopy strip.
         static void DockDoors(V2 a, V2 b, V2 o, int n)
@@ -547,7 +570,13 @@ namespace LundunGreybox
                 double sy = s.h - 1.5 - sh / 2;
                 VQuad(mGlow, door - f * sw + o * 0.1, door + f * sw + o * 0.1, sy, sy + sh, A[s.sign], o);
                 double hw = s.id == "FLATPAK" ? 10 : 7, top = s.id == "FLATPAK" ? 6.0 : 4.4;
-                VQuad(mGlow, door - f * (hw - 0.1) + o * 0.08, door + f * (hw - 0.1) + o * 0.08, 0.3, top - 0.2, S("rp_lit"), o);
+                if (s.enterable)          // E5: lit glass either side of the doorway (you can see in through the doors)
+                {
+                    VQuad(mGlow, door - f * (hw - 0.1) + o * 0.08, door - f * (DoorHalf + 0.15) + o * 0.08, 0.3, top - 0.2, S("rp_lit"), o);
+                    VQuad(mGlow, door + f * (DoorHalf + 0.15) + o * 0.08, door + f * (hw - 0.1) + o * 0.08, 0.3, top - 0.2, S("rp_lit"), o);
+                    VQuad(mGlow, door - f * (DoorHalf - 0.1) + o * 0.08, door + f * (DoorHalf - 0.1) + o * 0.08, DoorTop + 0.3, top - 0.2, S("rp_lit"), o);
+                }
+                else VQuad(mGlow, door - f * (hw - 0.1) + o * 0.08, door + f * (hw - 0.1) + o * 0.08, 0.3, top - 0.2, S("rp_lit"), o);
                 // a second sign on the side that faces the road in
                 V2 sideN = s.id == "FLATPAK" ? new V2(-1, 0) : s.id == "BASKETFUL" ? new V2(1, 0) : s.id == "GROCERA" ? new V2(-1, 0) : new V2(1, 0);
                 V2 sc = new V2(sideN.x < 0 ? s.x0 : s.x1, (s.z0 + s.z1) / 2), sf = sideN.Left;

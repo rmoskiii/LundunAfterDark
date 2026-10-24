@@ -187,6 +187,7 @@ public class PlayerCombat : MonoBehaviour
             {
                 end = hit.point;
                 Health health = hit.collider.GetComponentInParent<Health>();
+                LundunBreakable.HitAt(hit.collider, hit.point, dir);                 // E5: shop displays, chiller glass, doors
                 // G3: bullet holes and dust on walls / ground, sparks off vehicles
                 if (health == null && impacts < 4) LundunCombatFX.Impact(hit, hit.collider.GetComponentInParent<VehicleHealth>() != null || hit.collider.GetComponentInParent<LundunHeli>() != null);
                 if (health == null || impacts < 3)
@@ -404,6 +405,7 @@ public class PlayerCombat : MonoBehaviour
     void HandleHit(RaycastHit hit)
     {
         Health health = hit.collider.GetComponentInParent<Health>();
+        LundunBreakable.HitAt(hit.collider, hit.point, cam.forward);              // E5
 
         GameObject impactPrefab = health != null ? bloodImpactPrefab : surfaceImpactPrefab;
         if (impactPrefab != null)

@@ -8,7 +8,8 @@ public enum CrimeType
     KillPedestrian,
     AssaultOfficer,
     KillOfficer,
-    DestroyPoliceCar
+    DestroyPoliceCar,
+    Shoplifting          // E5: stealing from a shop (only counts if someone sees it)
 }
 
 // One place every crime gets reported to. Anything can call CrimeSystem.Report(...)

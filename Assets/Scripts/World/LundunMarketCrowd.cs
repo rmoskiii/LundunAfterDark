@@ -66,6 +66,12 @@ public class LundunMarketCrowd : MonoBehaviour
     private int wanted;
     private readonly System.Random rng = new System.Random(7373);
 
+    /// E5: a store's crowd is smaller and only runs close to it.
+    public void SetTuning(float start, float stop, float budget, int least, int traders)
+    {
+        startWithin = start; stopBeyond = stop; perBudget = budget; fewest = least; maxTraders = traders;
+    }
+
     public void SetData(Vector3[] n, int[] ea, int[] eb, Vector3[] s, Vector3[] look, int[] sn, int[] g, Vector3[] tAt, Vector3[] tFace)
     {
         nodes = n; edgeA = ea; edgeB = eb; spots = s; spotLook = look; spotNode = sn; gates = g; traderAt = tAt; traderFace = tFace;
