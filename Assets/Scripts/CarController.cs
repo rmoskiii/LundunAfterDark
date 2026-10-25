@@ -29,6 +29,9 @@ public class CarController : MonoBehaviour
     public static readonly System.Collections.Generic.List<CarController> All = new System.Collections.Generic.List<CarController>();
 
     public bool IsDriven { get; set; }
+    /// R3: AI drivers brake as hard as they press (throttle −0.3 = 30% brakes), for smooth stops. Off (the default, and
+    /// always for James): any brake press is full brakes, as before.
+    public bool ProportionalBrake { get; set; }
     public float Speed => Vector3.Dot(rb.linearVelocity, transform.forward);
 
     void OnEnable() { All.Add(this); }
@@ -70,7 +73,7 @@ public class CarController : MonoBehaviour
         else if (throttle < -0.05f)
         {
             if (speed > 0.5f)
-                rb.AddForce(-forward * brakeStrength, ForceMode.Acceleration);
+                rb.AddForce(-forward * brakeStrength * (ProportionalBrake && !IsDriven ? Mathf.Clamp01(-throttle) : 1f), ForceMode.Acceleration);
             else if (speed > -maxReverseSpeed)
                 rb.AddForce(forward * throttle * acceleration * 0.6f, ForceMode.Acceleration);
         }
