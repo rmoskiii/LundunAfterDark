@@ -37,6 +37,9 @@ public class LundunHud : MonoBehaviour
     [SerializeField] private float pillHeight = 96f;
     [SerializeField] private float pillGap = 16f;
     [SerializeField] private float pillLowestY = 520f;
+    [Tooltip("R1: use LundunStick for the joystick (grab it anywhere on the base, follows its own finger, never sticks). " +
+             "Untick to go back to Unity's OnScreenStick")]
+    [SerializeField] private bool useLundunStick = true;
     [Tooltip("Extra space kept inside the iPhone's safe area")]
     [SerializeField] private float safeMargin = 12f;
 
@@ -230,7 +233,21 @@ public class LundunHud : MonoBehaviour
             Image h = handle.GetComponent<Image>();
             if (h != null) { h.sprite = LundunHudArt.Disc; h.type = Image.Type.Simple; h.preserveAspect = true; h.color = new Color(1f, 1f, 1f, 0.82f); }
             Child(handle, "LundunRim", LundunHudArt.Ring, new Color(0f, 0f, 0f, 0.25f), Vector2.zero, true);
+            if (useLundunStick) UseLundunStick(bse, handle);
         }
+    }
+
+    /// R1: swap Unity's stick (on the knob) for LundunStick (on the base), feeding the same gamepad stick with the same
+    /// travel. The old one stays on the knob, switched off.
+    void UseLundunStick(RectTransform bse, RectTransform handle)
+    {
+        UnityEngine.InputSystem.OnScreen.OnScreenStick old = handle.GetComponent<UnityEngine.InputSystem.OnScreen.OnScreenStick>();
+        string path = old != null && !string.IsNullOrEmpty(old.controlPath) ? old.controlPath : "<Gamepad>/leftStick";
+        float range = old != null ? old.movementRange : 130f;
+        if (old != null) old.enabled = false;
+        LundunStick stick = bse.GetComponent<LundunStick>();
+        if (stick == null) stick = bse.gameObject.AddComponent<LundunStick>();
+        stick.Setup(handle, path, range);
     }
 
     /// Compact contextual prompt: accent disc with icon on the left, short label on the right, width fits the label.

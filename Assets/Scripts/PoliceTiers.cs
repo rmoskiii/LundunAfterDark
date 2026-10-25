@@ -70,6 +70,11 @@ public class PoliceTiers : MonoBehaviour
     [Tooltip("After being tased, James can't be tased again for this long (no stun-lock)")]
     public float taserImmunity = 3.5f;
 
+    [Header("Debug (R1)")]
+    [Tooltip("Editor / development builds: each officer's state (CHASE, SEARCH, TASER, HOLD, UNSTICK…) above his head")]
+    public bool showOfficerStates = false;
+    public static bool ShowOfficerStates => Instance != null && Instance.showOfficerStates;
+
     [Header("Wanted levels 1 to 5")]
     public Tier[] tiers = Defaults();
 

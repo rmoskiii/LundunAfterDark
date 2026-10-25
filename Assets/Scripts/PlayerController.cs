@@ -87,6 +87,9 @@ public class PlayerController : MonoBehaviour
         if (joystickTravel > 0f)
             foreach (OnScreenStick stick in FindObjectsByType<OnScreenStick>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 stick.movementRange = joystickTravel;
+        if (joystickTravel > 0f)       // R1: and LundunStick (the joystick LundunHud now uses)
+            foreach (LundunStick stick in FindObjectsByType<LundunStick>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                stick.MovementRange = joystickTravel;
         groundMask = ~((1 << gameObject.layer) | LayerMask.GetMask("NPC"));
     }
 

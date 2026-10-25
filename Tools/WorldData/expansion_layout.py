@@ -53,6 +53,24 @@ roads += [
  ('XR22', 'Stockyard Lane', 'street', 10, [(1200,-508),(1200,-600),(1200,-690)]),
  ('XR23', 'Brixtun Hill', 'street', 10, rounded([(985,-690),(1100,-690),(1200,-690),(1380,-690),(1560,-690),(1560,-580),(1560,-480)])),
 ]
+# E8: Kingsmere, the royal quarter, north of the Ring (ids start with K, so each area builds only its own; see
+# Generator.InArea). The Parade carries Regent Row straight on north from the Ring (J02) through Kingsmere Arch to the
+# Memorial Circle in front of Kingsmere Palace; Birdcage Walk wraps St Jarvis's Park and meets the Ring opposite
+# Hydemoor Park; to the east, Mayfield Street and Commercial Way carry on north (as Admiral's Walk), with Regency Street
+# (a new join on the Ring), Pall Row and Spur Road between them.
+MC = (560, 1660, 43)           # the Memorial Circle: centre, radius
+roads += [
+ ('KR01', 'The Parade', 'arterial', 16, [(560,1160),(560,1300),(560,1450),(560,1617)]),
+ ('KR02', 'Memorial Circle', 'street', 14, arc(*MC, -90, 0)),
+ ('KR03', 'Memorial Circle', 'street', 14, arc(*MC, 0, 180)),
+ ('KR04', 'Memorial Circle', 'street', 14, arc(*MC, 180, 270)),
+ ('KR06', 'Birdcage Walk', 'street', 12, rounded([(517,1660),(300,1660),(110,1660),(110,1400),(110,1160)], 18)),
+ ('KR08', 'Spur Road', 'street', 12, rounded([(603,1660),(820,1660),(950,1660),(1300,1660),(1560,1660),(1560,1420),(1300,1420)], 18)),
+ ('KR09', 'Mayfield Street', 'street', 10, [(820,1160),(820,1420),(820,1660)]),
+ ('KR10', "Admiral's Walk", 'arterial', 15, [(950,1160),(950,1420),(950,1660)]),
+ ('KR11', 'Pall Row', 'street', 10, [(1300,1420),(950,1420),(820,1420)]),
+ ('KR12', 'Regency Street', 'street', 10, [(1300,1160),(1300,1420),(1300,1660)]),
+]
 # junctions: id, x, z  (ids J55/J56/J58 = joins onto the Ring's existing junctions; XJ_R02_* = new joins on the Ring)
 juncs = [('J55',430,40),('J56',700,40),('J58',980,40),('XJR02A',530,40),('XJR02S',260,40),
  ('XJ01',428,-185),('XJ02',535,-175),('XJ03',425,-305),('XJ04',535,-312),('XJ05',700,-330),('XJ06',982,-378),
@@ -60,7 +78,11 @@ juncs = [('J55',430,40),('J56',700,40),('J58',980,40),('XJR02A',530,40),('XJR02S
  ('XJ14',534,-120),('XJ15',700,-130),('XJ16',840,-135),('XJ17',981,-140),('XJ18',840,-350),('XJ19',258.4,-240),('XJ20',426.5,-245),
  ('XJ21',257,-500),('XJ22',420,-500),('XJ23',700,-500),
  # E4: the retail park
- ('XJ24',982.98,-480),('XJ25',1172,-480),('XJ26',1200,-452),('XJ27',1228,-480),('XJ28',1200,-508),('XJ30',1560,-480),('XJ31',1200,-690)]
+ ('XJ24',982.98,-480),('XJ25',1172,-480),('XJ26',1200,-452),('XJ27',1228,-480),('XJ28',1200,-508),('XJ30',1560,-480),('XJ31',1200,-690),
+ # E8: Kingsmere (J02/J03/J04 = the Ring's existing junctions; KJR01* = new joins on the Ring's north side)
+ ('J02',560,1160),('J03',820,1160),('J04',950,1160),('KJR01W',110,1160),('KJR01E',1300,1160),
+ ('KJ01',560,1617),('KJ02',603,1660),('KJ04',517,1660),
+ ('KJ10',820,1420),('KJ11',950,1420),('KJ12',1300,1420),('KJ13',820,1660),('KJ14',950,1660),('KJ15',1300,1660)]
 
 def chain(pts):
     c=[0.0]
@@ -87,12 +109,16 @@ for jid,x,z in juncs:
             if c<ch[-1]-0.01: legs.append({'road':rid,'toward':'end'})
     if jid.startswith('XJR02'):   # a new join on the Ring: the Ring passes through it
         rs.insert(0,'R02'); legs=[{'road':'R02','toward':'start'},{'road':'R02','toward':'end'}]+legs
+    if jid.startswith('KJR01'):   # E8: a new join on the Ring's north side
+        rs.insert(0,'R01'); legs=[{'road':'R01','toward':'start'},{'road':'R01','toward':'end'}]+legs
     J.append({'id':jid,'x':float(x),'z':float(z),'arms':len(legs) + (len(base_juncs[jid]['legs']) if jid in base_juncs else 0),'roads':rs,'legs':legs})
 
 P=lambda pts:[{'x':float(x),'z':float(z)} for x,z in pts]
 districts=[
  {'id':'D_BRIXTUN','name':'BRIXTUN','polygon':P([(130,18),(1060,18),(1060,-400),(712,-400),(712,-760),(272,-760),(272,-332),(130,-337)])},
  {'id':'D_BRIXTUN_EST','name':'ANGEL FIELDS ESTATE','polygon':P([(-100,18),(110,18),(110,-337),(272,-332),(272,-760),(-100,-760)])},
+ # E8: Kingsmere's streets east of the Parade (built like Knightsbury); the palace and the park are built by hand
+ {'id':'D_KINGSMERE','name':'KINGSMERE','polygon':P([(575,1175),(1600,1175),(1600,1885),(690,1885),(690,1695),(622,1695),(622,1600),(575,1600)])},
 ]
 parks=[
  {'id':'P_WINDWARD','name':'Windward Square','polygon':P([(440,-236),(500,-236),(500,-292),(440,-292)])},
@@ -101,6 +127,11 @@ parks=[
  {'id':'P_MARKET','name':'Brixtun Market','polygon':P([(443.5,-74.9),(524.0,-74.9),(524.0,-58.0),(443.5,-58.0)])},
  # E4: the roundabout's island (grass; its trees come from the retail park, so nothing else moves)
  {'id':'P_ISLAND_FERNDALE','name':'Ferndale Circus','polygon':P([(round(1200+19*math.cos(math.radians(a)),3),round(-480+19*math.sin(math.radians(a)),3)) for a in range(0,360,15)])},
+ # E8: St Jarvis's Park (its lake, bridges and paths come from the royal quarter; its south-west corner puts a railing gate at
+ # x 178, opposite Hydemoor Park's), the palace gardens, the memorial's island
+ {'id':'P_K_JARVIS','name':"St Jarvis's Park",'polygon':P([(143,1192),(158,1180),(522,1180),(536,1194),(536,1632),(522,1646),(140,1646),(126,1632),(126,1200)])},
+ {'id':'P_K_GARDENS','name':'Palace Gardens','polygon':P([(448,1822),(672,1822),(672,1888),(448,1888)])},
+ {'id':'P_ISLAND_MEMORIAL','name':'Memorial Circle','polygon':P([(round(560+33*math.cos(math.radians(a)),3),round(1660+33*math.sin(math.radians(a)),3)) for a in range(0,360,15)])},
 ]
 pois=[]
 x={'schemaVersion':'1.1','worldBounds':{'groundMinX':-300.0,'groundMaxX':1900.0,'groundMinZ':-1130.0,'groundMaxZ':2080.0,'wallMinX':-120.0,'wallMaxX':1720.0,'wallMinZ':-950.0,'wallMaxZ':1900.0},

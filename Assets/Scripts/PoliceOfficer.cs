@@ -65,6 +65,15 @@ public class PoliceOfficer : MonoBehaviour
     private float alertedUntil, reactUntil, taserAt, nextTaser;
     private bool sawLastFrame;
 
+    // R1: no more freezing mid-chase
+    private bool aiming;                       // the aiming pose is on (so it can always be switched off again)
+    private float nextNavFix;                  // off the walkable ground: try to get back on
+    private float stuckFor, nextHoldMove;      // not moving although he wants to / can't reach James
+    private Vector3 holdSpot, holdEnd;
+    private NavMeshPath holdPath;
+    private bool holding;
+    private string debugNote = "";
+
     public void Init(PoliceAI car)
     {
         myCar = car;
@@ -136,7 +145,7 @@ public class PoliceOfficer : MonoBehaviour
 
     void Beat()
     {
-        LundunAnim.Bool(animator, "Aim", false);
+        SetAim(false);
         agent.isStopped = false;
         agent.speed = walkSpeed * 0.6f;
         agent.stoppingDistance = 0.5f;
@@ -225,7 +234,8 @@ public class PoliceOfficer : MonoBehaviour
         if (animator != null)
             animator.SetFloat("Speed", agent.velocity.magnitude, 0.1f, Time.deltaTime);
 
-        if (!agent.isOnNavMesh) return;
+        // R1: off the walkable ground (got out of a car at a kerb, knocked about): put him back on it, don't just stop
+        if (!agent.isOnNavMesh) { FixNavMesh(); debugNote = "OFF NAVMESH"; return; }
 
         // Hold still while BUSTED / WASTED plays out
         if (VehicleSystem.Locked) { Stop(); return; }
@@ -263,7 +273,11 @@ public class PoliceOfficer : MonoBehaviour
         else if (state == State.Chase)
             state = State.Search;
 
-        if (state != State.Chase) taserAt = 0f;
+        // R1: out of the chase, nothing carries over: no Taser wind-up, no aiming pose (that left officers gliding
+        // round in the aim stance, looking frozen), nothing held
+        if (state != State.Chase) { CancelTaser(); SetAim(false); }
+        if (state != State.Chase && state != State.Search) holding = false;
+        canSeeNow = canSee;
 
         // ---------- do it ----------
         switch (state)
@@ -283,13 +297,13 @@ public class PoliceOfficer : MonoBehaviour
         // unarmed officers (2★ and up): Taser when close enough, James on foot
         if (!Armed && (taserAt > 0f || TaserReady(target, tier, distance)) && playerAlive)
         {
-            Taser(target);
-            return;
+            if (Taser(target)) { debugNote = "TASER"; return; }
+            // R1: the shot was called off (out of range, out of sight, into a car): carry on chasing this frame
         }
 
-        bool shooting = Armed && stars >= starsToShoot && distance > closeRange && distance < shootRange && playerAlive;
+        bool shooting = Armed && stars >= starsToShoot && distance > closeRange && distance < shootRange && playerAlive && canSeeNow;
 
-        LundunAnim.Bool(animator, "Aim", shooting);
+        SetAim(shooting);
         if (shooting)
         {
             // Stand, face you, fire
@@ -301,6 +315,7 @@ public class PoliceOfficer : MonoBehaviour
                 FireAt(target, tier);
                 LundunAnim.Trigger(animator, "Shoot");
             }
+            debugNote = "SHOOT";
             return;
         }
 
@@ -308,7 +323,12 @@ public class PoliceOfficer : MonoBehaviour
         agent.isStopped = false;
         agent.speed = tier.runSpeed;
         agent.stoppingDistance = 1.2f;
-        Repath(target.position, tier.repath);
+        if (!HoldIfUnreachable(target.position))
+        {
+            Repath(target.position, tier.repath);
+            Unstick(distance > 2.5f);
+            debugNote = "CHASE";
+        }
         if (distance < 2f) FaceTowards(target.position);
     }
 
@@ -317,14 +337,117 @@ public class PoliceOfficer : MonoBehaviour
         agent.isStopped = false;
         agent.speed = tier.runSpeed * 0.7f;
         agent.stoppingDistance = 1f;
+        if (HoldIfUnreachable(lastKnown)) return;
         Repath(lastKnown, tier.repath);
+        Unstick(FlatDistance(lastKnown) > 2f);
+        debugNote = "SEARCH";
     }
+
+    // ------------------------------------------------------------------ R1: never freeze
+    private bool canSeeNow;
+
+    /// The aiming pose on or off (only tells the animator when it changes, and always lets it be switched off).
+    void SetAim(bool on)
+    {
+        if (on == aiming) return;
+        aiming = on;
+        LundunAnim.Bool(animator, "Aim", on);
+    }
+
+    void CancelTaser()
+    {
+        if (taserAt <= 0f) return;
+        taserAt = 0f;
+        nextTaser = Mathf.Max(nextTaser, Time.time + 1f);       // a moment before he tries again
+        SetAim(false);
+    }
+
+    /// Off the walkable ground: every half second, look for it within 4 m and put him back on it.
+    void FixNavMesh()
+    {
+        if (!agent.enabled || Time.time < nextNavFix) return;
+        nextNavFix = Time.time + 0.5f;
+        if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 4f, NavMesh.AllAreas)) agent.Warp(hit.position);
+    }
+
+    /// Where he's going can't be reached (James on a roof, in a shop, over the seam): instead of standing at the end
+    /// of the path, he paces about the nearest point he can reach, facing James, and every few seconds checks whether
+    /// James can be reached again. True while that's happening.
+    bool HoldIfUnreachable(Vector3 goal)
+    {
+        if (!holding)
+        {
+            // start holding when his own path to the goal stops short of it and he's nearly at its end
+            if (agent.pathPending || !agent.hasPath || agent.pathStatus != NavMeshPathStatus.PathPartial) return false;
+            Vector3 end = agent.pathEndPosition;
+            if (!FarFrom(goal, end) || FlatDistance(end) > 3f) return false;
+            holding = true;
+            holdEnd = end;
+            nextHoldMove = 0f;
+        }
+        if (Time.time >= nextHoldMove)
+        {
+            nextHoldMove = Time.time + Random.Range(2.5f, 4f);
+            // can he get to James now?
+            if (holdPath == null) holdPath = new NavMeshPath();
+            if (NavMesh.CalculatePath(transform.position, goal, NavMesh.AllAreas, holdPath) && holdPath.status == NavMeshPathStatus.PathComplete)
+            { holding = false; nextRepath = 0f; return false; }
+            Vector3 around = holdEnd + new Vector3(Random.Range(-3f, 3f), 0f, Random.Range(-3f, 3f));
+            holdSpot = NavMesh.SamplePosition(around, out NavMeshHit hit, 2f, NavMesh.AllAreas) ? hit.position : holdEnd;
+            agent.isStopped = false;
+            agent.SetDestination(holdSpot);
+        }
+        if (FlatDistance(holdSpot) < 1.2f) FaceTowards(goal);
+        debugNote = "HOLD";
+        return true;
+    }
+
+    static bool FarFrom(Vector3 goal, Vector3 end)
+    {
+        Vector3 gap = goal - end;
+        return new Vector2(gap.x, gap.z).magnitude > 2.5f || Mathf.Abs(gap.y) > 1.8f;
+    }
+
+    /// Wants to move but hasn't for a second and a half (blocked by a car, a crowd, a bad path): find a new path; if
+    /// that doesn't help, step aside onto the nearest clear ground.
+    void Unstick(bool shouldMove)
+    {
+        if (!shouldMove || agent.pathPending || agent.velocity.sqrMagnitude > 0.25f) { stuckFor = 0f; return; }
+        stuckFor += Time.deltaTime;
+        if (stuckFor > 1.5f && stuckFor - Time.deltaTime <= 1.5f) { agent.ResetPath(); nextRepath = 0f; }
+        if (stuckFor > 3f)
+        {
+            stuckFor = 0f;
+            Vector3 side = transform.position + Random.insideUnitSphere * 2.5f;
+            if (NavMesh.SamplePosition(side, out NavMeshHit hit, 2.5f, NavMesh.AllAreas)) agent.Warp(hit.position);
+            nextRepath = 0f;
+            debugNote = "UNSTICK";
+        }
+    }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    static GUIStyle debugStyle;
+    void OnGUI()
+    {
+        if (!PoliceTiers.ShowOfficerStates || state == State.Dead) return;
+        Camera cam = Camera.main;
+        if (cam == null) return;
+        Vector3 sp = cam.WorldToScreenPoint(transform.position + Vector3.up * 2.3f);
+        if (sp.z <= 0f) return;
+        if (debugStyle == null) debugStyle = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+        string s = state == State.Chase || state == State.Search ? debugNote : state.ToString().ToUpperInvariant();
+        if (aiming) s += " (aim)";
+        if (agent != null && agent.enabled && agent.isOnNavMesh && agent.isStopped) s += " (stopped)";
+        debugStyle.normal.textColor = s.StartsWith("HOLD") || s.StartsWith("UNSTICK") || s.StartsWith("OFF") ? Color.yellow : Color.white;
+        GUI.Label(new Rect(sp.x - 120f, Screen.height - sp.y - 14f, 240f, 28f), s, debugStyle);
+    }
+#endif
 
     // ------------------------------------------------------------------ Taser (W1)
     bool TaserReady(Transform target, PoliceTiers.Tier tier, float distance)
     {
         PoliceTiers p = PoliceTiers.Instance;
-        if (p == null || !tier.taser || Time.time < nextTaser) return false;
+        if (p == null || !tier.taser || Time.time < nextTaser || !canSeeNow) return false;
         if (target.GetComponent<CarController>() != null) return false;                  // not through a car
         PlayerController pc = target.GetComponent<PlayerController>();
         if (pc == null || !pc.CanBeTased) return false;
@@ -332,18 +455,26 @@ public class PoliceOfficer : MonoBehaviour
     }
 
     /// Stop, aim, fire the Taser: a hit stuns James for a moment (plenty of time for an arrest).
-    void Taser(Transform target)
+    /// R1: false = called off (James got out of range or out of sight, or into a car, during the wind-up): the officer
+    /// drops his aim and carries on chasing instead of standing there.
+    bool Taser(Transform target)
     {
         PoliceTiers p = PoliceTiers.Instance;
+        if (p == null) { CancelTaser(); return false; }
+        if (taserAt > 0f)
+        {
+            bool inCar = target.GetComponent<CarController>() != null;
+            if (inCar || FlatDistance(target.position) > p.taserMax + 1.5f || !canSeeNow) { CancelTaser(); return false; }
+        }
         Stop();
         FaceTowards(target.position);
-        LundunAnim.Bool(animator, "Aim", true);
-        if (taserAt <= 0f) { taserAt = Time.time + p.taserWindup; return; }
-        if (Time.time < taserAt) return;
+        SetAim(true);
+        if (taserAt <= 0f) { taserAt = Time.time + p.taserWindup; return true; }
+        if (Time.time < taserAt) return true;
 
         taserAt = 0f;
         nextTaser = Time.time + p.taserCooldown;
-        LundunAnim.Bool(animator, "Aim", false);
+        SetAim(false);
         Vector3 from = transform.position + Vector3.up * 1.3f + transform.forward * 0.4f;
         Vector3 aim = PoliceAim.Centre(target);
         float chance = p.taserHitChance - PoliceTiers.TargetSpeed(target) * 0.04f;
@@ -360,10 +491,12 @@ public class PoliceOfficer : MonoBehaviour
         }
         else end = aim + Vector3.Cross(Vector3.up, (aim - from).normalized) * Random.Range(-1.2f, 1.2f) + Vector3.down * 0.6f;
         if (tracer != null) StartCoroutine(ShowTracer(from, end, new Color(1f, 0.92f, 0.25f), 0.3f));
+        return true;
     }
 
     void ReturnToCar()
     {
+        debugNote = "TO CAR";
         agent.isStopped = false;
         agent.speed = walkSpeed;
         agent.stoppingDistance = 0.5f;
