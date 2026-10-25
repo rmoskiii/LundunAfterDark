@@ -10,6 +10,7 @@ using UnityEngine.UI;
 ///   • tap a place's icon, or anywhere on a road, to select it: a card at the bottom shows what it is and how far,
 ///     with SET ROUTE. With a route set, the card shows it with CLEAR ROUTE
 ///   • PLACES (top right) opens a list of every destination
+///   • R4b: gang areas you've been into are shaded in the gang's colour, with their name under the district's
 ///   • E8: Greater Lundun round the playable city (the river across the middle, the outer boroughs and their names),
 ///     drawn behind the map picture; zooming right out shows all of it, top to bottom, without scrolling
 /// Built by Lundun → 6  Build Full Map + GPS (which fills in the fields below); the new look is made in code.
@@ -79,6 +80,7 @@ public class LundunFullMap : MonoBehaviour
     private readonly Item pin = new Item { kind = "pin", name = "Dropped pin", isPin = true };
 
     private RectTransform backdropRect;
+    private readonly List<KeyValuePair<string, GameObject>> gangAreas = new List<KeyValuePair<string, GameObject>>();   // R4b
 
     void Awake() { Instance = this; if (window != null) window.SetActive(false); }
 
@@ -113,6 +115,7 @@ public class LundunFullMap : MonoBehaviour
         if (window == null || viewport == null || content == null)
         { Debug.LogWarning("[Lundun] Full map parts missing — run Lundun → 6  Build Full Map + GPS again."); return; }
         if (!built) BuildContents();
+        else ShowGangAreas();                    // R4b: any gang area James has found since
         IsOpen = true;
         window.SetActive(true);
         if (drawer != null) drawer.gameObject.SetActive(false);
@@ -357,6 +360,7 @@ public class LundunFullMap : MonoBehaviour
         }
 
         // districts and streets
+        Dictionary<string, TextMeshProUGUI> districtById = new Dictionary<string, TextMeshProUGUI>();
         if (w != null)
         {
             foreach (LwPoly d in w.districts)
@@ -368,7 +372,9 @@ public class LundunFullMap : MonoBehaviour
                 TextMeshProUGUI t = Label(labelLayer, d.name, new Vector3(cx, 0, cz), 40, new Color(1f, 1f, 1f, 0.4f));
                 t.characterSpacing = 18f;
                 districtLabels.Add(t);
+                districtById[d.id] = t;
             }
+            GangAreas(w, districtById);
             foreach (LwRoad r in w.roads)
             {
                 if (r.roadClass == "service" || r.points == null || r.points.Length < 2 || string.IsNullOrEmpty(r.name)) continue;
@@ -420,6 +426,50 @@ public class LundunFullMap : MonoBehaviour
     }
 
     /// E0: the built-in kinds in their usual order, then any other kinds the expansions registered.
+    /// R4b: each gang's turf, shaded in its colour (over the map picture, under the route), its name under the
+    /// district's. Shown once James has been into it (LundunGangs.Discovered), checked each time the map opens.
+    void GangAreas(LundunWorldData w, Dictionary<string, TextMeshProUGUI> districtById)
+    {
+        RectTransform layer = Rect("GangAreas", content);
+        Stretch(layer);
+        Transform img = content.Find("MapImage");
+        layer.SetSiblingIndex(img != null ? img.GetSiblingIndex() + 1 : (labelLayer != null ? labelLayer.GetSiblingIndex() : 0));
+        foreach (LundunGangs.GangArea a in LundunGangs.GangAreas)
+        {
+            LwPoly poly = null;
+            foreach (LwPoly d in w.districts) if (d.id == a.district) poly = d;
+            if (poly == null || poly.polygon == null || poly.polygon.Length < 3) continue;
+            RectTransform r = Rect("Turf_" + a.district, layer);
+            Stretch(r);
+            LundunMapShade shade = r.gameObject.AddComponent<LundunMapShade>();
+            Color fill = a.colour; fill.a = 0.16f;
+            Color edge = a.colour; edge.a = 0.55f;
+            shade.Set(poly.polygon, mapMinX, mapMinZ, mapWidth, mapHeight, fill, edge);
+            GameObject both = r.gameObject;
+            if (districtById.TryGetValue(a.district, out TextMeshProUGUI dl))
+            {
+                Color c = a.colour; c.a = 0.9f;
+                TextMeshProUGUI g = Text(dl.rectTransform, a.name, 24, c);
+                g.name = "GangName";
+                g.textWrappingMode = TextWrappingModes.NoWrap;
+                g.characterSpacing = 10f;
+                RectTransform gr = g.rectTransform;
+                gr.anchorMin = gr.anchorMax = new Vector2(0.5f, 0.5f);
+                gr.sizeDelta = new Vector2(600f, 40f);
+                gr.anchoredPosition = new Vector2(0f, -36f);
+                gangAreas.Add(new KeyValuePair<string, GameObject>(a.district, g.gameObject));
+            }
+            gangAreas.Add(new KeyValuePair<string, GameObject>(a.district, both));
+        }
+        ShowGangAreas();
+    }
+
+    void ShowGangAreas()
+    {
+        foreach (KeyValuePair<string, GameObject> kv in gangAreas)
+            if (kv.Value != null) kv.Value.SetActive(LundunGangs.Discovered(kv.Key));
+    }
+
     static List<string> KindOrder(string[] builtIn, LundunNavigation nav)
     {
         List<string> r = new List<string>(builtIn);

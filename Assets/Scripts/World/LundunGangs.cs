@@ -14,6 +14,14 @@ using UnityEngine.AI;
 /// junctions inside each area, the pavement on the corner), so no menu is needed. See LundunGangMember for how they act.
 /// Gang members come out of the same people budget as pedestrians (LundunPopulation), so the frame rate holds.
 /// Added at runtime by LundunPopulation (untick Gangs there to switch them off).
+/// R4b: turf, grudges and the map:
+///   turf     rival gangs whose areas meet (Tower Block Kings / Rye Lane Riders, Angel Fields Firm / Electric Youth):
+///            every few minutes, when you're near a group, a group of their rivals may come over to their corner, and
+///            the two fight it out (people nearby run). Police scatter both.
+///   grudges  hurt one of a gang and the whole gang remembers for the rest of their night: their groups come at you
+///            on sight
+///   the map  once you've been into a gang's area it's shaded on the full map in their colour, with their name
+///            (remembered between sessions); GangAreas lists them for missions to use
 public class LundunGangs : MonoBehaviour
 {
     public static LundunGangs Instance { get; private set; }
@@ -22,9 +30,26 @@ public class LundunGangs : MonoBehaviour
 
     public class Gang
     {
-        public string district, name; public Color colour; public float from, to;
+        public string district, name, rival; public Color colour; public float from, to;
         public readonly List<Vector3> spots = new List<Vector3>();
         public bool spotsFound;
+        public bool grudge;                       // R4b: James hurt one of them tonight
+    }
+
+    /// R4b: a gang's area for the map (and, later, missions): its district, name and colour.
+    public struct GangArea { public string district, name; public Color colour; }
+    public static readonly GangArea[] GangAreas =
+    {
+        new GangArea { district = "D_GILMOR", name = "TOWER BLOCK KINGS", colour = new Color(0.05f, 0.62f, 0.6f) },
+        new GangArea { district = "D_BRIXTUN_EST", name = "ANGEL FIELDS FIRM", colour = new Color(0.52f, 0.18f, 0.72f) },
+        new GangArea { district = "D_PECKAM", name = "RYE LANE RIDERS", colour = new Color(0.95f, 0.45f, 0.08f) },
+        new GangArea { district = "D_BRIXTUN", name = "ELECTRIC YOUTH", colour = new Color(0.95f, 0.82f, 0.1f) },
+    };
+    const string SeenKey = "Lundun.GangArea.";
+    /// R4b: James has been into this gang's area (so it shows on the map).
+    public static bool Discovered(string district)
+    {
+        try { return PlayerPrefs.GetInt(SeenKey + district, 0) == 1; } catch { return false; }
     }
 
     public class Group
@@ -33,7 +58,21 @@ public class LundunGangs : MonoBehaviour
         public readonly List<LundunGangMember> members = new List<LundunGangMember>();
         public bool fighting, scattering;
         public float nextTrouble, nextTaunt, lastContact;
+        public int started;                               // R4b: how many there were (for morale)
+        public Group rival;                               // R4b: brawling with this group
+        public Group raiding;                             // R4b: on their way to this group's corner
         public bool HasLiving { get { foreach (LundunGangMember m in members) if (m != null && !m.IsDead) return true; return false; } }
+        public int Living { get { int n = 0; foreach (LundunGangMember m in members) if (m != null && !m.IsDead) n++; return n; } }
+        /// Where the group is now (the middle of the living ones; their corner if none).
+        public Vector3 Centre
+        {
+            get
+            {
+                Vector3 c = Vector3.zero; int n = 0;
+                foreach (LundunGangMember m in members) if (m != null && !m.IsDead) { c += m.transform.position; n++; }
+                return n > 0 ? c / n : spot;
+            }
+        }
     }
 
     [SerializeField] private int maxGroups = 2;
@@ -42,13 +81,17 @@ public class LundunGangs : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float gunChance = 0.25f;
     [Tooltip("Ignore the time of day (for testing)")]
     [SerializeField] private bool anyTime = false;
+    [Header("R4b: turf")]
+    [Tooltip("Seconds between rival gangs coming over to fight (a random time in this range)")]
+    [SerializeField] private Vector2 raidEvery = new Vector2(180f, 360f);
+    private float nextRaid = -1f;
 
     private readonly List<Gang> gangs = new List<Gang>
     {
-        new Gang { district = "D_GILMOR", name = "Tower Block Kings", colour = new Color(0.05f, 0.62f, 0.6f), from = 18f, to = 5f },
-        new Gang { district = "D_BRIXTUN_EST", name = "Angel Fields Firm", colour = new Color(0.52f, 0.18f, 0.72f), from = 18f, to = 5f },
-        new Gang { district = "D_PECKAM", name = "Rye Lane Riders", colour = new Color(0.95f, 0.45f, 0.08f), from = 22f, to = 4f },
-        new Gang { district = "D_BRIXTUN", name = "Electric Youth", colour = new Color(0.95f, 0.82f, 0.1f), from = 22f, to = 4f },
+        new Gang { district = "D_GILMOR", name = "Tower Block Kings", rival = "Rye Lane Riders", colour = new Color(0.05f, 0.62f, 0.6f), from = 18f, to = 5f },
+        new Gang { district = "D_BRIXTUN_EST", name = "Angel Fields Firm", rival = "Electric Youth", colour = new Color(0.52f, 0.18f, 0.72f), from = 18f, to = 5f },
+        new Gang { district = "D_PECKAM", name = "Rye Lane Riders", rival = "Tower Block Kings", colour = new Color(0.95f, 0.45f, 0.08f), from = 22f, to = 4f },
+        new Gang { district = "D_BRIXTUN", name = "Electric Youth", rival = "Angel Fields Firm", colour = new Color(0.95f, 0.82f, 0.1f), from = 22f, to = 4f },
     };
     private readonly List<Group> groups = new List<Group>();
     private readonly Dictionary<string, float> spotRestUntil = new Dictionary<string, float>();
@@ -61,6 +104,7 @@ public class LundunGangs : MonoBehaviour
     static readonly string[] Lookers = { "What you looking at?", "Oi! You lost?", "Wrong ends, bruv.", "Keep walking.", "You got a problem?" };
     static readonly string[] Warnings = { "Last chance. Move.", "You deaf? Go on!", "Don't make me ask again." };
     static readonly string[] Attacks = { "Get him!", "Run him!", "Draw it!" };
+    static readonly string[] Spotted = { "That's him!", "It's him, from before!", "Oi! Remember us?" };
 
     void Awake() { Instance = this; }
     void OnDestroy() { if (Instance == this) Instance = null; ActiveMembers = 0; }
@@ -74,7 +118,8 @@ public class LundunGangs : MonoBehaviour
         if (nav == null || nav.World == null || nav.Graph == null || ph == null) return;
         Vector3 me = ph.Body != null && ph.OnFoot ? ph.Body.position : (FindAnyObjectByType<VehicleSystem>() is VehicleSystem vs ? vs.PlayerTarget.position : Vector3.zero);
         float hour = LundunClock.Instance != null ? LundunClock.Instance.Hour : 22f;
-
+        Discover(nav, me);
+        foreach (Gang gang in gangs) if (gang.grudge && !anyTime && !InHours(gang, hour)) gang.grudge = false;   // a new night
         // tidy up: gone, all dead, far away and unseen, or their time is over and nobody's watching
         Camera cam = Camera.main;
         int living = 0;
@@ -83,14 +128,15 @@ public class LundunGangs : MonoBehaviour
             Group g = groups[i];
             g.members.RemoveAll(m => m == null);
             bool any = g.HasLiving;
-            float d = Flat(g.spot, me);
+            float d = Flat(g.Centre, me);
             bool seen = false;
             foreach (LundunGangMember m in g.members) if (m != null && !m.IsDead && cam != null && LundunView.CanSee(cam, m.transform.position)) seen = true;
             bool over = !anyTime && !InHours(g.gang, hour) && !g.fighting;
             if (!any || ((d > removeBeyond || over || g.scattering) && !seen && d > 40f))
             {
                 foreach (LundunGangMember m in g.members) if (m != null && !m.IsDead) Destroy(m.gameObject);
-                spotRestUntil[g.gang.name + g.spotIndex] = Time.time + 300f;       // give the corner a rest
+                if (g.spotIndex >= 0) spotRestUntil[g.gang.name + g.spotIndex] = Time.time + 300f;       // give the corner a rest
+                foreach (Group o in groups) { if (o.rival == g) o.rival = null; if (o.raiding == g) o.raiding = null; }
                 groups.RemoveAt(i);
                 continue;
             }
@@ -99,8 +145,11 @@ public class LundunGangs : MonoBehaviour
         }
         ActiveMembers = living;
 
-        // new groups: an active gang's corner, near enough but out of sight
-        if (groups.Count >= maxGroups) return;
+        Raids(me, hour, cam);
+
+        // new groups: an active gang's corner, near enough but out of sight (a raiding group doesn't count)
+        int onCorners = 0; foreach (Group g in groups) if (g.spotIndex >= 0) onCorners++;
+        if (onCorners >= maxGroups) return;
         foreach (Gang gang in gangs)
         {
             if (!anyTime && !InHours(gang, hour)) continue;
@@ -128,16 +177,51 @@ public class LundunGangs : MonoBehaviour
     void Think(Group g, Vector3 me, PlayerHealth ph)
     {
         if (g.scattering) return;
+        Vector3 at = g.Centre;
         // police about: scatter
         foreach (PoliceOfficer o in PoliceOfficer.Active)
-            if (o != null && !o.IsDown && Flat(o.transform.position, g.spot) < 30f) { Scatter(g, o.transform.position); return; }
+            if (o != null && !o.IsDown && Flat(o.transform.position, at) < 30f) { Scatter(g, o.transform.position); return; }
         foreach (PoliceAI c in PoliceAI.Active)
-            if (c != null && Flat(c.transform.position, g.spot) < 30f) { Scatter(g, c.transform.position); return; }
+            if (c != null && Flat(c.transform.position, at) < 30f) { Scatter(g, c.transform.position); return; }
 
         // morale: half of them down and the rest lose their nerve
-        int dead = 0, all = g.members.Count;
-        foreach (LundunGangMember m in g.members) if (m == null || m.IsDead) dead++;
-        if (all > 0 && dead * 2 >= all && dead > 0) { Scatter(g, me); return; }
+        int living = g.Living;
+        if (g.started > 0 && (g.started - living) * 2 >= g.started && living < g.started) { Scatter(g, g.rival != null ? g.rival.Centre : me); return; }
+
+        // R4b: on their way to a rival's corner: close enough, and it kicks off
+        if (g.raiding != null)
+        {
+            if (g.raiding.scattering || !g.raiding.HasLiving) { g.raiding = null; Scatter(g, at); return; }
+            float gap = Flat(at, g.raiding.Centre);
+            foreach (LundunGangMember m in g.members) if (m != null && !m.IsDead) m.March(g.raiding.Centre, gap < 45f);
+            if (gap < 18f) Brawl(g, g.raiding);
+            return;
+        }
+        // R4b: brawling: over when the other lot have gone (or run)
+        if (g.rival != null)
+        {
+            if (g.rival.scattering || !g.rival.HasLiving)
+            {
+                g.rival = null;
+                if (g.spotIndex < 0) { Scatter(g, at); return; }                  // raiders head off home
+                foreach (LundunGangMember m in g.members) if (m != null && !m.IsDead && !g.fighting) m.BackToCorner();
+            }
+            return;
+        }
+        // R4b: a gang with a grudge comes at James on sight
+        if (g.gang.grudge && !g.fighting && !ph.IsDead)
+        {
+            float d = Flat(me, at);
+            bool onFoot = ph.OnFoot;
+            VehicleSystem vs = FindAnyObjectByType<VehicleSystem>();
+            bool stoppedCar = !onFoot && vs != null && vs.PlayerSpeed < 2f;
+            if ((onFoot && d < 22f && CanSeeJames(at, me)) || (stoppedCar && d < 9f))
+            {
+                Toast(Spotted[Random.Range(0, Spotted.Length)]);
+                StartFight(g);
+                return;
+            }
+        }
 
         if (g.fighting)
         {
@@ -157,6 +241,86 @@ public class LundunGangs : MonoBehaviour
                 int sent = 0;
                 foreach (LundunGangMember m in g.members)
                     if (m != null && !m.IsDead && sent < 2 && m.PickOn(victim)) sent++;
+            }
+        }
+    }
+
+    static bool CanSeeJames(Vector3 from, Vector3 james)
+    {
+        return !Physics.Linecast(from + Vector3.up * 1.6f, james + Vector3.up * 1.2f, LayerMask.GetMask("Default"), QueryTriggerInteraction.Ignore);
+    }
+
+    // ------------------------------------------------------------------ R4b: turf
+    /// Every few minutes: if James is near a group whose rivals are out tonight, a group of the rivals turns up
+    /// (out of sight, 90-120 m away) and comes for their corner.
+    void Raids(Vector3 me, float hour, Camera cam)
+    {
+        if (nextRaid < 0f) nextRaid = Time.time + Random.Range(raidEvery.x, raidEvery.y) * 0.5f;
+        if (Time.time < nextRaid) return;
+        foreach (Group g in groups) if (g.raiding != null) return;              // one at a time
+        foreach (Group g in groups)
+        {
+            if (g.spotIndex < 0 || g.fighting || g.scattering || g.rival != null) continue;
+            if (Flat(g.Centre, me) > 150f) continue;
+            Gang rival = null;
+            foreach (Gang k in gangs) if (k.name == g.gang.rival) rival = k;
+            if (rival == null || (!anyTime && !InHours(rival, hour))) continue;
+            // somewhere out of sight to come from
+            for (int tries = 0; tries < 10; tries++)
+            {
+                Vector3 dir = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f) * Vector3.forward;
+                Vector3 p = g.spot + dir * Random.Range(90f, 120f);
+                if (!NavMesh.SamplePosition(p, out NavMeshHit hit, 6f, NavMesh.AllAreas)) continue;
+                if (cam != null && LundunView.CanSee(cam, hit.position)) continue;
+                if (Flat(hit.position, me) < 45f) continue;
+                Group raid = SpawnAt(rival, hit.position, -1, hour);
+                if (raid == null) break;
+                raid.raiding = g;
+                nextRaid = Time.time + Random.Range(raidEvery.x, raidEvery.y);
+                return;
+            }
+        }
+        nextRaid = Time.time + 20f;                                            // nobody suitable: look again soon
+    }
+
+    void Brawl(Group a, Group b)
+    {
+        a.raiding = null;
+        a.rival = b; b.rival = a;
+        if (b.fighting) b.fighting = false;
+        foreach (LundunGangMember m in a.members) if (m != null && !m.IsDead) m.Brawl(b);
+        foreach (LundunGangMember m in b.members) if (m != null && !m.IsDead) m.Brawl(a);
+        Vector3 at = (a.Centre + b.Centre) * 0.5f;
+        if (LundunPopulation.Instance != null) LundunPopulation.Instance.Scare(at, 35f);    // everyone near runs
+        PlayerHealth ph = PlayerHealth.Instance;
+        if (ph != null && ph.Body != null && Flat(ph.Body.position, at) < 70f)
+            Toast("It's kicking off: " + b.gang.name + " v " + a.gang.name + "!");
+    }
+
+    /// A member was hurt. By a rival (in a brawl): nothing more to do. By James: the group goes for him, and the
+    /// whole gang remembers.
+    public void Hurt(Group g, bool byRival)
+    {
+        if (byRival) return;
+        if (!g.gang.grudge)
+        {
+            g.gang.grudge = true;
+            Toast("The " + g.gang.name + " won't forget that.");
+        }
+        StartFight(g);
+    }
+
+    /// R4b: James has walked into a gang's area for the first time: it goes on the map.
+    void Discover(LundunNavigation nav, Vector3 me)
+    {
+        foreach (Gang gang in gangs)
+        {
+            if (Discovered(gang.district)) continue;
+            foreach (LwPoly d in nav.World.districts)
+            {
+                if (d.id != gang.district || !InPoly(me.x, me.z, d.polygon)) continue;
+                try { PlayerPrefs.SetInt(SeenKey + gang.district, 1); PlayerPrefs.Save(); } catch { }
+                Toast(gang.name.ToUpperInvariant() + " ENDS: on your map now");
             }
         }
     }
@@ -182,6 +346,7 @@ public class LundunGangs : MonoBehaviour
     {
         g.lastContact = Time.time;
         if (g.fighting || g.scattering) return;
+        if (g.raiding != null) g.raiding = null;            // James first
         g.fighting = true;
         Toast(Attacks[Random.Range(0, Attacks.Length)]);
         LundunHaptics.Medium();
@@ -204,12 +369,15 @@ public class LundunGangs : MonoBehaviour
     static void Toast(string s) { if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(s); }
 
     // ------------------------------------------------------------------ spawning
-    void Spawn(Gang gang, int spotIndex, float hour)
+    void Spawn(Gang gang, int spotIndex, float hour) { SpawnAt(gang, gang.spots[spotIndex], spotIndex, hour); }
+
+    /// A group of the gang at 'at' (their corner, or for a raid, wherever they set off from: spotIndex −1).
+    Group SpawnAt(Gang gang, Vector3 at, int spotIndex, float hour)
     {
         LundunPopulation pop = LundunPopulation.Instance;
-        if (pop == null) return;
+        if (pop == null) return null;
         if (holder == null) { holder = new GameObject("Gangs").transform; holder.SetParent(transform, false); }
-        Group g = new Group { gang = gang, spot = gang.spots[spotIndex], spotIndex = spotIndex, nextTrouble = Time.time + Random.Range(20f, 50f) };
+        Group g = new Group { gang = gang, spot = at, spotIndex = spotIndex, nextTrouble = Time.time + Random.Range(20f, 50f) };
         int n = 3 + rng.Next(3);
         bool late = hour >= 0f && hour < 5f;
         int gunman = late && rng.NextDouble() < gunChance ? rng.Next(n) : -1;
@@ -234,8 +402,10 @@ public class LundunGangs : MonoBehaviour
             m.Begin(this, g, w, p);
             g.members.Add(m);
         }
-        if (g.members.Count == 0) return;
+        if (g.members.Count == 0) return null;
+        g.started = g.members.Count;
         groups.Add(g);
+        return g;
     }
 
     /// The gang's colour: a cap on the head and a light tint on their clothes.
@@ -383,5 +553,19 @@ public class LundunGangs : MonoBehaviour
         if (best == null) { Debug.Log("[Lundun] No gang corner found (no road graph yet?)."); return; }
         Spawn(best, bestSpot, 1f);
         Debug.Log("[Lundun] " + best.name + " out on their corner " + Mathf.RoundToInt(bd) + " m away.");
+    }
+
+    /// For testing: their rivals set off for the nearest group's corner now.
+    [ContextMenu("Start a turf fight near me (test)")]
+    void TurfNearMe()
+    {
+        if (groups.Count == 0) SpawnNearMe();
+        nextRaid = 0f;
+        foreach (Group g in groups) g.raiding = null;
+        bool was = anyTime; anyTime = true;
+        PlayerHealth ph = PlayerHealth.Instance;
+        if (ph != null) Raids(ph.Body.position, 1f, null);
+        anyTime = was;
+        Debug.Log("[Lundun] Rivals on their way (if a group was within 150 m).");
     }
 }

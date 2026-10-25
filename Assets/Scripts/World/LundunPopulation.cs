@@ -371,6 +371,18 @@ public class LundunPopulation : MonoBehaviour
         return best;
     }
 
+    /// R4b: trouble at 'at' (a gang fight, gunfire that isn't James's): ordinary pedestrians within 'radius' run from it.
+    public void Scare(Vector3 at, float radius)
+    {
+        foreach (Ped p in peds)
+        {
+            if (!p.active || p.go == null || (p.health != null && p.health.IsDead)) continue;
+            if (Flat(p.go.transform.position, at) > radius) continue;
+            NPCBrain b = p.go.GetComponent<NPCBrain>();
+            if (b != null && b.enabled) b.Panic(at);
+        }
+    }
+
     /// Puts a person at a specific spot right now (e.g. a driver pulled out of a car). Null if none free.
     public GameObject SpawnPersonAt(Vector3 near, float yaw)
     {

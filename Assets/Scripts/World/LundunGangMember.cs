@@ -11,10 +11,13 @@ using UnityEngine.AI;
 ///                   has someone with a gun, who keeps his distance and shoots. Machete hits knock James back.
 ///   trouble         now and then a couple of them pick on a passer-by: a shove and a punch, and the victim runs
 ///   scattering      police near, or half of them down: they run for it (and are tidied away out of sight)
+///   R4b: marching   on their way to a rival gang's corner (walking, then running the last stretch)
+///   R4b: brawling   fighting the rival group: each goes for the nearest of the other lot; blades and fists hurt,
+///                   people die. Hurt by James instead and their gang holds a grudge (LundunGangs.Hurt)
 public class LundunGangMember : MonoBehaviour
 {
     public enum Weapon { None, Knife, Machete, Gun }
-    enum State { Hang, PickOn, Fight, Scatter }
+    enum State { Hang, PickOn, Fight, Scatter, March, Brawl }
 
     public bool IsDead { get { return health == null || health.IsDead; } }
     public Weapon Carries { get; private set; }
@@ -37,6 +40,11 @@ public class LundunGangMember : MonoBehaviour
     private bool swinging;
     private GameObject prop;
     private GameObject victim;
+    private LundunGangs.Group foes;              // R4b: the rival group in a brawl
+    private LundunGangMember foe;
+    private float nextFoe;
+    /// R4b: when a rival last hit this one (so the hit isn't blamed on James).
+    public float RivalHitAt { get; set; } = -99f;
 
     public void Begin(LundunGangs owner, LundunGangs.Group g, Weapon carries, Vector3 standAt)
     {
@@ -62,13 +70,14 @@ public class LundunGangMember : MonoBehaviour
 
     void OnHurt(Vector3 at)
     {
-        if (IsDead || group == null) return;
-        gangs.StartFight(group);                                   // hit one and the whole group comes for you
+        if (group == null) return;
+        bool byRival = Time.time - RivalHitAt < 0.25f;
+        if (!byRival) gangs.Hurt(group, false);                    // hit one and the whole group comes for you (and the gang remembers)
     }
 
     void OnGunshot(Vector3 from)
     {
-        if (IsDead || group == null || state == State.Scatter) return;
+        if (IsDead || group == null || state == State.Scatter || state == State.Brawl) return;
         float d = Flat(from, transform.position);
         if (d > 30f) return;
         // someone with a gun or a blade close by stands and fights; otherwise the group runs for it
@@ -110,6 +119,28 @@ public class LundunGangMember : MonoBehaviour
         if (NavMesh.SamplePosition(to, out NavMeshHit hit, 8f, NavMesh.AllAreas)) agent.SetDestination(hit.position);
     }
 
+    /// R4b: walking (then running) to a rival gang's corner.
+    public void March(Vector3 to, bool run)
+    {
+        if (IsDead || state == State.Fight || state == State.Brawl || state == State.Scatter) return;
+        state = State.March;
+        if (agent == null || !agent.isOnNavMesh) return;
+        agent.speed = run ? RunSpeed * 0.8f : 1.7f; agent.stoppingDistance = 1f; agent.isStopped = false;
+        if (Time.time >= nextPath) { nextPath = Time.time + 0.5f; agent.SetDestination(to + Random.insideUnitSphere * 2f); }
+        if (run) Draw();
+    }
+
+    /// R4b: fight the rival group.
+    public void Brawl(LundunGangs.Group rivals)
+    {
+        if (IsDead || state == State.Fight) return;                 // already going for James
+        foes = rivals; foe = null; nextFoe = 0f;
+        state = State.Brawl;
+        Draw();
+        if (agent != null) { agent.speed = RunSpeed; agent.stoppingDistance = 0.8f; agent.isStopped = false; }
+        nextHit = Time.time + Random.Range(0.2f, 0.8f);
+    }
+
     /// A couple of them go for a passer-by. False if this one can't (busy, armed with a gun, already at it).
     public bool PickOn(GameObject who)
     {
@@ -138,6 +169,8 @@ public class LundunGangMember : MonoBehaviour
             case State.PickOn: Bully(); break;
             case State.Fight: FightJames(james); break;
             case State.Scatter: break;
+            case State.March: break;                                         // steered by the group (LundunGangs)
+            case State.Brawl: BrawlRivals(); break;
         }
     }
 
@@ -252,6 +285,71 @@ public class LundunGangMember : MonoBehaviour
             nextHit = Time.time + (Carries == Weapon.Machete ? 1.4f : Carries == Weapon.Knife ? 0.95f : 1.1f);
             LundunAnim.Trigger(animator, "Punch");
         }
+    }
+
+    // ------------------------------------------------------------------ R4b: brawling
+    void BrawlRivals()
+    {
+        if (foes == null) { BackToCorner(); return; }
+        if (foe == null || foe.IsDead || Time.time >= nextFoe)
+        {
+            nextFoe = Time.time + 1f;
+            foe = null; float bd = float.MaxValue;
+            foreach (LundunGangMember m in foes.members)
+            {
+                if (m == null || m.IsDead) continue;
+                float dd = Flat(m.transform.position, transform.position);
+                if (dd < bd) { bd = dd; foe = m; }
+            }
+            if (foe == null) return;                                         // the group sorts out what's next
+        }
+        Vector3 to = foe.transform.position - transform.position; to.y = 0f;
+        float d = to.magnitude;
+
+        if (Carries == Weapon.Gun)
+        {
+            agent.updateRotation = false;
+            if (d > ShootMax) { agent.isStopped = false; if (Time.time >= nextPath) { nextPath = Time.time + 0.3f; agent.SetDestination(foe.transform.position); } }
+            else agent.isStopped = true;
+            Face(to, 10f);
+            if (d <= ShootMax && Time.time >= nextHit)
+            {
+                nextHit = Time.time + Random.Range(1.0f, 1.5f);
+                if (Random.value < Mathf.Lerp(0.55f, 0.25f, d / ShootMax)) HitFoe(foe, 20f, true);
+                if (LundunPopulation.Instance != null) LundunPopulation.Instance.Scare(transform.position, 30f);   // people nearby run
+            }
+            return;
+        }
+
+        float reach = Carries == Weapon.Machete ? 2.0f : 1.7f;
+        if (swinging)
+        {
+            agent.isStopped = true;
+            Face(to, 14f);
+            if (Time.time < windupUntil) return;
+            swinging = false;
+            if (d <= reach + 0.4f) HitFoe(foe, Carries == Weapon.Machete ? 30f : Carries == Weapon.Knife ? 22f : 12f, false);
+            return;
+        }
+        agent.isStopped = false;
+        if (Time.time >= nextPath) { nextPath = Time.time + 0.25f; agent.SetDestination(foe.transform.position); }
+        if (d <= reach && Time.time >= nextHit)
+        {
+            swinging = true;
+            windupUntil = Time.time + (Carries == Weapon.Machete ? 0.38f : 0.28f);
+            nextHit = Time.time + (Carries == Weapon.Machete ? 1.5f : Carries == Weapon.Knife ? 1.05f : 1.2f);
+            LundunAnim.Trigger(animator, "Punch");
+        }
+    }
+
+    void HitFoe(LundunGangMember who, float damage, bool gunfire)
+    {
+        if (who == null || who.IsDead) return;
+        who.RivalHitAt = Time.time;
+        Health h = who.GetComponent<Health>();
+        if (h == null) return;
+        Vector3 dir = who.transform.position - transform.position; dir.y = 0f;
+        h.TakeDamage(damage, who.transform.position + Vector3.up * 1.3f, dir.normalized * (gunfire ? 6f : 2f), gunfire);
     }
 
     void Land(bool inCar, Transform james)
