@@ -96,6 +96,7 @@ public class LundunHud : MonoBehaviour
     void Update()
     {
         if (!styled) return;
+        Speedo();
 
         // ENTER your own car, STEAL anyone else's
         if (enterLabel != null && enterLabel.gameObject.activeInHierarchy && vehicles != null)
@@ -141,6 +142,7 @@ public class LundunHud : MonoBehaviour
         Round("BrakeButton", LundunHudArt.Brake, rim, 0.4f);
         Round("ExitButton", LundunHudArt.Exit, rim, 0.48f);
         Joystick();
+        if (vehicles != null && vehicles.PointToSteer) DrivingHud();
 
         // contextual: icon + short label, stacked on the right
         float y = pillLowestY;
@@ -248,6 +250,82 @@ public class LundunHud : MonoBehaviour
         LundunStick stick = bse.GetComponent<LundunStick>();
         if (stick == null) stick = bse.gameObject.AddComponent<LundunStick>();
         stick.Setup(handle, path, range);
+    }
+
+    // ------------------------------------------------------------------ V1: driving with the joystick
+    private TextMeshProUGUI speedNumber;
+    private int shownMph = -1;
+
+    /// Point-to-steer: the joystick moves out of the on-foot controls into its own group (so it shows while driving
+    /// too), the gas and arrow buttons go, the Brake button becomes the HANDBRAKE (where the gas pedal was), and a
+    /// speedometer in mph sits above it.
+    void DrivingHud()
+    {
+        RectTransform stick = Find("JoystickBase");
+        RectTransform onFoot = stick != null ? stick.parent as RectTransform : null;
+        if (stick != null && onFoot != null && onFoot.name != "SharedControls")
+        {
+            RectTransform shared = new GameObject("SharedControls", typeof(RectTransform)).GetComponent<RectTransform>();
+            shared.SetParent(onFoot.parent, false);
+            shared.anchorMin = onFoot.anchorMin; shared.anchorMax = onFoot.anchorMax; shared.pivot = onFoot.pivot;
+            shared.offsetMin = onFoot.offsetMin; shared.offsetMax = onFoot.offsetMax; shared.localScale = onFoot.localScale;
+            shared.SetSiblingIndex(onFoot.GetSiblingIndex());
+            stick.SetParent(shared, false);
+            VehicleSystem.SharedControls = shared.gameObject;
+        }
+        foreach (string n in new[] { "GasButton", "LeftButton", "RightButton" })
+        {
+            RectTransform b = Find(n);
+            if (b != null) b.gameObject.SetActive(false);
+        }
+        RectTransform gas = Find("GasButton"), brake = Find("BrakeButton");
+        if (brake != null)
+        {
+            if (gas != null) { brake.anchorMin = gas.anchorMin; brake.anchorMax = gas.anchorMax; brake.anchoredPosition = gas.anchoredPosition; brake.sizeDelta = gas.sizeDelta; }
+            Transform icon = brake.Find("LundunIcon");
+            if (icon != null)
+            {
+                Image im = icon.GetComponent<Image>();
+                if (im != null) im.sprite = LundunHudArt.Handbrake;
+                ((RectTransform)icon).sizeDelta = brake.sizeDelta * 0.5f;
+            }
+            Transform r = brake.Find("LundunRim");
+            if (r != null) { Image ri = r.GetComponent<Image>(); if (ri != null) ri.color = fireRim; }
+            // the speedometer, above it
+            GameObject sp = new GameObject("Speedometer", typeof(RectTransform));
+            RectTransform srt = (RectTransform)sp.transform;
+            srt.SetParent(brake.parent, false);
+            srt.anchorMin = srt.anchorMax = brake.anchorMin;
+            srt.pivot = new Vector2(0.5f, 0f);
+            srt.anchoredPosition = brake.anchoredPosition + new Vector2(0f, brake.sizeDelta.y * 0.5f + 24f);
+            srt.sizeDelta = new Vector2(240f, 120f);
+            speedNumber = MakeText(srt, "0", 76f, new Vector2(0f, 26f));
+            TextMeshProUGUI unit = MakeText(srt, "MPH", 26f, new Vector2(0f, -8f));
+            unit.color = new Color(1f, 1f, 1f, 0.6f); unit.characterSpacing = 8f;
+        }
+    }
+
+    TextMeshProUGUI MakeText(RectTransform parent, string text, float size, Vector2 at)
+    {
+        GameObject g = new GameObject("Text", typeof(RectTransform));
+        RectTransform rt = (RectTransform)g.transform;
+        rt.SetParent(parent, false);
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f); rt.pivot = new Vector2(0.5f, 0f);
+        rt.anchoredPosition = at; rt.sizeDelta = new Vector2(240f, size * 1.2f);
+        TextMeshProUGUI t = g.AddComponent<TextMeshProUGUI>();
+        if (fontAsset != null) t.font = fontAsset;
+        t.text = text; t.fontSize = size; t.color = Color.white; t.alignment = TextAlignmentOptions.Center;
+        t.raycastTarget = false; t.textWrappingMode = TextWrappingModes.NoWrap;
+        return t;
+    }
+
+    void Speedo()
+    {
+        if (speedNumber == null || vehicles == null || !vehicles.IsDriving) return;
+        int mph = Mathf.RoundToInt(vehicles.PlayerSpeed * 2.23694f);
+        if (mph == shownMph) return;
+        shownMph = mph;
+        speedNumber.text = mph.ToString();
     }
 
     /// Compact contextual prompt: accent disc with icon on the left, short label on the right, width fits the label.

@@ -59,6 +59,7 @@ public class LundunGangs : MonoBehaviour
         public bool fighting, scattering;
         public float nextTrouble, nextTaunt, lastContact;
         public int started;                               // R4b: how many there were (for morale)
+        public float pinnedUntil;                         // test groups: kept whatever the time or distance until then
         public Group rival;                               // R4b: brawling with this group
         public Group raiding;                             // R4b: on their way to this group's corner
         public bool HasLiving { get { foreach (LundunGangMember m in members) if (m != null && !m.IsDead) return true; return false; } }
@@ -132,7 +133,8 @@ public class LundunGangs : MonoBehaviour
             bool seen = false;
             foreach (LundunGangMember m in g.members) if (m != null && !m.IsDead && cam != null && LundunView.CanSee(cam, m.transform.position)) seen = true;
             bool over = !anyTime && !InHours(g.gang, hour) && !g.fighting;
-            if (!any || ((d > removeBeyond || over || g.scattering) && !seen && d > 40f))
+            bool pinned = Time.time < g.pinnedUntil && d < 400f;           // a test group: leave it be
+            if (!any || (!pinned && (d > removeBeyond || over || g.scattering) && !seen && d > 40f))
             {
                 foreach (LundunGangMember m in g.members) if (m != null && !m.IsDead) Destroy(m.gameObject);
                 if (g.spotIndex >= 0) spotRestUntil[g.gang.name + g.spotIndex] = Time.time + 300f;       // give the corner a rest
@@ -533,39 +535,101 @@ public class LundunGangs : MonoBehaviour
         return c;
     }
 
-    /// For testing (in Play mode, ⋮ on this component): a group at the nearest corner of any gang, any time of day.
+    /// Where James is (on foot, or his car).
+    static Vector3 JamesAt()
+    {
+        VehicleSystem vs = FindAnyObjectByType<VehicleSystem>();
+        if (vs != null && vs.PlayerTarget != null) return vs.PlayerTarget.position;
+        PlayerHealth ph = PlayerHealth.Instance;
+        return ph != null && ph.Body != null ? ph.Body.position : Vector3.zero;
+    }
+
+    /// For testing (in Play mode, ⋮ on this component): a group right where you can see it, any time of day: on the
+    /// nearest gang corner if there's one within 120 m, otherwise on the pavement about 20 m in front of the camera.
+    /// Test groups stay out for 10 minutes whatever the time (unless you go 400 m away).
     [ContextMenu("Spawn a group near me (test)")]
-    void SpawnNearMe()
+    void SpawnNearMe() { SpawnTestGroup(); }
+
+    Group SpawnTestGroup()
     {
         LundunNavigation nav = LundunNavigation.Instance;
-        PlayerHealth ph = PlayerHealth.Instance;
-        if (nav == null || ph == null) return;
-        Gang best = null; int bestSpot = -1; float bd = float.MaxValue;
+        if (nav == null || nav.World == null || nav.Graph == null) { Debug.LogWarning("[Lundun] Gangs: the road map isn't loaded yet (LundunNavigation)."); return null; }
+        Vector3 me = JamesAt();
+        // the nearest gang corner within 120 m, if any
+        Gang best = null; int bestSpot = -1; float bd = 120f;
         foreach (Gang gang in gangs)
         {
             if (!gang.spotsFound) FindSpots(gang, nav);
             for (int s = 0; s < gang.spots.Count; s++)
             {
-                float d = Flat(gang.spots[s], ph.Body.position);
-                if (d > 25f && d < bd && !InUse(gang, s)) { bd = d; best = gang; bestSpot = s; }
+                float d = Flat(gang.spots[s], me);
+                if (d > 12f && d < bd && !InUse(gang, s)) { bd = d; best = gang; bestSpot = s; }
             }
         }
-        if (best == null) { Debug.Log("[Lundun] No gang corner found (no road graph yet?)."); return; }
-        Spawn(best, bestSpot, 1f);
-        Debug.Log("[Lundun] " + best.name + " out on their corner " + Mathf.RoundToInt(bd) + " m away.");
+        Group g;
+        if (best != null) g = SpawnAt(best, best.spots[bestSpot], bestSpot, 1f);
+        else
+        {
+            // no corner near: put the gang whose area is nearest on the pavement in front of the camera
+            Camera cam = Camera.main;
+            Vector3 fwd = cam != null ? cam.transform.forward : Vector3.forward; fwd.y = 0f;
+            if (fwd.sqrMagnitude < 0.01f) fwd = Vector3.forward;
+            Vector3 p = me + fwd.normalized * 20f;
+            if (!NavMesh.SamplePosition(p, out NavMeshHit hit, 10f, 1 << 4) && !NavMesh.SamplePosition(p, out hit, 10f, NavMesh.AllAreas))
+            { Debug.LogWarning("[Lundun] Gangs: nowhere to stand in front of you (no NavMesh?)."); return null; }
+            best = NearestGang(nav, me);
+            g = SpawnAt(best, hit.position, -1, 1f);
+        }
+        if (g == null) { Debug.LogWarning("[Lundun] Gangs: couldn't make anyone (no pedestrian prefabs on LundunPopulation?)."); return null; }
+        g.pinnedUntil = Time.time + 600f;
+        string where = Mathf.RoundToInt(Flat(g.spot, me)) + " m away";
+        Toast("TEST: " + g.gang.name + " " + where);
+        Debug.Log("[Lundun] Test gang: " + g.members.Count + " " + g.gang.name + " " + where + " (kept 10 minutes).");
+        return g;
     }
 
-    /// For testing: their rivals set off for the nearest group's corner now.
+    Gang NearestGang(LundunNavigation nav, Vector3 me)
+    {
+        Gang best = gangs[0]; float bd = float.MaxValue;
+        foreach (Gang gang in gangs)
+            foreach (LwPoly d in nav.World.districts)
+            {
+                if (d.id != gang.district) continue;
+                Vector3 c = Vector3.zero; foreach (LwPoint q in d.polygon) c += new Vector3(q.x, 0f, q.z);
+                c /= d.polygon.Length;
+                float dd = Flat(c, me);
+                if (dd < bd) { bd = dd; best = gang; }
+            }
+        return best;
+    }
+
+    /// For testing: a group near you (made if there isn't one), and their rivals turning up 40 m off and running at
+    /// them, so the fight starts within a few seconds where you can watch it.
     [ContextMenu("Start a turf fight near me (test)")]
     void TurfNearMe()
     {
-        if (groups.Count == 0) SpawnNearMe();
-        nextRaid = 0f;
-        foreach (Group g in groups) g.raiding = null;
-        bool was = anyTime; anyTime = true;
-        PlayerHealth ph = PlayerHealth.Instance;
-        if (ph != null) Raids(ph.Body.position, 1f, null);
-        anyTime = was;
-        Debug.Log("[Lundun] Rivals on their way (if a group was within 150 m).");
+        Vector3 me = JamesAt();
+        Group target = null; float bd = 150f;
+        foreach (Group g in groups) if (!g.scattering && g.raiding == null && g.rival == null && Flat(g.Centre, me) < bd) { bd = Flat(g.Centre, me); target = g; }
+        if (target == null) target = SpawnTestGroup();
+        if (target == null) return;
+        target.pinnedUntil = Mathf.Max(target.pinnedUntil, Time.time + 600f);
+        Gang rival = null;
+        foreach (Gang k in gangs) if (k.name == target.gang.rival) rival = k;
+        if (rival == null) return;
+        Vector3 from = Vector3.zero; bool found = false;
+        for (int tries = 0; tries < 16 && !found; tries++)
+        {
+            Vector3 p = target.Centre + Quaternion.Euler(0f, tries * 22.5f, 0f) * Vector3.forward * 40f;
+            if (NavMesh.SamplePosition(p, out NavMeshHit hit, 6f, NavMesh.AllAreas) && Flat(hit.position, me) > 20f) { from = hit.position; found = true; }
+        }
+        if (!found) { Debug.LogWarning("[Lundun] Gangs: nowhere for the rivals to come from."); return; }
+        Group raid = SpawnAt(rival, from, -1, 1f);
+        if (raid == null) return;
+        raid.pinnedUntil = Time.time + 600f;
+        raid.raiding = target;
+        foreach (LundunGangMember m in raid.members) if (m != null) m.March(target.Centre, true);
+        Toast("TEST: " + rival.name + " coming for the " + target.gang.name);
+        Debug.Log("[Lundun] Test turf fight: " + raid.members.Count + " " + rival.name + " running at the " + target.gang.name + ".");
     }
 }

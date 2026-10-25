@@ -34,6 +34,13 @@ public static class LundunHudArt
     public static Sprite Right => Get("i_right", 128, p => Line(p, 0.11f, V(0.36f, 0.18f), V(0.68f, 0.5f), V(0.36f, 0.82f)));
     public static Sprite Gas => Get("i_gas", 128, p => Round(Poly(p, V(0.5f, 0.82f), V(0.82f, 0.28f), V(0.18f, 0.28f)), 0.03f));
     public static Sprite Brake => Get("i_brake", 128, p => Round(Poly(p, V(0.5f, 0.18f), V(0.18f, 0.72f), V(0.82f, 0.72f)), 0.03f));
+    /// V1: the handbrake: the warning-light symbol (a circle in brackets with an exclamation mark).
+    public static Sprite Handbrake => Get("i_handbrake", 128, p => Min(
+        RingD(p, C, 0.24f, 0.075f),
+        Line(p, 0.065f, V(0.2f, 0.26f), V(0.12f, 0.5f), V(0.2f, 0.74f)),
+        Line(p, 0.065f, V(0.8f, 0.26f), V(0.88f, 0.5f), V(0.8f, 0.74f)),
+        Seg(p, V(0.5f, 0.44f), V(0.5f, 0.62f), 0.075f),
+        Circle(p, V(0.5f, 0.35f), 0.045f)));
 
     public static Sprite Exit => Get("i_exit", 128, p => Min(
         Line(p, 0.07f, V(0.52f, 0.2f), V(0.2f, 0.2f), V(0.2f, 0.8f), V(0.52f, 0.8f)),

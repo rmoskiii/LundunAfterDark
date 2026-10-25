@@ -18,6 +18,13 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private float vehicleHeight = 1.6f;
     [SerializeField] private float vehicleFollowSpeed = 3f;   // how fast it swings back behind the car
     [SerializeField] private float lookIdleTime = 1f;          // seconds after you stop dragging before it swings back
+    [Header("V1: speed")]
+    [Tooltip("At full speed the camera pulls back this much further (m), rises a little, and widens by Speed Fov degrees")]
+    [SerializeField] private float speedPullBack = 2.2f;
+    [SerializeField] private float speedRise = 0.35f;
+    [SerializeField] private float speedFov = 9f;
+    [Tooltip("The speed (m/s) that counts as full speed for that (28 = about 63 mph)")]
+    [SerializeField] private float speedForFull = 28f;
 
     [Header("Look")]
     [SerializeField] private float mouseSensitivity = 0.15f;
@@ -75,6 +82,8 @@ public class CameraFollow : MonoBehaviour
     private PlayerController player;
     private bool mouseLookActive;
     private bool vehicleMode;
+    private Rigidbody targetBody;        // V1: the car being followed (for its speed)
+    private float speedNow;
     private float yaw;
     private float pitch = 10f;
     private float shake;
@@ -192,8 +201,16 @@ public class CameraFollow : MonoBehaviour
 
         // Ease between on-foot and in-car framing
         float step = 5f * Time.deltaTime;
-        currentDistance = Mathf.Lerp(currentDistance, vehicleMode ? vehicleDistance : distance, step);
-        currentHeight = Mathf.Lerp(currentHeight, vehicleMode ? vehicleHeight : height, step);
+        // V1: faster = further back, a touch higher, wider
+        float fast = 0f;
+        if (vehicleMode && target != null)
+        {
+            if (targetBody == null || targetBody.transform != target) targetBody = target.GetComponent<Rigidbody>();
+            if (targetBody != null) fast = Mathf.Clamp01(targetBody.linearVelocity.magnitude / Mathf.Max(1f, speedForFull));
+        }
+        speedNow = Mathf.Lerp(speedNow, fast, 2f * Time.deltaTime);
+        currentDistance = Mathf.Lerp(currentDistance, vehicleMode ? vehicleDistance + speedPullBack * speedNow : distance, step);
+        currentHeight = Mathf.Lerp(currentHeight, vehicleMode ? vehicleHeight + speedRise * speedNow : height, step);
         currentShoulder = Mathf.Lerp(currentShoulder, vehicleMode ? 0f : shoulderOffset, step);
 
         // A2: tighter over the shoulder while aimed in
@@ -241,6 +258,7 @@ public class CameraFollow : MonoBehaviour
         }
 
         float targetFov = (player != null && player.IsSprinting) ? sprintFov : normalFov;
+        if (vehicleMode) targetFov = normalFov + speedFov * speedNow;               // V1
         if (aimIn > 0f)
         {
             // the aim blend is already eased, so follow it closely
