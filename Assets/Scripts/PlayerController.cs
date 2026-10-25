@@ -68,6 +68,17 @@ public class PlayerController : MonoBehaviour
     }
     /// A2: while aiming, James can't go faster than this (m/s). 0 = no cap.
     public float SpeedCap { get; set; }
+    /// R2: where James is trying to go on foot (m/s, flat), before anything stops him (a person, a wall).
+    /// Zero in the air, stunned or rolling.
+    public Vector3 MoveIntent { get; private set; }
+    private float bumpUntil = -99f, bumpFactor = 1f;
+
+    /// R2: James has just run into someone: he goes this much slower (0-1) for a moment.
+    public void Bump(float factor, float seconds)
+    {
+        bumpFactor = Mathf.Clamp01(factor);
+        bumpUntil = Time.time + seconds;
+    }
     /// In the air (jumped, or walked off something), until landing.
     public bool Airborne { get; private set; }
     public bool RunningJump { get; private set; }
@@ -178,7 +189,8 @@ public class PlayerController : MonoBehaviour
             move = rollVelocity;
         }
         else if (Time.time < lockUntil) move = wanted * 0.15f;     // knees bent after a heavy landing
-        else { rolling = false; move = wanted; }
+        else { rolling = false; move = wanted * (Time.time < bumpUntil ? bumpFactor : 1f); }    // R2: checked by a bump
+        MoveIntent = Airborne || IsStunned || rolling || Time.time < lockUntil ? Vector3.zero : new Vector3(wanted.x, 0f, wanted.z);
 
         verticalVelocity += gravity * Time.deltaTime;
         move.y = verticalVelocity;

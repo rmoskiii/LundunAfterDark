@@ -30,10 +30,26 @@ public class LundunPopulation : MonoBehaviour
     [SerializeField] private int spawnsPerTick = 2;
 
     [Header("Shoving: run into people and they stumble")]
-    [SerializeField] private float shoveSpeed = 3.5f;          // James must be at least jogging (m/s)
-    [SerializeField] private float shoveReach = 1.25f;         // metres, centre to centre
+    [SerializeField] private float shoveSpeed = 3.5f;          // R2: from this (jogging, m/s) they stagger; slower, they brush past
+    [SerializeField] private float shoveReach = 1.25f;         // metres, centre to centre (R2: the most a touch can be)
     [Range(0f, 1f)] [SerializeField] private float shoveFightBack = 0.25f;   // squares up to James afterwards
     [Range(0f, 1f)] [SerializeField] private float shoveRunOff = 0.35f;      // runs off; the rest just carry on
+    [Header("R2: how hard you hit them")]
+    [Tooltip("Sprinting (m/s) from here: the full stumble. Between Shove Speed and this: a short stagger")]
+    [SerializeField] private float sprintShoveSpeed = 5.5f;
+    [Tooltip("Gap (m) between James and them that still counts as touching")]
+    [SerializeField] private float touchGap = 0.18f;
+    [Tooltip("Seconds skipped at the start of the stumble clip (its slow start), so they react on contact")]
+    [SerializeField] private float stumbleSkip = 0.35f;
+    [Tooltip("How long the full stumble keeps them out of action before they blend back into walking")]
+    [SerializeField] private float stumbleFor = 3.2f;
+    [Tooltip("How long the jogging stagger lasts, and how far it pushes them (m)")]
+    [SerializeField] private float staggerFor = 0.9f;
+    [SerializeField] private float staggerPush = 0.8f;
+    [Tooltip("James's speed for a moment after a bump: brush, stagger, full stumble (fraction of his pace)")]
+    [SerializeField] private Vector3 bumpSlow = new Vector3(0.8f, 0.55f, 0.4f);
+    [Tooltip("Camera shake for a stagger and for a full stumble")]
+    [SerializeField] private Vector2 bumpShake = new Vector2(0.03f, 0.06f);
 
     [Header("Traffic and parked cars")]
     [SerializeField] private GameObject[] carPrefabs;          // made by Lundun → 9  Build Traffic
@@ -74,7 +90,7 @@ public class LundunPopulation : MonoBehaviour
     /// Busier at rush hour, quiet at 3am.
     public float TimeOfDayFactor { get; private set; }
 
-    class Ped { public GameObject go; public Health health; public Renderer[] renderers; public bool active; }
+    class Ped { public GameObject go; public Health health; public Renderer[] renderers; public bool active; public UnityEngine.AI.NavMeshAgent agent; }
 
     private readonly List<Ped> peds = new List<Ped>();
     private VehicleSystem vehicles;
@@ -133,46 +149,100 @@ public class LundunPopulation : MonoBehaviour
                        + "   scale " + Scale.ToString("0.00");
     }
 
-    // ------------------------------------------------------------------ shoving
+    // ------------------------------------------------------------------ shoving (R2: by how fast James hits them)
     private CharacterController playerBody;
+    private PlayerController playerMove;
+    private CameraFollow cameraFollow;
     private float nextShove;
+    private readonly Dictionary<GameObject, float> bumpedUntil = new Dictionary<GameObject, float>();
     const float ShoveClip = 4.3f;               // Anim_Shove_reaction (stumble and spin round)
     const float ShoveClipYaw = 12f;             // the stumble drifts ~12° right of straight ahead
 
-    /// James running into a pedestrian on foot knocks them stumbling (every frame, but only ~20 people to check).
+    /// James running into a pedestrian on foot (every frame, but only ~20 people to check). It counts the moment their
+    /// bodies touch, judged by how fast James is trying to go (his body is stopped by theirs, so his actual speed
+    /// would say almost nothing):
+    ///   walking   they brush past: a step aside and a look back at him
+    ///   jogging   a short stagger, pushed the way he was going (no spin)
+    ///   sprinting the full stumble, straight into it (its slow start skipped), turning into it rather than snapping
+    /// James checks a little, more the harder he hit them, and the camera gives a small knock.
     void CheckShoves()
     {
         PlayerHealth ph = PlayerHealth.Instance;
         if (ph == null || ph.IsDead || !ph.OnFoot || Time.time < nextShove) return;
-        if (playerBody == null || playerBody.transform != ph.Body) playerBody = ph.Body.GetComponent<CharacterController>();
+        if (playerBody == null || playerBody.transform != ph.Body)
+        {
+            playerBody = ph.Body.GetComponent<CharacterController>();
+            playerMove = ph.Body.GetComponent<PlayerController>();
+        }
         if (playerBody == null) return;
-        Vector3 v = playerBody.velocity; v.y = 0f;
-        if (v.magnitude < shoveSpeed) return;
-        Vector3 me = ph.Body.position, dir = v.normalized;
+        Vector3 v = playerMove != null ? playerMove.MoveIntent : playerBody.velocity; v.y = 0f;
+        float speed = v.magnitude;
+        if (speed < 0.6f) return;
+        Vector3 me = ph.Body.position, dir = v / speed;
+        float myRadius = playerBody.radius * Mathf.Max(ph.Body.lossyScale.x, ph.Body.lossyScale.z);
         foreach (Ped p in peds)
         {
             if (!p.active || p.go == null || (p.health != null && p.health.IsDead)) continue;
             Vector3 to = p.go.transform.position - me; to.y = 0f;
-            if (to.sqrMagnitude > shoveReach * shoveReach || Vector3.Dot(to.normalized, dir) < 0.3f) continue;
+            float theirRadius = p.agent != null ? p.agent.radius * Mathf.Max(p.go.transform.lossyScale.x, p.go.transform.lossyScale.z) : 0.3f;
+            float touch = Mathf.Min(shoveReach, myRadius + theirRadius + touchGap);
+            if (to.sqrMagnitude > touch * touch || Vector3.Dot(to.normalized, dir) < 0.25f) continue;
             if (LundunStagger.Busy(p.go)) continue;
-            nextShove = Time.time + 0.4f;
-            GameObject who = p.go;
-            Vector3 pushedFrom = me;
-            bool fighting = who.GetComponent<LundunAngryDriver>() != null;
-            double roll = rng.NextDouble();
-            float yaw = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg - ShoveClipYaw;      // stumble the way James pushed them
-            LundunStagger.Play(who, "Shoved", ShoveClip, true, yaw, () =>
-            {
-                if (fighting || who == null) return;                                   // already having a go at James
-                if (roll < shoveFightBack) who.AddComponent<LundunAngryDriver>().Begin(false);
-                else if (roll < shoveFightBack + shoveRunOff)
-                {
-                    NPCBrain b = who.GetComponent<NPCBrain>();
-                    if (b != null) b.Panic(pushedFrom);
-                }
-            });
+            if (bumpedUntil.TryGetValue(p.go, out float until) && Time.time < until) continue;
+            Bump(p, me, dir, speed);
+            nextShove = Time.time + 0.15f;
             return;
         }
+    }
+
+    void Bump(Ped p, Vector3 from, Vector3 dir, float speed)
+    {
+        GameObject who = p.go;
+        if (bumpedUntil.Count > 64) { List<GameObject> old = new List<GameObject>(); foreach (var kv in bumpedUntil) if (kv.Key == null || kv.Value < Time.time) old.Add(kv.Key); foreach (GameObject g in old) bumpedUntil.Remove(g); }
+        bool fighting = who.GetComponent<LundunAngryDriver>() != null;
+        if (cameraFollow == null) cameraFollow = FindAnyObjectByType<CameraFollow>();
+
+        // walking: brush past
+        if (speed < shoveSpeed)
+        {
+            bumpedUntil[who] = Time.time + 1.5f;
+            if (playerMove != null) playerMove.Bump(bumpSlow.x, 0.2f);
+            if (fighting) return;                                                      // squared up already: no step aside
+            LundunBrush.Play(who, from, dir);
+            return;
+        }
+
+        bumpedUntil[who] = Time.time + 2f;
+        Vector3 pushedFrom = from;
+        double roll = rng.NextDouble();
+        System.Action after = () =>
+        {
+            if (fighting || who == null) return;                                       // already having a go at James
+            if (roll < shoveFightBack) who.AddComponent<LundunAngryDriver>().Begin(false);
+            else if (roll < shoveFightBack + shoveRunOff)
+            {
+                NPCBrain b = who.GetComponent<NPCBrain>();
+                if (b != null) b.Panic(pushedFrom);
+            }
+        };
+
+        if (speed < sprintShoveSpeed)
+        {
+            // jogging: a short stagger the way he was going, no turning round
+            float slideTime = Mathf.Min(0.5f, staggerFor);
+            LundunStagger.Play(who, "Hit", staggerFor, false, float.NaN, after,
+                new LundunStagger.Options { slide = dir * (staggerPush * 3f / slideTime), slideTime = slideTime });   // eases out: covers staggerPush
+            if (playerMove != null) playerMove.Bump(bumpSlow.y, 0.25f);
+            if (cameraFollow != null) cameraFollow.AddShake(bumpShake.x);
+            return;
+        }
+
+        // sprinting: the full stumble
+        float yaw = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg - ShoveClipYaw;          // stumble the way James pushed them
+        LundunStagger.Play(who, "Shoved", Mathf.Min(stumbleFor, ShoveClip - stumbleSkip), true, yaw, after,
+            new LundunStagger.Options { startAt = stumbleSkip, turnRate = 900f, blendOut = true });
+        if (playerMove != null) playerMove.Bump(bumpSlow.z, 0.3f);
+        if (cameraFollow != null) cameraFollow.AddShake(bumpShake.y);
     }
 
     // ------------------------------------------------------------------ pedestrians
@@ -246,7 +316,7 @@ public class LundunPopulation : MonoBehaviour
             a.cullingMode = AnimatorCullingMode.CullCompletely;   // off-screen = no animation work
             if (a.runtimeAnimatorController == null && peopleController != null) a.runtimeAnimatorController = peopleController;
         }
-        Ped np = new Ped { go = go, health = go.GetComponent<Health>(), renderers = go.GetComponentsInChildren<Renderer>(true) };
+        Ped np = new Ped { go = go, health = go.GetComponent<Health>(), renderers = go.GetComponentsInChildren<Renderer>(true), agent = go.GetComponent<UnityEngine.AI.NavMeshAgent>() };
         peds.Add(np);
         return np;
     }

@@ -54,7 +54,7 @@ public class PlayerCombat : MonoBehaviour
     private bool triggerWasDown;
     private float tapBufferedUntil = -1f;              // -1 = no tap waiting (0 would count as a tap on the very first frame)
     private readonly Dictionary<Health, ShotHit> shotHits = new Dictionary<Health, ShotHit>();
-    class ShotHit { public float damage; public bool head; public RaycastHit hit; }
+    class ShotHit { public float damage; public bool head; public RaycastHit hit; public int pellets; }
     private Transform cam;
     private float nextFireTime;
     private float nextPunchTime;
@@ -203,6 +203,7 @@ public class PlayerCombat : MonoBehaviour
                     float dmg = weapons.DamageAt(hit.distance) * (head ? w.headshot : 1f);
                     if (!shotHits.TryGetValue(health, out ShotHit sh)) { sh = new ShotHit { hit = hit }; shotHits[health] = sh; }
                     sh.damage += dmg;
+                    sh.pellets++;
                     sh.head |= head;
                 }
             }
@@ -217,7 +218,9 @@ public class PlayerCombat : MonoBehaviour
     {
         if (health == null || health.IsDead) return;
         float push = w.kind == LundunWeapons.Kind.Shotgun ? 2.2f : 1f;     // the shotgun knocks people back
-        health.TakeDamage(sh.damage, sh.hit.point, dir * impactForce * push);
+        // R2: the shotgun knocks harder the more pellets hit (up close); and it's gunfire, so a kill never launches the body
+        float share = w.pellets > 1 ? Mathf.Lerp(0.4f, 1f, Mathf.Clamp01(sh.pellets / (float)w.pellets)) : 1f;
+        health.TakeDamage(sh.damage, sh.hit.point, dir * impactForce * push * share, true);
 
         if (health.GetComponent<NPCBrain>() != null)
             CrimeSystem.Report(health.IsDead ? CrimeType.KillPedestrian : CrimeType.AssaultPedestrian, sh.hit.point);
@@ -421,7 +424,7 @@ public class PlayerCombat : MonoBehaviour
         if (health == null) return;
 
         bool wasAlive = !health.IsDead;
-        health.TakeDamage(damage, hit.point, cam.forward * impactForce);
+        health.TakeDamage(damage, hit.point, cam.forward * impactForce, true);
 
         if (wasAlive && health.GetComponent<NPCBrain>() != null)
             CrimeSystem.Report(health.IsDead ? CrimeType.KillPedestrian : CrimeType.AssaultPedestrian, hit.point);
