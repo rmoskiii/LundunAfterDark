@@ -23,10 +23,31 @@ namespace LundunGreybox
         const double ExpGridX0 = -200, ExpGridZ0 = -1000, ExpGridW = 1400, ExpGridH = 1060;
         const double ExpEmptyLots = 0.15;          // Brixtun keeps more gaps between its buildings (empty lots, yards)
 
+        // ------------------------------------------------------------------ E8: more than one expansion area
+        /// Which expansion area is being built: "BRIXTUN" (with the retail park) or "KINGSMERE" (the royal quarter).
+        /// Each builds only its own roads, junctions, districts and parks (Kingsmere's ids start with K, see InKingsmere),
+        /// with its own seed and building grid, so adding an area never moves anything in another.
+        public static string ExpansionArea { get; private set; } = "BRIXTUN";
+        static bool Brix { get { return ExpansionMode && ExpansionArea == "BRIXTUN"; } }
+        static bool Kingsmere { get { return ExpansionMode && ExpansionArea == "KINGSMERE"; } }
+        const int KingsmereSeed = 1837;
+        const double KmGridX0 = 0, KmGridZ0 = 1100, KmGridW = 1700, KmGridH = 820;
+        const double KmEmptyLots = 0.04;           // Kingsmere's streets are built up, end to end
+
+        /// E8: is this expansion id one of Kingsmere's? (Roads KR…, junctions KJ… or a city junction one of its roads
+        /// joins, the district D_KINGSMERE, parks P_K_… and the memorial's island.)
+        public static bool InKingsmere(string id) { return id != null && (id.StartsWith("KR") || id.StartsWith("KJ") || id == "D_KINGSMERE" || id.StartsWith("P_K_") || id == "P_ISLAND_MEMORIAL"); }
+        static bool InKingsmere(LwJunction j)
+        {
+            if (InKingsmere(j.id)) return true;
+            if (j.roads != null) foreach (string r in j.roads) if (r != null && r.StartsWith("KR")) return true;
+            return false;
+        }
+
         /// Which city district each expansion district is built like (its plots, lamps, paving, dressing, grit).
         static readonly Dictionary<string, string> Flavours = new Dictionary<string, string>
         {
-            { "D_BRIXTUN", "D_PECKAM" }, { "D_BRIXTUN_EST", "D_GILMOR" } };
+            { "D_BRIXTUN", "D_PECKAM" }, { "D_BRIXTUN_EST", "D_GILMOR" }, { "D_KINGSMERE", "D_KNIGHT" } };      // E8: Kingsmere is built like Knightsbury
         static string Flavour(string id) { string f; return id != null && Flavours.TryGetValue(id, out f) ? f : "D_PECKAM"; }
 
         /// Brixtun's high streets: shop parades all along them.
@@ -180,6 +201,7 @@ namespace LundunGreybox
             LundunExpansionData x = world.expansion;
             if (x == null || x.roads == null || x.roads.Length == 0) return R;
             contextRoads = roads; cityJuncs = juncs;
+            ExpansionArea = "BRIXTUN";                 // E8: Brixtun's own roads and places only
             LundunWorldData xw = AreaWorld(world);
             ExpansionWorld = xw;
             ExpansionMode = true;
@@ -206,11 +228,13 @@ namespace LundunGreybox
         static LundunWorldData AreaWorld(LundunWorldData city)
         {
             LundunExpansionData x = city.expansion;
+            bool km = ExpansionArea == "KINGSMERE";
             List<LwRoadClass> classes = new List<LwRoadClass>(city.roadClasses);
             if (x.roadClasses != null) classes.AddRange(x.roadClasses);
             List<LwJunction> js = new List<LwJunction>();
             foreach (LwJunction j in x.junctions)
             {
+                if (InKingsmere(j) != km) continue;           // E8: this area's junctions only
                 JInfo cj;
                 if (!cityJuncs.TryGetValue(j.id, out cj)) { js.Add(j); continue; }
                 List<string> rs = new List<string>(cj.j.roads); foreach (string r in j.roads) if (!rs.Contains(r)) rs.Add(r);
@@ -218,12 +242,14 @@ namespace LundunGreybox
                 js.Add(new LwJunction { id = j.id, x = j.x, z = j.z, arms = legs.Count, roads = rs.ToArray(), legs = legs.ToArray() });
             }
             List<LwPoly> ds = new List<LwPoly>();
-            if (x.districts != null) foreach (LwPoly d in x.districts) ds.Add(new LwPoly { id = Flavour(d.id), name = d.name, polygon = d.polygon });
+            if (x.districts != null) foreach (LwPoly d in x.districts) if (InKingsmere(d.id) == km) ds.Add(new LwPoly { id = Flavour(d.id), name = d.name, polygon = d.polygon });
+            List<LwRoad> areaRoads = new List<LwRoad>(); foreach (LwRoad r in x.roads) if (InKingsmere(r.id) == km) areaRoads.Add(r);
+            List<LwPoly> ps = new List<LwPoly>(); if (x.parks != null) foreach (LwPoly p in x.parks) if (InKingsmere(p.id) == km) ps.Add(p);
             return new LundunWorldData
             {
                 schemaVersion = city.schemaVersion, heights = city.heights, worldBounds = city.worldBounds, camera = city.camera,
-                roadClasses = classes.ToArray(), river = city.river, roads = x.roads, bridges = new LwBridge[0], junctions = js.ToArray(),
-                districts = ds.ToArray(), parks = x.parks ?? new LwPoly[0], pois = x.pois ?? new LwPoi[0], spawns = new LwSpawn[0],
+                roadClasses = classes.ToArray(), river = city.river, roads = areaRoads.ToArray(), bridges = new LwBridge[0], junctions = js.ToArray(),
+                districts = ds.ToArray(), parks = ps.ToArray(), pois = x.pois ?? new LwPoi[0], spawns = new LwSpawn[0],
                 existingStreet = new LwExistingStreet { centreX = -1e6f, centreZ = -1e6f, sizeX = 0, sizeZ = 0 },
                 expansion = x
             };
@@ -287,6 +313,7 @@ namespace LundunGreybox
                     double r = ri.w / 2 + Math.Max(ri.pave, ri.verge) + 1.5;
                     for (int i = 0; i + 1 < ri.line.p.Count; i++) MarkSegment(ri.line.p[i], ri.line.p[i + 1], r);
                 }
+            if (Kingsmere) MarkRect(516, 604, 1194, 1246);                  // E8: room round Kingsmere Arch
             Dictionary<string, List<V2>> dpoly = new Dictionary<string, List<V2>>();
             foreach (LwPoly d in W.districts) dpoly[d.id] = Pts(d.polygon);
             foreach (Special sp in Specials)
@@ -545,8 +572,9 @@ namespace LundunGreybox
         static readonly Dictionary<string, string> BrixtunStations = new Dictionary<string, string> { { "Windward Square", "BRIXTUN" } };
 
         /// The Underground stations to build in this area (park name → board).
-        static Dictionary<string, string> StationTable { get { return ExpansionMode ? BrixtunStations : StationNames; } }
-        static string[][] AreaShops(string[][] cityList) { return ExpansionMode && cityList == PeckamShops ? BrixtunShops : cityList; }
-        static string[] AreaTags { get { return ExpansionMode ? BrixtunTags : Tags; } }
+        static Dictionary<string, string> StationTable { get { return Kingsmere ? NoStations : ExpansionMode ? BrixtunStations : StationNames; } }
+        static readonly Dictionary<string, string> NoStations = new Dictionary<string, string>();
+        static string[][] AreaShops(string[][] cityList) { return Brix && cityList == PeckamShops ? BrixtunShops : cityList; }
+        static string[] AreaTags { get { return Brix ? BrixtunTags : Tags; } }
     }
 }

@@ -79,7 +79,7 @@ namespace LundunGreybox
                 }
 
                 // Football cage: as near the middle as fits, long side along the park's long side (E1: not in a town square)
-                if (IsSquare(park)) continue;
+                if (IsSquare(park) || Kingsmere) continue;                  // E8: no football cages in the royal parks
                 double minX = double.MaxValue, maxX = double.MinValue, minZ = double.MaxValue, maxZ = double.MinValue;
                 foreach (V2 q in poly) { minX = Math.Min(minX, q.x); maxX = Math.Max(maxX, q.x); minZ = Math.Min(minZ, q.z); maxZ = Math.Max(maxZ, q.z); }
                 V2 along = (maxX - minX) >= (maxZ - minZ) ? new V2(1, 0) : new V2(0, 1);
@@ -182,7 +182,8 @@ namespace LundunGreybox
             DressFurniture();               // L3: district furniture (its own random seed, after everything else)
             DressGrit();                    // L4: bin bags and fly-tipping (its own random seed, last)
             if (!ExpansionMode) DressRailway();     // L6: the railway's fences and graffiti (its own random seed, after everything; the city does all of it)
-            if (ExpansionMode) { DressRailTags(); DressMarket(); DressBikeDocks(); DressRetailPark(); }     // E2: its bridges' tags; E3: its market, then its bike docks; E4: the retail park (after everything, so nothing else moves)
+            if (Brix) { DressRailTags(); DressMarket(); DressBikeDocks(); DressRetailPark(); }     // E2: its bridges' tags; E3: its market, then its bike docks; E4: the retail park (after everything, so nothing else moves)
+            if (Kingsmere) DressKingsmere();        // E8: flags, the palace railings and gates, deckchairs, the arch's lettering (after everything)
 
             foreach (MeshData m in new[] { mSolid, mCut, mGlow }) D.meshes.AddRange(Chunk(m));
             int v = 0; foreach (MeshData m in D.meshes) v += m.VertexCount;
@@ -264,7 +265,8 @@ namespace LundunGreybox
             a.Shutter("shutter"); a.ShopWindow("shopwin"); a.PubWindow("pubwin"); a.Pitch("pitch"); a.Mattress("mattress");
             FurnitureAtlas(a);              // L3 (appended)
             GritAtlas(a);                   // L4 (appended)
-            if (ExpansionMode) { MarketAtlas(a); RetailAtlas(a); }     // E3/E4: the market's and retail park's colours and signs (expansions only: the city's atlas stays as it was)
+            if (Brix) { MarketAtlas(a); RetailAtlas(a); }     // E3/E4: the market's and retail park's colours and signs (expansions only: the city's atlas stays as it was)
+            if (Kingsmere) KingsmereAtlas(a);       // E8: flags, deckchair stripes, the arch's lettering, the clock
             return a;
         }
 
@@ -284,7 +286,7 @@ namespace LundunGreybox
                 }
             string best = null; int bn = 0;
             foreach (var kv in votes) if (kv.Value > bn) { bn = kv.Value; best = kv.Key; }
-            if (ExpansionMode) return "SW2";                                   // E1: Brixtun
+            if (ExpansionMode) return Kingsmere ? "SW1" : "SW2";              // E1: Brixtun; E8: Kingsmere
             string code;
             return best != null && districtCode.TryGetValue(best, out code) ? code : "SE1";
         }
@@ -495,8 +497,9 @@ namespace LundunGreybox
             foreach (LwPoly park in W.parks)
             {
                 if (IsMarket(park) || IsIsland(park)) continue;     // E3: the market's stalls fill it (DressMarket); E4: no benches on a roundabout
+                if (Kingsmere && park.id == "P_K_GARDENS") continue;    // E8: the palace gardens are walled off
                 List<V2> poly = Pts(park.polygon);
-                bool posh = park.name == "Hydemoor Park";
+                bool posh = park.name == "Hydemoor Park" || (Kingsmere && park.id == "P_K_JARVIS");      // E8: St Jarvis's Park has railings too
                 for (int i = 0; i < poly.Count; i++)
                 {
                     V2 a = poly[i], b = poly[(i + 1) % poly.Count];
@@ -1059,6 +1062,7 @@ namespace LundunGreybox
         // ------------------------------------------------------------------ billboards
         static void DressBillboards()
         {
+            if (Kingsmere) return;                 // E8: no advertising in the royal quarter
             int made = 0;
             List<string> ids = new List<string>(roads.Keys); ids.Sort();
             foreach (string id in ids)

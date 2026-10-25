@@ -20,6 +20,10 @@ public class WantedSystem : MonoBehaviour
     [SerializeField] private float destroyPoliceCar = 100f;
     [Tooltip("E5: stealing from a shop, seen — just enough for one star")]
     [SerializeField] private float shoplifting = 22f;
+    [Tooltip("E8: each report while trespassing in the royal quarter (one every few seconds you stay inside)")]
+    [SerializeField] private float trespass = 22f;
+    [Tooltip("E8: trespassing on its own never takes you past this many stars")]
+    [SerializeField] private int trespassMaxStars = 2;
 
     [Header("Heat needed for each star")]
     // 2 kills = 2 stars. Kill a cop on top of that = 3 stars.
@@ -65,6 +69,7 @@ public class WantedSystem : MonoBehaviour
         {
             case CrimeType.AssaultPedestrian: return 0;
             case CrimeType.Shoplifting: return 0;
+            case CrimeType.Trespass: return 0;
             case CrimeType.Gunfire: return 1;
             case CrimeType.HitAndRun: return 2;
             case CrimeType.KillPedestrian: return 3;
@@ -129,6 +134,24 @@ public class WantedSystem : MonoBehaviour
         if (amount <= 0f) return;
         bool gunfire = type == CrimeType.Gunfire;
 
+        // E8: the royal quarter's guards and cameras always see a trespasser — no witness needed. On its own it
+        // tops out at trespassMaxStars (stay inside and the second star comes); anything worse still adds as normal.
+        if (type == CrimeType.Trespass)
+        {
+            if (heatForStar.Length > 0)
+            {
+                float cap = heatForStar[Mathf.Clamp(trespassMaxStars, 1, heatForStar.Length) - 1];
+                amount = Mathf.Min(amount, Mathf.Max(0f, cap - heat));
+                if (heat < heatForStar[0]) amount = Mathf.Max(amount, heatForStar[0] - heat);   // first report = one star
+            }
+            Vector3 seenAt = PlayerTarget != null ? PlayerTarget.position : position;
+            if (amount > 0f) Apply(amount, seenAt, true);
+            else { LastKnownPosition = seenAt; lastSighting = Time.time; timeSinceSeen = 0f; escapeClock = 0f; }
+            Log(type, "seen by the royal guard");
+            CrimeKnown?.Invoke(type, seenAt);
+            return;
+        }
+
         // police saw it (or are already watching you): straight away
         PoliceOfficer officer;
         bool policeSaw = PoliceWitness(position, gunfire, out officer);
@@ -189,6 +212,7 @@ public class WantedSystem : MonoBehaviour
             CrimeType.KillOfficer => killOfficer,
             CrimeType.DestroyPoliceCar => destroyPoliceCar,
             CrimeType.Shoplifting => shoplifting,
+            CrimeType.Trespass => trespass,
             _ => 0f
         };
     }

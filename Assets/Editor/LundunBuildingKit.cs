@@ -128,6 +128,7 @@ namespace LundunGreybox
                     else
                     {
                         p.mixed = onRoad && (cls == "arterial" || KnightShopRoads.Contains(p.road));
+                        if (Kingsmere && !KingsmereShopRoads.Contains(p.road)) p.mixed = false;      // E8: shops only on a couple of Kingsmere's streets
                         if (p.mixed) p.type = x < 0.55 ? KitType.Stucco : KitType.Mansion;
                         else p.type = x < 0.45 ? KitType.Stucco : x < 0.7 ? KitType.Mansion : KitType.Georgian;
                     }

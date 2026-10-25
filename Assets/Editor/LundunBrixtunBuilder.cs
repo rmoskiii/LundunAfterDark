@@ -25,6 +25,8 @@
 // (on a viaduct over Stockwell Road, Brixtun Road and Atlantic Road), so the train, the railway's fences and the map
 // picture are redone too.
 // Afterwards: Lundun → 3 Bake Navigation (the city and Brixtun; later, Lundun → 3b does Brixtun on its own), then Cmd+S.
+// E8: the parts that build an area's streets, buildings, dressing, parked cars and police (from BuildWorld to
+// StreamDetail) are shared with Kingsmere (Lundun → 29, LundunKingsmereBuilder): UseArea picks the folder and object.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -38,15 +40,31 @@ using Object = UnityEngine.Object;
 
 public static class LundunBrixtunBuilder
 {
-    const string Dir = "Assets/World/Expansions/Brixtun";
-    const string MeshPath = Dir + "/BrixtunMeshes.asset";
-    const string ParkedPath = Dir + "/BrixtunParked.asset";
-    const string RetailParkedPath = Dir + "/RetailParked.asset";
-    const string AtlasPath = Dir + "/BrixtunDressingAtlas.png";
+    // E8: the area being built (Brixtun by menu 28, Kingsmere by menu 29, LundunKingsmereBuilder): its folder, its mesh
+    // asset, its parked cars, its dressing texture and materials, its object under LundunExpansion
+    static string Dir = "Assets/World/Expansions/Brixtun";
+    static string MeshPath = Dir + "/BrixtunMeshes.asset";
+    static string ParkedPath = Dir + "/BrixtunParked.asset";
+    static string AtlasPath = Dir + "/BrixtunDressingAtlas.png";
+    static string AreaName = "Brixtun", SpawnTag = "BRX";
+    static string DetailPath = RootName + "/" + AreaName + "/Detail";
+    const string BrixDir = "Assets/World/Expansions/Brixtun";
+    const string RetailParkedPath = BrixDir + "/RetailParked.asset";
     const string GenDir = "Assets/World/Generated";
-    const string RootName = "LundunExpansion", AreaName = "Brixtun";
-    const string DetailPath = RootName + "/" + AreaName + "/Detail";
+    const string RootName = "LundunExpansion";
     const float PaveTop = 0.15f;
+
+    /// E8: build into this area's folder and object from now on ("Brixtun" or "Kingsmere").
+    internal static void UseArea(string name, string spawnTag)
+    {
+        AreaName = name; SpawnTag = spawnTag;
+        Dir = "Assets/World/Expansions/" + name;
+        MeshPath = Dir + "/" + name + "Meshes.asset";
+        ParkedPath = Dir + "/" + name + "Parked.asset";
+        AtlasPath = Dir + "/" + name + "DressingAtlas.png";
+        DetailPath = RootName + "/" + name + "/Detail";
+        container = null;
+    }
 
     static Mesh container;
 
@@ -62,6 +80,7 @@ public static class LundunBrixtunBuilder
         if (!LundunGreyboxBuilder.HasExpansions()) { Dialog("Assets/World/LundunExpansion.json has no Brixtun in it (copy in the E1 version)."); return; }
 
         string log;
+        UseArea("Brixtun", "BRX");
         try
         {
             LundunWorldData data = LundunExpansionBuilder.Parse(json.text);
@@ -169,7 +188,7 @@ public static class LundunBrixtunBuilder
 
     // ------------------------------------------------------------------ the city's side
     /// Swaps World/Roads' markings for the new ones (the same everywhere except across the joins).
-    static int RefreshMarkings(GameObject worldRoot, GreyboxResult city)
+    internal static int RefreshMarkings(GameObject worldRoot, GreyboxResult city)
     {
         Transform roads = worldRoot.transform.Find("Roads");
         if (roads == null) throw new Exception("World/Roads not found. Run Lundun → 1 Build Greybox World first.");
@@ -196,7 +215,7 @@ public static class LundunBrixtunBuilder
     }
 
     // ------------------------------------------------------------------ Brixtun's streets and buildings
-    static int BuildWorld(Transform area, Transform detail, GreyboxResult x)
+    internal static int BuildWorld(Transform area, Transform detail, GreyboxResult x)
     {
         Dictionary<string, Transform> groups = new Dictionary<string, Transform>();
         int n = 0;
@@ -253,12 +272,12 @@ public static class LundunBrixtunBuilder
     }
 
     // ------------------------------------------------------------------ dressing (its own texture)
-    static int BuildDressing(Transform area, Transform detail, DressingResult r, out Material glow, out Material globe)
+    internal static int BuildDressing(Transform area, Transform detail, DressingResult r, out Material glow, out Material globe)
     {
         Texture2D atlas = SaveAtlas(r.atlas);
-        Material solid = DressMaterial("Dress_Solid_Brixtun", atlas, false, false);
-        Material cut = DressMaterial("Dress_Cutout_Brixtun", atlas, true, false);
-        glow = DressMaterial("Dress_Glow_Brixtun", atlas, false, true);
+        Material solid = DressMaterial("Dress_Solid_" + AreaName, atlas, false, false);
+        Material cut = DressMaterial("Dress_Cutout_" + AreaName, atlas, true, false);
+        glow = DressMaterial("Dress_Glow_" + AreaName, atlas, false, true);
         Dictionary<string, Material> mats = new Dictionary<string, Material> { { "DressSolid", solid }, { "DressCutout", cut }, { "DressGlow", glow } };
         Transform blocks = Child(detail, "Dressing"), props = Child(detail, "Props"), cols = Child(area, "Colliders");
         int n = 0;
@@ -357,7 +376,7 @@ public static class LundunBrixtunBuilder
         {
             string path = "Assets/Prefabs/" + kv.Key + ".prefab";
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-            if (prefab == null) { Debug.LogWarning("[Lundun] " + path + " not found — " + kv.Value.Count + " " + kv.Key + " skipped in Brixtun."); continue; }
+            if (prefab == null) { Debug.LogWarning("[Lundun] " + path + " not found — " + kv.Value.Count + " " + kv.Key + " skipped in " + AreaName + "."); continue; }
             GameObject inst = (GameObject)Object.Instantiate(prefab);
             inst.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
             Matrix4x4 toRoot = inst.transform.worldToLocalMatrix;
@@ -409,13 +428,13 @@ public static class LundunBrixtunBuilder
     static int Block(double v) { return (int)Math.Floor((v - Generator.ChunkOrigin) / Generator.ChunkSize); }
 
     // ------------------------------------------------------------------ markings, litter, setts, puddles (Lundun → 22's materials)
-    static int BuildStreets(Transform detail, StreetResult r)
+    internal static int BuildStreets(Transform detail, StreetResult r)
     {
         const string sd = "Assets/World/Streets/";
         Material decal = AssetDatabase.LoadAssetAtPath<Material>(sd + Generator.StreetDecalMat + ".mat");
         Material setts = AssetDatabase.LoadAssetAtPath<Material>(sd + Generator.StreetSettsMat + ".mat");
         Material wet = AssetDatabase.LoadAssetAtPath<Material>(sd + Generator.StreetWetMat + ".mat");
-        if (decal == null) { Debug.LogWarning("[Lundun] Street materials not found (run Lundun → 22 Streets once): Brixtun's road markings and litter skipped."); return 0; }
+        if (decal == null) { Debug.LogWarning("[Lundun] Street materials not found (run Lundun → 22 Streets once): " + AreaName + "'s road markings and litter skipped."); return 0; }
         Transform root = Child(detail, "Streets");
         int n = 0;
         foreach (MeshData md in r.meshes)
@@ -437,7 +456,7 @@ public static class LundunBrixtunBuilder
     }
 
     // ------------------------------------------------------------------ light from shops and pubs (as Lundun → 24)
-    static int BuildSpill(Transform detail, GreyboxResult world, DressingResult dressed)
+    internal static int BuildSpill(Transform detail, GreyboxResult world, DressingResult dressed)
     {
         string[] mats = { "LightPool_Shop", "LightPool_Pub", "LightPool_Lobby" };
         List<double[]> spots = new List<double[]>(dressed.shopLights);
@@ -490,13 +509,13 @@ public static class LundunBrixtunBuilder
     // ------------------------------------------------------------------ E3: street life
     /// Brixtun's parked cars, baked like the city's (Lundun → 23) into its own asset; the bays kept for real cars go to
     /// LundunParking at runtime (via LundunExpansionArea).
-    static int BuildParked(Transform area, StreetResult xs, out Vector4[] bays, out Renderer[] parked)
+    internal static int BuildParked(Transform area, StreetResult xs, out Vector4[] bays, out Renderer[] parked)
     {
         bays = new Vector4[0]; parked = new Renderer[0];
         List<Vector4> allBays = new List<Vector4>(); List<Renderer> allParked = new List<Renderer>();
         int total = 0;
-        // the streets' cars, and (E4) the retail park's, each in its own asset (they're big)
-        List<ParkSlot>[] sets = { Generator.ParkingSlots(xs), Generator.RetailParkSlots() };
+        // the streets' cars, and (E4) the retail park's, each in its own asset (they're big); E8: Kingsmere has no retail park
+        List<ParkSlot>[] sets = { Generator.ParkingSlots(xs), AreaName == "Brixtun" ? Generator.RetailParkSlots() : new List<ParkSlot>() };
         string[] roots = { "Parked", "RetailParked" }, paths = { ParkedPath, RetailParkedPath };
         for (int i = 0; i < sets.Length; i++)
         {
@@ -505,7 +524,7 @@ public static class LundunBrixtunBuilder
             List<Renderer> renderers; List<Vector4> free; int cars, painted; List<string> missing;
             if (!LundunParkedBuilder.Bake(sets[i], root, paths[i], out renderers, out free, out cars, out painted, out missing))
             {
-                Debug.LogWarning("[Lundun] No car prefabs in Assets/Vehicles/Prefabs (Lundun → 10): Brixtun has no parked cars.");
+                Debug.LogWarning("[Lundun] No car prefabs in Assets/Vehicles/Prefabs (Lundun → 10): " + AreaName + " has no parked cars.");
                 return 0;
             }
             allBays.AddRange(free); allParked.AddRange(renderers); total += cars;
@@ -515,14 +534,14 @@ public static class LundunBrixtunBuilder
     }
 
     /// Fixed police spawn points along Brixtun's roads (the fallback when PoliceDirector can't find a road spot).
-    static Transform[] BuildPoliceSpawns(Transform area, GreyboxResult x)
+    internal static Transform[] BuildPoliceSpawns(Transform area, GreyboxResult x)
     {
         Transform root = Child(area, "PoliceSpawns");
         List<Transform> list = new List<Transform>();
         foreach (Marker m in x.markers)
         {
             if (m.group != "PoliceSpawns") continue;
-            GameObject g = new GameObject("SP_POLICE_BRX_" + (list.Count + 1).ToString("00"));
+            GameObject g = new GameObject("SP_POLICE_" + SpawnTag + "_" + (list.Count + 1).ToString("00"));
             g.transform.SetParent(root, false);
             g.transform.SetPositionAndRotation(new Vector3((float)m.x, (float)m.y, (float)m.z), Quaternion.Euler(0f, (float)m.yaw, 0f));
             list.Add(g.transform);
@@ -561,8 +580,8 @@ public static class LundunBrixtunBuilder
     }
 
     // ------------------------------------------------------------------ E5: the walk-in supermarkets
-    const string ShopAtlasPath = Dir + "/ShopAtlas.png", ShopFloorPath = Dir + "/ShopFloor.png", ShopCeilingPath = Dir + "/ShopCeiling.png";
-    const string HomeAtlasPath = Dir + "/HomeAtlas.png", HomeConcretePath = Dir + "/HomeConcrete.png", HomeStepsPath = Dir + "/HomeSteps.png";
+    const string ShopAtlasPath = BrixDir + "/ShopAtlas.png", ShopFloorPath = BrixDir + "/ShopFloor.png", ShopCeilingPath = BrixDir + "/ShopCeiling.png";
+    const string HomeAtlasPath = BrixDir + "/HomeAtlas.png", HomeConcretePath = BrixDir + "/HomeConcrete.png", HomeStepsPath = BrixDir + "/HomeSteps.png";
     static Dictionary<string, Material> shopMats;
 
     static bool WalkIn(string placeId)
@@ -786,7 +805,7 @@ public static class LundunBrixtunBuilder
 
     static Material ShopMaterial(string name, Texture2D tex, float glow, bool glass)
     {
-        string path = Dir + "/" + name + ".mat";
+        string path = BrixDir + "/" + name + ".mat";
         Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
         Shader sh = Shader.Find("Universal Render Pipeline/Simple Lit");
         if (sh == null) sh = Shader.Find("Universal Render Pipeline/Lit");
@@ -863,8 +882,8 @@ public static class LundunBrixtunBuilder
     static void SetInt(SerializedObject so, string p, int v) { SerializedProperty sp = so.FindProperty(p); if (sp != null) sp.intValue = v; }
 
     // ------------------------------------------------------------------ helpers
-    /// LundunStreaming switches Brixtun's fine detail off far away, like the city's.
-    static void StreamDetail()
+    /// LundunStreaming switches the area's fine detail off far away, like the city's.
+    internal static void StreamDetail()
     {
         LundunStreaming st = Object.FindAnyObjectByType<LundunStreaming>(FindObjectsInactive.Include);
         if (st == null) return;
@@ -877,13 +896,13 @@ public static class LundunBrixtunBuilder
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 
-    static Mesh Save(Mesh mesh)
+    internal static Mesh Save(Mesh mesh)
     {
         if (container == null) { AssetDatabase.CreateAsset(mesh, MeshPath); container = mesh; } else AssetDatabase.AddObjectToAsset(mesh, container);
         return mesh;
     }
 
-    static Transform Child(Transform parent, string name)
+    internal static Transform Child(Transform parent, string name)
     {
         Transform t = parent.Find(name);
         if (t != null) return t;
@@ -902,5 +921,5 @@ public static class LundunBrixtunBuilder
         return null;
     }
 
-    static void Dialog(string m) { EditorUtility.DisplayDialog("Lundun", m, "OK"); }
+    internal static void Dialog(string m) { EditorUtility.DisplayDialog("Lundun", m, "OK"); }
 }

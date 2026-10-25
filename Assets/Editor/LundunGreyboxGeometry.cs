@@ -761,6 +761,7 @@ namespace LundunGreybox
                         V2 toRoad = dir.Left * -s;
                         int style;
                         if (ExpansionMode && IsRetailRoad(ri)) style = 3;          // E4: the retail park's roads: tall LED columns
+                        else if (Kingsmere) style = 2;                             // E8: the royal quarter: heritage lanterns everywhere
                         else switch (DistrictAt(pos, dpoly))
                         {
                             case "D_GILMOR": style = 1; break;
@@ -864,6 +865,7 @@ namespace LundunGreybox
                     V2 d = new V2(Math.Sin(yaw), Math.Cos(yaw));
                     double h = 5 + rng.NextDouble() * 4, r = 1.6 + rng.NextDouble() * 1.4;
                     if (InReserved(q, plans, r + 1)) continue;   // same random numbers drawn either way, so buildings don't move
+                    if (Kingsmere && KingsmereKeepsClear(q, r + 1)) continue;     // E8: not in the lake, on the paths or the forecourt
                     parkTrees.Add(q);
                     trunks.Box(q, d, 0.2, 0.2, 0, h * 0.5, false, 0.1, 0, false);
                     leaves.Box(q, d, r, r, h * 0.4, h, true, 0.1, 0, false);
@@ -936,7 +938,8 @@ namespace LundunGreybox
         {
             GX0 = 0; GZ0 = 0;
             NX = (int)Math.Ceiling(1600 / Cell); NZ = (int)Math.Ceiling(1200 / Cell);
-            if (ExpansionMode) { GX0 = ExpGridX0; GZ0 = ExpGridZ0; NX = (int)Math.Ceiling(ExpGridW / Cell); NZ = (int)Math.Ceiling(ExpGridH / Cell); }
+            if (Brix) { GX0 = ExpGridX0; GZ0 = ExpGridZ0; NX = (int)Math.Ceiling(ExpGridW / Cell); NZ = (int)Math.Ceiling(ExpGridH / Cell); }
+            if (Kingsmere) { GX0 = KmGridX0; GZ0 = KmGridZ0; NX = (int)Math.Ceiling(KmGridW / Cell); NZ = (int)Math.Ceiling(KmGridH / Cell); }      // E8
             blocked = new bool[NX * NZ]; occupied = new bool[NX * NZ];
             foreach (RoadInfo ri in roads.Values)
             {
@@ -1000,7 +1003,7 @@ namespace LundunGreybox
                         V2 d2; V2 mid = ri.line.At(Math.Min(ch + len / 2, L), out d2);
                         double setback = ri.w / 2 + Math.Max(ri.pave, ri.verge) + 2.2 + dep / 2 + rng.NextDouble() * 1.5;
                         V2 c = mid + d2.Left * (s * setback);
-                        if (rng.NextDouble() > (ExpansionMode ? ExpEmptyLots : 0.08) && TryPlace(R, did, dpoly[did], c, d2, len, dep, h, rule.gap))
+                        if (rng.NextDouble() > (Kingsmere ? KmEmptyLots : ExpansionMode ? ExpEmptyLots : 0.08) && TryPlace(R, did, dpoly[did], c, d2, len, dep, h, rule.gap))
                             ch += len + rule.gap + rng.NextDouble() * 3;
                         else ch += 4;
                     }

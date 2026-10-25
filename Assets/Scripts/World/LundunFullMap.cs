@@ -10,6 +10,8 @@ using UnityEngine.UI;
 ///   • tap a place's icon, or anywhere on a road, to select it: a card at the bottom shows what it is and how far,
 ///     with SET ROUTE. With a route set, the card shows it with CLEAR ROUTE
 ///   • PLACES (top right) opens a list of every destination
+///   • E8: Greater Lundun round the playable city (the river across the middle, the outer boroughs and their names),
+///     drawn behind the map picture; zooming right out shows all of it, top to bottom, without scrolling
 /// Built by Lundun → 6  Build Full Map + GPS (which fills in the fields below); the new look is made in code.
 public class LundunFullMap : MonoBehaviour
 {
@@ -33,6 +35,15 @@ public class LundunFullMap : MonoBehaviour
     [SerializeField] private float mapMinZ = -150f;
     [SerializeField] private float mapWidth = 1900f;
     [SerializeField] private float mapHeight = 1500f;
+
+    [Header("E8: Greater Lundun round it (filled in by Lundun → 17)")]
+    [SerializeField] private Texture2D backdrop;
+    [Tooltip("The backdrop's area: min x, min z, width, height (world metres)")]
+    [SerializeField] private Vector4 backdropArea = Vector4.zero;
+    [SerializeField] private string[] outerNames = new string[0];
+    [SerializeField] private Vector2[] outerAt = new Vector2[0];
+    [Tooltip("Zoomed right out, this much room is left round Greater Lundun (fraction of the screen)")]
+    [SerializeField] private float fitMargin = 0.02f;
 
     [Header("Zoom")]
     [SerializeField] private float openMetresTall = 700f;     // how much map fits top-to-bottom when it opens
@@ -67,7 +78,21 @@ public class LundunFullMap : MonoBehaviour
     private Item selected;
     private readonly Item pin = new Item { kind = "pin", name = "Dropped pin", isPin = true };
 
+    private RectTransform backdropRect;
+
     void Awake() { Instance = this; if (window != null) window.SetActive(false); }
+
+    /// Lundun → 17: Greater Lundun's picture, its area, and the outer boroughs' names.
+    public void SetBackdrop(Texture2D picture, Vector4 area, string[] names, Vector2[] at)
+    {
+        backdrop = picture; backdropArea = area;
+        outerNames = names ?? new string[0]; outerAt = at ?? new Vector2[0];
+    }
+
+    bool HasBackdrop { get { return backdrop != null && backdropArea.z > 1f && backdropArea.w > 1f; } }
+
+    /// What you can pan round and zoom out to: Greater Lundun (or just the map picture without it). min x, min z, w, h.
+    Vector4 Bounds { get { return HasBackdrop ? backdropArea : new Vector4(mapMinX, mapMinZ, mapWidth, mapHeight); } }
     void OnEnable() { LundunMinimap.Tapped += Open; }
     void OnDisable() { LundunMinimap.Tapped -= Open; }
     void OnDestroy() { if (Instance == this) Instance = null; }
@@ -123,7 +148,10 @@ public class LundunFullMap : MonoBehaviour
     {
         Vector2 vp = ViewportPoint(screenPoint);
         Vector2 before = (vp - content.anchoredPosition) / ppm;          // metres from the map centre under the finger
-        float minPpm = Mathf.Max(viewport.rect.width / mapWidth, viewport.rect.height / mapHeight);
+        // E8: zoomed right out, the whole of Greater Lundun fits on screen (before, the map filled the width and you had to
+        // scroll for the top and bottom)
+        Vector4 bb = Bounds;
+        float minPpm = Mathf.Min(viewport.rect.width / bb.z, viewport.rect.height / bb.w) * (1f - fitMargin);
         float maxPpm = viewport.rect.height / closestMetresTall;
         ppm = Mathf.Clamp(ppm * factor, minPpm, maxPpm);
         ApplyZoom();
@@ -150,6 +178,8 @@ public class LundunFullMap : MonoBehaviour
         if (best == null)
         {
             pin.pos = ViewportToWorld(at);
+            // E8: the outer boroughs are only scenery: a pin out there goes to the nearest point inside the map
+            pin.pos = new Vector3(Mathf.Clamp(pin.pos.x, mapMinX + 30f, mapMinX + mapWidth - 30f), 0f, Mathf.Clamp(pin.pos.z, mapMinZ + 30f, mapMinZ + mapHeight - 30f));
             pin.name = NearestStreet(pin.pos, out _) ?? "Dropped pin";
             best = pin;
         }
@@ -308,6 +338,23 @@ public class LundunFullMap : MonoBehaviour
         if (winBg != null) winBg.color = new Color(0.03f, 0.04f, 0.05f, 1f);
         Transform oldCross = window.transform.Find("CloseButton");
         if (oldCross != null) oldCross.gameObject.SetActive(false);
+
+        // E8: Greater Lundun behind the map picture, and the outer boroughs' names
+        if (HasBackdrop)
+        {
+            backdropRect = Rect("GreaterLundun", content);
+            backdropRect.SetAsFirstSibling();
+            backdropRect.anchorMin = backdropRect.anchorMax = backdropRect.pivot = new Vector2(0.5f, 0.5f);
+            RawImage ri = backdropRect.gameObject.AddComponent<RawImage>();
+            ri.texture = backdrop;
+            ri.raycastTarget = false;
+            for (int i = 0; i < outerNames.Length && i < outerAt.Length; i++)
+            {
+                TextMeshProUGUI t = Label(labelLayer, outerNames[i], new Vector3(outerAt[i].x, 0f, outerAt[i].y), 34, new Color(1f, 1f, 1f, 0.3f));
+                t.characterSpacing = 18f;
+                districtLabels.Add(t);
+            }
+        }
 
         // districts and streets
         if (w != null)
@@ -774,7 +821,17 @@ public class LundunFullMap : MonoBehaviour
     // ------------------------------------------------------------------ maths
     float Scale() { return rootCanvas != null && rootCanvas.scaleFactor > 0 ? rootCanvas.scaleFactor : 1f; }
 
-    void ApplyZoom() { content.sizeDelta = new Vector2(mapWidth * ppm, mapHeight * ppm); }
+    void ApplyZoom()
+    {
+        content.sizeDelta = new Vector2(mapWidth * ppm, mapHeight * ppm);
+        if (backdropRect != null)
+        {
+            // E8: Greater Lundun's picture, sized and placed round the map picture (content's middle is the map's middle)
+            Vector4 a = backdropArea;
+            backdropRect.sizeDelta = new Vector2(a.z * ppm, a.w * ppm);
+            backdropRect.anchoredPosition = new Vector2(a.x + a.z * 0.5f - (mapMinX + mapWidth * 0.5f), a.y + a.w * 0.5f - (mapMinZ + mapHeight * 0.5f)) * ppm;
+        }
+    }
 
     /// Icons sit at a fixed spot on the map by anchoring to it, so they follow pan and zoom for free.
     void Anchor(RectTransform rt, Vector3 world)
@@ -808,11 +865,16 @@ public class LundunFullMap : MonoBehaviour
         ClampPan();
     }
 
+    /// Keep the screen over Greater Lundun (E8; before, over the map picture): if it's smaller than the screen it stays
+    /// in the middle.
     void ClampPan()
     {
-        Vector2 half = content.sizeDelta * 0.5f, vh = viewport.rect.size * 0.5f;
+        Vector4 bb = Bounds;
+        Vector2 half = new Vector2(bb.z, bb.w) * ppm * 0.5f, vh = viewport.rect.size * 0.5f;
+        // where the bounds' middle is, from the map's middle, in UI units
+        Vector2 off = new Vector2(bb.x + bb.z * 0.5f - (mapMinX + mapWidth * 0.5f), bb.y + bb.w * 0.5f - (mapMinZ + mapHeight * 0.5f)) * ppm;
         Vector2 lim = new Vector2(Mathf.Max(0f, half.x - vh.x), Mathf.Max(0f, half.y - vh.y));
         Vector2 p = content.anchoredPosition;
-        content.anchoredPosition = new Vector2(Mathf.Clamp(p.x, -lim.x, lim.x), Mathf.Clamp(p.y, -lim.y, lim.y));
+        content.anchoredPosition = new Vector2(Mathf.Clamp(p.x, -off.x - lim.x, -off.x + lim.x), Mathf.Clamp(p.y, -off.y - lim.y, -off.y + lim.y));
     }
 }
