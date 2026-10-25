@@ -157,7 +157,8 @@ public class LundunStagger : MonoBehaviour
             agent.updateRotation = true;
             if (agent.isOnNavMesh) agent.isStopped = false;
         }
-        if (!dead && brain != null && (brainWasOn || GetComponent<LundunAngryDriver>() == null)) brain.enabled = true;
+        // (R4a: gang members keep their brain off: LundunGangMember does their thinking)
+        if (!dead && brain != null && GetComponent<LundunGangMember>() == null && (brainWasOn || GetComponent<LundunAngryDriver>() == null)) brain.enabled = true;
         if (recovered && !dead && after != null) after();
         Destroy(this);
     }

@@ -350,7 +350,7 @@ public class PlayerCombat : MonoBehaviour
             bool fightBack = Random.value < punchFightBack;
             LundunStagger.Play(who, "Punched", 1.0f, true, faceYaw, () =>
             {
-                if (who == null) return;
+                if (who == null || who.GetComponent<LundunGangMember>() != null) return;   // R4a: their gang deals with it
                 if (fightBack && who.GetComponent<LundunAngryDriver>() == null) who.AddComponent<LundunAngryDriver>().Begin(false);
                 else { NPCBrain b = who.GetComponent<NPCBrain>(); if (b != null) b.Panic(from); }
             });

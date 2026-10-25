@@ -51,6 +51,10 @@ public class LundunPopulation : MonoBehaviour
     [Tooltip("Camera shake for a stagger and for a full stumble")]
     [SerializeField] private Vector2 bumpShake = new Vector2(0.03f, 0.06f);
 
+    [Header("R4a: gangs")]
+    [Tooltip("Gangs on their corners in Gilmore, Angel Fields, Peckam and Brixtun at night (LundunGangs, added at runtime)")]
+    [SerializeField] private bool gangs = true;
+
     [Header("Traffic and parked cars")]
     [SerializeField] private GameObject[] carPrefabs;          // made by Lundun → 9  Build Traffic
     [SerializeField] private float carSpawnNearest = 70f;
@@ -117,6 +121,7 @@ public class LundunPopulation : MonoBehaviour
     void Start()
     {
         vehicles = FindAnyObjectByType<VehicleSystem>();
+        if (gangs && GetComponent<LundunGangs>() == null) gameObject.AddComponent<LundunGangs>();     // R4a
         if (showStats) MakeStats();
     }
 
@@ -135,6 +140,7 @@ public class LundunPopulation : MonoBehaviour
 
         Vector3 player = vehicles.PlayerTarget.position;
         int target = Mathf.RoundToInt(PedestrianBudget * Scale * TimeOfDayFactor);
+        target = Mathf.Max(0, target - LundunGangs.ActiveMembers);              // R4a: gang members share the budget
         TickPedestrians(player, target);
         int movingTarget = Mathf.RoundToInt(MovingCarBudget * Scale * TimeOfDayFactor);
         int parkedTarget = Mathf.RoundToInt(ParkedCarBudget * Scale);
@@ -323,10 +329,20 @@ public class LundunPopulation : MonoBehaviour
 
     /// E7b: a new person of their own for another system to look after (the Lundun Wheel's crowd), made under parent,
     /// switched off. Not part of this pool or its budget: the caller owns it.
-    public GameObject NewPerson(Transform parent)
+    public GameObject NewPerson(Transform parent) { return NewPerson(parent, null); }
+
+    /// R4a: the same, preferring a look (e.g. "Street": Ped_Street_*) when there is one.
+    public GameObject NewPerson(Transform parent, string look)
     {
         if (pedestrianPrefabs == null || pedestrianPrefabs.Length == 0) return null;
-        GameObject prefab = pedestrianPrefabs[rng.Next(pedestrianPrefabs.Length)];
+        GameObject prefab = null;
+        if (!string.IsNullOrEmpty(look))
+        {
+            List<GameObject> match = new List<GameObject>();
+            foreach (GameObject g in pedestrianPrefabs) if (g != null && g.name.Contains(look)) match.Add(g);
+            if (match.Count > 0) prefab = match[rng.Next(match.Count)];
+        }
+        if (prefab == null) prefab = pedestrianPrefabs[rng.Next(pedestrianPrefabs.Length)];
         if (prefab == null) return null;
         GameObject go = Instantiate(prefab, parent);
         go.SetActive(false);
@@ -337,6 +353,22 @@ public class LundunPopulation : MonoBehaviour
             if (a.runtimeAnimatorController == null && peopleController != null) a.runtimeAnimatorController = peopleController;
         }
         return go;
+    }
+
+    /// R4a: the nearest ordinary pedestrian out walking (alive, not busy, not fighting), within 'within' metres. Null if none.
+    public GameObject NearestPedestrian(Vector3 at, float within)
+    {
+        GameObject best = null; float bd = within;
+        foreach (Ped p in peds)
+        {
+            if (!p.active || p.go == null || (p.health != null && p.health.IsDead)) continue;
+            if (LundunStagger.Busy(p.go) || p.go.GetComponent<LundunAngryDriver>() != null) continue;
+            NPCBrain b = p.go.GetComponent<NPCBrain>();
+            if (b == null || !b.enabled) continue;
+            float d = Flat(p.go.transform.position, at);
+            if (d < bd) { bd = d; best = p.go; }
+        }
+        return best;
     }
 
     /// Puts a person at a specific spot right now (e.g. a driver pulled out of a car). Null if none free.
