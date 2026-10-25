@@ -95,6 +95,7 @@ public class CarController : MonoBehaviour
     void FixedUpdate()
     {
         int wheelsOnGround = ApplySuspension();
+        GroundedWheels = wheelsOnGround;
         if (wheelsOnGround == 0) return;
 
         // Touch buttons (player) or the police AI always count. The keyboard only drives the player's car.
@@ -103,6 +104,7 @@ public class CarController : MonoBehaviour
         input.x = Mathf.Clamp(input.x, -1f, 1f);
         input.y = Mathf.Clamp(input.y, -1f, 1f);
 
+        InputNow = input;
         float throttle = input.y;
         float steer = input.x;
         Vector3 forward = transform.forward;
@@ -209,6 +211,16 @@ public class CarController : MonoBehaviour
         Track(speed, sideSpeed);
     }
 
+    const float SpringLift = 0.35f;
+
+    /// For the driving readout (VehicleSystem → Show Drive Info): wheels touching the road last physics step, and the
+    /// throttle (y) and steering (x) the car last used.
+    public int GroundedWheels { get; private set; }
+    public Vector2 InputNow { get; private set; }
+
+    /// V2: the wheel radius (Lundun → 10 sets it per model).
+    public float WheelRadius => wheelRadius;
+
     int ApplySuspension()
     {
         int grounded = 0;
@@ -216,12 +228,16 @@ public class CarController : MonoBehaviour
 
         foreach (Transform point in springPoints)
         {
-            if (!Physics.Raycast(point.position, -transform.up, out RaycastHit hit,
-                                 maxDistance, groundMask, QueryTriggerInteraction.Ignore))
+            if (point == null) continue;
+            // V2 fix: each ray starts a little above its spring, so a car that has sunk onto its body (a hard landing, or
+            // put down too low) still finds the road and springs back up, instead of lying there ignoring the pedals
+            Vector3 from = point.position + transform.up * SpringLift;
+            if (!Physics.Raycast(from, -transform.up, out RaycastHit hit,
+                                 maxDistance + SpringLift, groundMask, QueryTriggerInteraction.Ignore))
                 continue;
 
             grounded++;
-            float compression = maxDistance - hit.distance;
+            float compression = Mathf.Min(maxDistance, maxDistance + SpringLift - hit.distance);
             float springVelocity = Vector3.Dot(transform.up, rb.GetPointVelocity(point.position));
             float force = compression * springStrength - springVelocity * springDamper;
             rb.AddForceAtPosition(transform.up * force, point.position);

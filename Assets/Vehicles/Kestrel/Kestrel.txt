@@ -1,0 +1,14 @@
+# James's car: what each material in Kestrel.fbx is (read by Lundun → 10 Import Car Models).
+# Roles: paint, glass, trim, chrome, head, tail, tyre, rim, caliper. The head and tail lights also tell it which way is the front.
+name = Kestrel
+# paint = #FFAD08   (leave out to keep the colour the old Kestrel had)
+Material.001 = paint
+Material.002 = trim
+Material.003 = chrome
+Material.004 = glass
+Material.005 = head
+Material.006 = tail
+Material.007 = glass
+Material.008 = caliper
+Material.009 = caliper
+Material = tyre

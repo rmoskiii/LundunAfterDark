@@ -115,12 +115,51 @@ public static class LundunParkedBuilder
         // gather every car part, per 100 m block, per (painted) material
         Dictionary<string, Dictionary<Material, List<CombineInstance>>> blocks = new Dictionary<string, Dictionary<Material, List<CombineInstance>>>();
         Dictionary<string, Material> paints = new Dictionary<string, Material>();
+        Dictionary<GameObject, ParkedModel> realModels = new Dictionary<GameObject, ParkedModel>();
+        Transform realRoot = null;
+        Mesh container = null;
         cars = 0; painted = 0;
         EditorUtility.DisplayProgressBar("Lundun", "Parking cars…", 0.3f);
         foreach (ParkSlot s in slots)
         {
             if (s.forPopulation) continue;
             GameObject prefab = prefabs.ContainsKey(s.model) && prefabs[s.model] != null ? prefabs[s.model] : fallback;
+            GameObject real = LundunCarImporter.ForParkedSlot(s.model, s.x, s.z);       // V2: the real-car models, once made
+            if (real != null)
+            {
+                // V2: the detailed cars aren't copied into the big block meshes (hundreds of copies made a 158 MB file);
+                // each bay gets one object that shares its model's mesh, painted the bay's colour
+                ParkedModel pm;
+                if (!realModels.TryGetValue(real, out pm)) { pm = MakeParkedModel(real, meshPath, ref container); realModels[real] = pm; }
+                if (realRoot == null) { realRoot = new GameObject("Cars").transform; realRoot.SetParent(root, false); }
+                GameObject pc = new GameObject(real.name + "_" + cars);
+                pc.transform.SetParent(realRoot, false);
+                pc.transform.SetPositionAndRotation(new Vector3((float)s.x, 0.02f, (float)s.z), Quaternion.Euler(0f, (float)s.yaw, 0f));
+                pc.AddComponent<MeshFilter>().sharedMesh = pm.mesh;
+                MeshRenderer pr = pc.AddComponent<MeshRenderer>();
+                Material[] pms = (Material[])pm.mats.Clone();
+                LundunCarPaint jobs = real.GetComponent<LundunCarPaint>();
+                if (jobs != null && pm.paintIndex >= 0)
+                {
+                    Material job = jobs.Named(Generator.ParkColourNames[s.colour], s.colour);
+                    if (job != null) { pms[pm.paintIndex] = job; painted++; }
+                }
+                pr.sharedMaterials = pms;
+                pr.shadowCastingMode = ShadowCastingMode.On;
+                GameObjectUtility.SetStaticEditorFlags(pc, StaticEditorFlags.OccludeeStatic);   // not batching-static: that would copy the mesh again
+                renderers.Add(pr);
+                BoxCollider rpb = real.GetComponent<BoxCollider>();
+                GameObject rc = new GameObject("Car_" + cars);
+                rc.transform.SetParent(cols, false);
+                rc.transform.SetPositionAndRotation(pc.transform.position, pc.transform.rotation);
+                BoxCollider rbc = rc.AddComponent<BoxCollider>();
+                if (rpb != null) { rbc.center = rpb.center; rbc.size = rpb.size; }
+                else { rbc.center = new Vector3(0f, 0.8f, 0f); rbc.size = new Vector3(1.8f, 1.4f, (float)s.length - 0.2f); }
+                GameObjectUtility.SetStaticEditorFlags(rc, StaticEditorFlags.BatchingStatic);
+                cars++;
+                continue;
+            }
+            LundunCarPaint paintJobs = prefab.GetComponent<LundunCarPaint>();
             Matrix4x4 at = Matrix4x4.TRS(new Vector3((float)s.x, 0.02f, (float)s.z), Quaternion.Euler(0f, (float)s.yaw, 0f), Vector3.one);
             Matrix4x4 toRoot = prefab.transform.worldToLocalMatrix;
             string key = Mathf.FloorToInt(((float)s.x + 300f) / 100f) + "_" + Mathf.FloorToInt(((float)s.z + 300f) / 100f);
@@ -138,7 +177,12 @@ public static class LundunParkedBuilder
                 {
                     Material mat = mats.Length == 0 ? null : mats[Mathf.Min(sub, mats.Length - 1)];
                     if (mat == null) continue;
-                    if (IsPaint(mat)) { mat = Paint(paints, mat, s.colour); gotPaint = true; }
+                    if (paintJobs != null && mr == paintJobs.Body && sub == paintJobs.Slot)
+                    {   // V2: a ready-painted body in this bay's colour (or the nearest it has)
+                        Material job = paintJobs.Named(Generator.ParkColourNames[s.colour], s.colour);
+                        if (job != null) { mat = job; gotPaint = true; }
+                    }
+                    else if (IsPaint(mat)) { mat = Paint(paints, mat, s.colour); gotPaint = true; }
                     List<CombineInstance> list;
                     if (!block.TryGetValue(mat, out list)) { list = new List<CombineInstance>(); block[mat] = list; }
                     list.Add(new CombineInstance { mesh = mesh, subMeshIndex = sub, transform = m });
@@ -159,8 +203,7 @@ public static class LundunParkedBuilder
 
         // bake
         EditorUtility.DisplayProgressBar("Lundun", "Baking parked cars…", 0.7f);
-        Mesh container = null;
-        renderers.Clear();
+        renderers.RemoveAll(x => x == null || x.transform.parent != realRoot);   // keep the real cars' renderers
         List<string> keys = new List<string>(blocks.Keys); keys.Sort();
         foreach (string key in keys)
             foreach (var kv in blocks[key])
@@ -183,6 +226,53 @@ public static class LundunParkedBuilder
         free = new List<Vector4>();
         foreach (ParkSlot s in slots) if (s.forPopulation) free.Add(new Vector4((float)s.x, (float)s.z, (float)s.yaw, (float)s.length));
         return true;
+    }
+
+    class ParkedModel { public Mesh mesh; public Material[] mats; public int paintIndex = -1; }
+
+    /// V2: one mesh for a whole car (body, wheels, plates), one part per material, saved once in the parked-cars asset.
+    static ParkedModel MakeParkedModel(GameObject prefab, string meshPath, ref Mesh container)
+    {
+        Dictionary<Material, List<CombineInstance>> byMat = new Dictionary<Material, List<CombineInstance>>();
+        List<Material> order = new List<Material>();
+        Matrix4x4 toRoot = prefab.transform.worldToLocalMatrix;
+        foreach (MeshFilter mf in prefab.GetComponentsInChildren<MeshFilter>(true))
+        {
+            MeshRenderer mr = mf.GetComponent<MeshRenderer>();
+            if (mr == null || mf.sharedMesh == null || InBumper(mf.transform)) continue;
+            Material[] mats = mr.sharedMaterials;
+            for (int sub = 0; sub < mf.sharedMesh.subMeshCount; sub++)
+            {
+                Material mat = mats.Length == 0 ? null : mats[Mathf.Min(sub, mats.Length - 1)];
+                if (mat == null) continue;
+                List<CombineInstance> list;
+                if (!byMat.TryGetValue(mat, out list)) { list = new List<CombineInstance>(); byMat[mat] = list; order.Add(mat); }
+                list.Add(new CombineInstance { mesh = mf.sharedMesh, subMeshIndex = sub, transform = toRoot * mf.transform.localToWorldMatrix });
+            }
+        }
+        List<CombineInstance> parts = new List<CombineInstance>();
+        List<Mesh> temp = new List<Mesh>();
+        foreach (Material m in order)
+        {
+            Mesh part = new Mesh { indexFormat = IndexFormat.UInt32 };
+            part.CombineMeshes(byMat[m].ToArray(), true, true);
+            temp.Add(part);
+            parts.Add(new CombineInstance { mesh = part, subMeshIndex = 0, transform = Matrix4x4.identity });
+        }
+        Mesh mesh = new Mesh { name = "ParkedCar_" + prefab.name, indexFormat = IndexFormat.UInt32 };
+        mesh.CombineMeshes(parts.ToArray(), false, false);
+        mesh.RecalculateBounds();
+        foreach (Mesh t in temp) Object.DestroyImmediate(t);
+        if (container == null) { AssetDatabase.CreateAsset(mesh, meshPath); container = mesh; } else AssetDatabase.AddObjectToAsset(mesh, container);
+
+        ParkedModel pm = new ParkedModel { mesh = mesh, mats = order.ToArray() };
+        LundunCarPaint jobs = prefab.GetComponent<LundunCarPaint>();
+        if (jobs != null && jobs.Body != null)
+        {
+            Material[] bm = jobs.Body.sharedMaterials;
+            if (jobs.Slot >= 0 && jobs.Slot < bm.Length) pm.paintIndex = order.IndexOf(bm[jobs.Slot]);
+        }
+        return pm;
     }
 
     static bool InBumper(Transform t) { for (; t != null; t = t.parent) if (t.GetComponent<CarBumper>() != null) return true; return false; }

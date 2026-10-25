@@ -1,5 +1,5 @@
 // Vehicles for Lundun traffic.
-//   Lundun → 10  Make Cars from Models : every car model (FBX/OBJ) in Assets/Vehicles/Models becomes a drivable,
+//   Lundun → Vehicles → Old: Make Kenney Cars from Models (V2: Lundun → 10 Import Car Models replaces it) : every car model (FBX/OBJ) in Assets/Vehicles/Models becomes a drivable,
 //                                         stealable traffic car (Kenney Car Kit works as-is). Physics copied from your Kestrel.
 //   Lundun → 11  Make Double-Decker Bus : builds an original red double-decker from simple shapes (no TfL branding).
 //   Lundun → Vehicles → Flip Car Models Front-to-Back : if the new cars drive backwards.
@@ -21,7 +21,7 @@ public static class LundunVehicleBuilder
     static readonly string[] Skip = { "wheel", "tire", "tyre", "debris", "cone", "box", "barrier", "sign", "light", "kit", "police" };
 
     // ------------------------------------------------------------------ cars
-    [MenuItem("Lundun/10  Make Cars from Models", false, 10)]
+    [MenuItem("Lundun/Vehicles/Old: Make Kenney Cars from Models", false, 61)]
     public static void MakeCars()
     {
         GameObject template; LundunPopulation pop;
@@ -216,7 +216,7 @@ public static class LundunVehicleBuilder
 
     // ------------------------------------------------------------------ shared
     /// Physics copied from the Kestrel: Rigidbody, CarController (with this vehicle's wheels), VehicleHealth, bumper.
-    static void AddPhysics(GameObject root, GameObject template, List<Vector3> wheels, float radius, Bounds b, float massScale)
+    internal static void AddPhysics(GameObject root, GameObject template, List<Vector3> wheels, float radius, Bounds b, float massScale)
     {
         Rigidbody rb = root.AddComponent<Rigidbody>();
         EditorUtility.CopySerialized(template.GetComponent<Rigidbody>(), rb);
@@ -266,7 +266,7 @@ public static class LundunVehicleBuilder
         }
     }
 
-    static bool Ready(out GameObject template, out LundunPopulation pop)
+    internal static bool Ready(out GameObject template, out LundunPopulation pop)
     {
         template = null; pop = null;
         if (SceneManager.GetActiveScene().name != "Lundun") { Dialog("Open the Lundun scene first."); return false; }
@@ -280,7 +280,7 @@ public static class LundunVehicleBuilder
         return true;
     }
 
-    static Bounds RendererBounds(GameObject root)
+    internal static Bounds RendererBounds(GameObject root)
     {
         Renderer[] rs = root.GetComponentsInChildren<Renderer>(true);
         if (rs.Length == 0) return new Bounds(Vector3.zero, Vector3.one);
@@ -313,17 +313,17 @@ public static class LundunVehicleBuilder
         return m;
     }
 
-    static GameObject Save(GameObject root, string path)
+    internal static GameObject Save(GameObject root, string path)
     {
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
         Object.DestroyImmediate(root);
         return prefab;
     }
 
-    static void SetF(SerializedObject so, string p, float v) { SerializedProperty sp = so.FindProperty(p); if (sp != null) sp.floatValue = v; }
-    static void Dialog(string m) { EditorUtility.DisplayDialog("Lundun", m, "OK"); }
+    internal static void SetF(SerializedObject so, string p, float v) { SerializedProperty sp = so.FindProperty(p); if (sp != null) sp.floatValue = v; }
+    internal static void Dialog(string m) { EditorUtility.DisplayDialog("Lundun", m, "OK"); }
 
-    static void EnsureFolder(string path)
+    internal static void EnsureFolder(string path)
     {
         if (AssetDatabase.IsValidFolder(path)) return;
         string parent = Path.GetDirectoryName(path).Replace('\\', '/');
