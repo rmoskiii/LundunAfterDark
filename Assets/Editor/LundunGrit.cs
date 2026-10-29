@@ -181,6 +181,7 @@ namespace LundunGreybox
             foreach (int s in new[] { -1, 1 }) SBox(mSolid, q + f * (s * 0.82), f, 0.09, 0.42, 0.42, 0.62, c);   // arms
             if (grng.NextDouble() < 0.6) SBox(mSolid, q + a * 0.05 + f * 0.35, f, 0.38, 0.3, 0.42, 0.52, c);    // one cushion left
             Collider("FlyTip", q, f, 1.8, 0.85, 0, 0.85);
+            Breakable("sofa", q, f, 0.92, 0.44, 0, 0.87);
             D.Count("sofas");
         }
 
@@ -191,6 +192,7 @@ namespace LundunGreybox
             if (lying) { SBox(mSolid, q, f, 0.8, 0.32, 0, 0.62, S("fridge")); SBox(mSolid, q + f.Left * 0.33, f, 0.5, 0.01, 0.2, 0.45, S("metal")); }
             else { SBox(mSolid, q, f, 0.32, 0.32, 0, 1.6, S("fridge")); SBox(mSolid, q + f.Left * 0.33, f, 0.25, 0.01, 1.0, 1.02, S("charcoal")); }
             Collider("FlyTip", q, f, lying ? 1.6 : 0.64, 0.64, 0, lying ? 0.62 : 1.6);
+            Breakable("fridge", q, f, lying ? 0.82 : 0.34, 0.34, 0, lying ? 0.64 : 1.62);
             D.Count("fridges");
         }
 
@@ -200,6 +202,7 @@ namespace LundunGreybox
             // propped against the wall at a lean
             SBox(mSolid, q - a * 0.15, f, 0.7, 0.1, 0, 1.85, S("white"));
             VQuad(mSolid, q - a * 0.04 - f * 0.7, q - a * 0.04 + f * 0.7, 0, 1.85, A["mattress"], a);
+            Breakable("mattress", q - a * 0.1, f, 0.72, 0.16, 0, 1.87);
             D.Count("mattresses (tipped)");
         }
 
@@ -211,6 +214,7 @@ namespace LundunGreybox
                 V2 c = q + new V2(grng.NextDouble() - 0.5, grng.NextDouble() - 0.5) * 0.12;
                 Cyl(mSolid, c, 0.32, i * 0.21, i * 0.21 + 0.2, 10, S("tyre"));
             }
+            Breakable("tyres", q, new V2(0, 1), 0.4, 0.4, 0, n * 0.21 + 0.02);
             D.Count("tyres");
         }
 

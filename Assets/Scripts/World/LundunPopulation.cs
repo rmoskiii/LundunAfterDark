@@ -473,6 +473,7 @@ public class LundunPopulation : MonoBehaviour
             c.rb.position = at; c.rb.rotation = rot;
             c.rb.linearVelocity = Vector3.zero; c.rb.angularVelocity = Vector3.zero;
             c.cc.SetTouchInput(0f, 0f);
+            Fresh(c);
             c.active = true;
             if (parked) c.ai.BeginParked();
             else
@@ -499,6 +500,7 @@ public class LundunPopulation : MonoBehaviour
         c.rb.position = at; c.rb.rotation = rot;
         c.rb.linearVelocity = Vector3.zero; c.rb.angularVelocity = Vector3.zero;
         c.cc.SetTouchInput(0f, 0f);
+        Fresh(c);
         c.active = true;
         c.ai.BeginParked();
         return true;
@@ -555,6 +557,7 @@ public class LundunPopulation : MonoBehaviour
             c.rb.position = at; c.rb.rotation = rot;
             c.rb.linearVelocity = along * busSpeed * 0.5f; c.rb.angularVelocity = Vector3.zero;
             c.cc.SetTouchInput(0f, 0f);
+            Fresh(c);
             c.active = true;
             c.ai.BeginRoute(nav.Graph, route, i, busSpeed);
             return;
@@ -574,6 +577,13 @@ public class LundunPopulation : MonoBehaviour
                            health = go.GetComponent<VehicleHealth>(), renderers = go.GetComponentsInChildren<Renderer>(true) };
         cars.Add(nc);
         return nc;
+    }
+
+    /// V4a: a reused car comes back without the last owner's dents and smashed lamps.
+    static void Fresh(Car c)
+    {
+        LundunCarDamage d = c.go.GetComponent<LundunCarDamage>();
+        if (d != null) d.Repair();
     }
 
     Car GetPooledCar()

@@ -31,6 +31,7 @@ public class LundunLampLights : MonoBehaviour
     public float Level { get; set; } = 1f;
 
     private readonly List<Vector3> all = new List<Vector3>();
+    private readonly List<Vector3> home = new List<Vector3>();           // V4b: where each lamp stands (all[] moves away when knocked down)
     private readonly List<Color> colours = new List<Color>();
     private Light[] pool;
     private float[] bestDist;
@@ -46,6 +47,21 @@ public class LundunLampLights : MonoBehaviour
     public Color Colour { get { return colour; } }
     /// L5: each lamp's light colour, in the same order as Positions.
     public IReadOnlyList<Color> Colours { get { return colours; } }
+
+    /// V4b: a lamp knocked down (true) goes dark: no light, no glow halo, no rain streak; put back (false) it lights again.
+    public void Knock(int index, bool down)
+    {
+        if (index < 0 || index >= all.Count) return;
+        if (home.Count != all.Count) { home.Clear(); home.AddRange(all); }
+        all[index] = down ? new Vector3(1e6f, -1000f, 1e6f) : home[index];
+    }
+
+    /// V4b: where a lamp's head is (even while it's knocked down).
+    public Vector3 HomeOf(int index)
+    {
+        if (home.Count == all.Count && index >= 0 && index < home.Count) return home[index];
+        return index >= 0 && index < all.Count ? all[index] : Vector3.zero;
+    }
 
     void Start()
     {

@@ -736,6 +736,7 @@ namespace LundunGreybox
                     VQuad(mCut, p0, p1, 0, 2.0, link, o);
                     VQuad(mCut, p1, p0, 0, 2.0, link, o * -1);
                     Cyl(mSolid, p0, 0.035, 0, 2.05, 5, post, false);
+                    Breakable("fence", Lerp(p0, p1, 0.5), f, 1.27, 0.08, 0, 2.06);
                     D.Count("wasteland fence panels");
                 }
                 if (L > runStart + 0.5) Collider("Fence", Lerp(a + f * runStart, b, 0.5), f, L - runStart, 0.12, 0, 2.0);

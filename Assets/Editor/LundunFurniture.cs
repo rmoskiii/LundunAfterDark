@@ -235,6 +235,7 @@ namespace LundunGreybox
             Cyl(mSolid, q - f * 0.3 + f.Left * 0.24, 0.1, 0.0, 0.2, 6, S("black"));                  // wheels (hint)
             Cyl(mSolid, q - f * 0.3 - f.Left * 0.24, 0.1, 0.0, 0.2, 6, S("black"));
             Claim(q, 0.45);
+            Breakable("wheeliebin", q, f.Left, 0.32, 0.42, 0, 1.07);
             D.Count("wheelie bins");
         }
 
@@ -308,6 +309,7 @@ namespace LundunGreybox
                 foreach (int k in new[] { -1, 1 }) SBox(mSolid, q + a * (0.33 * k), dir, 0.025, 0.025, FPaveY, FPaveY + 0.75, S("steel"));
                 SBox(mSolid, q, a, 0.36, 0.025, FPaveY + 0.72, FPaveY + 0.77, S("steel"));
                 Claim(q, 0.45);
+                Breakable("cyclestand", q, a, 0.4, 0.06, FPaveY, FPaveY + 0.8);
                 D.Count("cycle stands");
             }
         }
@@ -331,6 +333,7 @@ namespace LundunGreybox
                     VQuad(mCut, q1, q0, FPaveY, FPaveY + 1.8, A["chainlink"], p.n * -1);
                 }
                 for (int i = 0; i <= panels; i++) Cyl(mSolid, a + f * (L * i / panels), 0.04, FPaveY, FPaveY + 1.85, 6, S("fencegreen"));
+                for (int i = 0; i < panels; i++) Breakable("fence", a + f * (L * (i + 0.5) / panels), f, L / panels / 2, 0.08, FPaveY, FPaveY + 1.86);
                 SBox(mSolid, (a + b) * 0.5, f, L / 2, 0.025, FPaveY + 1.78, FPaveY + 1.83, S("fencegreen"));
                 Collider("Fence", (a + b) * 0.5, f, L, 0.1, FPaveY, FPaveY + 1.8);
             }
@@ -424,6 +427,7 @@ namespace LundunGreybox
                                 Band(mSolid, q + dir * (0.5 * k), 0.32, FPaveY + 0.6, 0.12, FPaveY + 1.1 + frng.NextDouble() * 0.3, 6, leaf, frng.NextDouble());
                             Claim(q, 1.0);
                             Collider("Planter", q, dir, 1.7, 0.84, FPaveY, FPaveY + 0.6);
+                            Breakable("planter", q, dir, 0.87, 0.44, FPaveY, FPaveY + 1.45);
                             D.Count("planters");
                         }
                 }
@@ -454,6 +458,7 @@ namespace LundunGreybox
                         SBox(mSolid, q, dir, 0.53, 0.25, FPaveY + 1.25, FPaveY + 1.3, S("cabinettop"));
                         Claim(q, 0.7);
                         Collider("Cabinet", q, dir, 1.0, 0.44, FPaveY, FPaveY + 1.3);
+                        Breakable("cabinet", q, dir, 0.55, 0.27, FPaveY, FPaveY + 1.32);
                         D.Count("street cabinets");
                     }
             }
@@ -537,6 +542,7 @@ namespace LundunGreybox
                 }
                 SBox(mSolid, p, f, 0.03, 0.03, y, y + 1.02, S("barrierred"));
                 SBox(mSolid, p, n, 0.32, 0.06, y, y + 0.06, S("conebase"));                       // foot
+                Breakable("barrier", (p + q) * 0.5, f, L / n2 / 2 + 0.04, 0.34, y, y + 1.03);
             }
             SBox(mSolid, b, f, 0.03, 0.03, y, y + 1.02, S("barrierred"));
             for (double s = 0; s <= L; s += 1) Claim(a + f * s, 0.4);
@@ -548,6 +554,7 @@ namespace LundunGreybox
             Band(mSolid, q, 0.15, y + 0.04, 0.03, y + 0.72, 6, S("orange"), 0);
             Band(mSolid, q, 0.1, y + 0.32, 0.075, y + 0.46, 6, S("white"), 0);
             Claim(q, 0.3);
+            Breakable("cone", q, new V2(0, 1), 0.21, 0.21, y, y + 0.73);
         }
 
         static void Sign(V2 q, V2 facing, double y, string sign)
@@ -557,6 +564,7 @@ namespace LundunGreybox
             VQuad(mSolid, q - a * 0.45, q + a * 0.45, y + 0.9, y + 1.25, A[sign], f);
             VQuad(mSolid, q + a * 0.45 - f * 0.01, q - a * 0.45 - f * 0.01, y + 0.9, y + 1.25, A[sign], f * -1);
             Claim(q, 0.6);
+            Breakable("sign", q, a, 0.48, 0.08, y, y + 1.27);
         }
 
         // ------------------------------------------------------------------ scaffolding

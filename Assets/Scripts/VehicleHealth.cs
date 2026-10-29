@@ -25,6 +25,9 @@ public class VehicleHealth : MonoBehaviour
     public float Max => maxHealth;
     public bool IsBurning { get; private set; }
     public bool IsWrecked { get; private set; }
+    /// V4a: crash sparks and bits use the same particle materials as the fire and smoke.
+    public Material FireMaterial => fireMaterial;
+    public Material SmokeMaterial => smokeMaterial;
 
     private Rigidbody rb;
     private CarController car;
@@ -47,6 +50,9 @@ public class VehicleHealth : MonoBehaviour
     void OnCollisionEnter(Collision collision)
     {
         float impact = collision.relativeVelocity.magnitude;
+        // V4b: street furniture that breaks barely hurts the car (a cone at 60 mph is nothing; a lamp post is something)
+        float keep;
+        if (LundunSmash.Instance != null && LundunSmash.Instance.WouldBreak(collision.collider, impact, out keep)) impact *= Mathf.Clamp01((1f - keep) * 2.5f);
         if (impact > crashDamageSpeed)
             TakeDamage((impact - crashDamageSpeed) * crashDamageMultiplier);
     }
@@ -163,6 +169,8 @@ public class VehicleHealth : MonoBehaviour
         Current = maxHealth;
         fuse = fuseTime;
         if (rb != null) { rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }
+        LundunCarDamage dmg = GetComponent<LundunCarDamage>();            // V4a: dents, glass, lamps
+        if (dmg != null) dmg.Repair();
     }
 
     float Falloff(Vector3 point, Vector3 centre)

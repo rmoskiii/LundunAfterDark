@@ -10,6 +10,9 @@ namespace LundunGreybox
 {
     public class PropPlacement { public string kind; public double x, y, z, yaw; }
     public class DressBox { public string name; public double cx, cy, cz, sx, sy, sz, yaw; }
+    /// V4b: a piece of street furniture a car can knock over: what it is, its foot (x, y = ground, z), which way its
+    /// length runs (yaw, degrees), half its length and width, its height.
+    public class BreakInfo { public string kind; public double x, y, z, yaw, hl, hw, h; }
     public class BusStopInfo { public double x, z, dx, dz; }
     public class StationInfo { public string name; public double x, z, yaw; }
 
@@ -18,6 +21,7 @@ namespace LundunGreybox
         public List<MeshData> meshes = new List<MeshData>();
         public List<PropPlacement> prefabs = new List<PropPlacement>();
         public List<DressBox> colliders = new List<DressBox>();
+        public List<BreakInfo> breakables = new List<BreakInfo>();      // V4b
         public List<BusStopInfo> busStops = new List<BusStopInfo>();
         public List<StationInfo> stations = new List<StationInfo>();
         public List<PlaceInfo> places = new List<PlaceInfo>();
@@ -366,6 +370,13 @@ namespace LundunGreybox
                    new P3(c + f * hl + l * hw, y, r.u1, r.v0), new P3(c + f * hl - l * hw, y, r.u0, r.v0), 0, 1, 0);
         }
 
+        /// V4b: remember a breakable thing (its box: centre c, length along f).
+        static void Breakable(string kind, V2 c, V2 f, double hl, double hw, double y0, double y1)
+        {
+            if (D == null) return;
+            D.breakables.Add(new BreakInfo { kind = kind, x = c.x, y = y0, z = c.z, yaw = Yaw(f), hl = hl, hw = hw, h = y1 - y0 });
+        }
+
         static void Collider(string name, V2 c, V2 f, double sl, double sw, double y0, double y1)
         {
             D.colliders.Add(new DressBox { name = name, cx = c.x, cy = (y0 + y1) / 2, cz = c.z, sx = sw, sy = y1 - y0, sz = sl, yaw = Yaw(f) });
@@ -430,6 +441,7 @@ namespace LundunGreybox
             SBox(mSolid, p - f * 0.2, along, 0.9, 0.04, y + 0.55, y + 0.9, S("wood"));                   // back
             foreach (int s in new[] { -1, 1 }) SBox(mSolid, p + along * (0.78 * s), along, 0.04, 0.25, y, y + 0.9, S("black"));
             Claim(p, 1.0);
+            Breakable("bench", p, along, 0.95, 0.32, y, y + 0.92);
             D.Count("benches");
         }
 
@@ -438,6 +450,7 @@ namespace LundunGreybox
             Cyl(mSolid, p, 0.24, y, y + 0.95, 8, S("black"));
             Cyl(mSolid, p, 0.26, y + 0.78, y + 0.86, 8, S(posh ? "gold" : "charcoal"), false);
             Claim(p, 0.5);
+            Breakable("bin", p, new V2(0, 1), 0.28, 0.28, y, y + 0.96);
             D.Count("bins");
         }
 
@@ -450,6 +463,7 @@ namespace LundunGreybox
             V2 f = facing.Norm;
             SBox(mSolid, p + f * 0.25, f.Left, 0.13, 0.03, y + 1.15, y + 1.2, S("black"));               // slot
             Claim(p, 0.7);
+            Breakable("postbox", p, new V2(0, 1), 0.33, 0.33, y, y + 1.6);
             D.Count("post boxes");
         }
 
@@ -457,6 +471,7 @@ namespace LundunGreybox
         {
             BollardStyled(p, y);            // L3: cast iron / steel / concrete by district (the old black-and-white one is the default)
             Claim(p, 0.3);
+            Breakable("bollard", p, new V2(0, 1), 0.18, 0.18, y, y + 0.97);
             D.Count("bollards");
         }
 
@@ -475,6 +490,7 @@ namespace LundunGreybox
             SBox(mSolid, (a + b) * 0.5, f, L / 2, 0.025, y + h - 0.2, y + h - 0.14, S("black"));
             for (int i = 0; i <= panels; i++) SBox(mSolid, a + f * (L * i / panels), f, 0.035, 0.035, y, y + h + 0.05, S("black"));
             for (double s = 0; s <= L; s += 1.5) Claim(a + f * s, 0.4);
+            for (int i = 0; i < panels; i++) Breakable("railing", a + f * (L * (i + 0.5) / panels), f, L / panels / 2, 0.07, y, y + h + 0.06);
             D.Count("railing metres", (int)L);
         }
 
@@ -1122,6 +1138,7 @@ namespace LundunGreybox
                         SBox(mSolid, q - f * 0.05, f, 0.62, 0.7, 1.15, 1.25, S("lid"));
                     }
                     Collider("EstateBins", e, l, bins * 1.45, 1.2, 0, 1.25);
+                    Breakable("estatebins", e, l, bins * 1.45 / 2, 0.72, 0, 1.26);
                     if (drng.NextDouble() < 0.5)
                         for (int k = 0; k < 2 + drng.Next(3); k++)
                         {
@@ -1153,6 +1170,7 @@ namespace LundunGreybox
             SBox(mSolid, p - dir * 0.55, l, 0.3, 0.02, 1.0, 1.04, S("postred"));
             foreach (int a in new[] { -1, 1 }) foreach (int s in new[] { -1, 1 }) SBox(mSolid, p + dir * (a * 0.38) + l * (s * 0.24), dir, 0.015, 0.015, 0, 0.35, m);
             Claim(p, 0.7);
+            Breakable("trolley", p, dir, 0.6, 0.32, 0, 1.05);
             D.Count("shopping trolleys");
         }
 

@@ -48,6 +48,8 @@ public class LundunTrafficCar : MonoBehaviour
     private List<int> route;            // fixed loop of nodes (buses); null = wander at random
     private int routeIndex;
     private float sinceStop, stopUntil, ignoreStopsUntil;
+    private LundunCarLamps lamps;          // V4a: indicators
+    private bool pullingOut;
 
     public bool IsBus { get { return isBus; } }
 
@@ -68,6 +70,7 @@ public class LundunTrafficCar : MonoBehaviour
     void Awake()
     {
         car = GetComponent<CarController>();
+        lamps = GetComponent<LundunCarLamps>();
         rng = new System.Random(++seedCounter * 7919 + System.Environment.TickCount);
     }
 
@@ -182,6 +185,14 @@ public class LundunTrafficCar : MonoBehaviour
         float want = cruise * (isBus ? 1f : profile.speed) * (Time.time < panicUntil ? 1.4f : 1f);
         float toEnd = segLen - s;
         float speed = car.Speed;
+        // V4a: indicate a turn at the next junction (not for a gentle bend)
+        if (lamps != null && toEnd < 38f && nextNode >= 0 && toJunction)
+        {
+            NavPoint c = graph.NodePosition(nextNode);
+            Vector3 ndir = new Vector3((float)c.x, 0f, (float)c.z) - B;
+            float signed = Vector3.SignedAngle(dir, ndir, Vector3.up);
+            if (Mathf.Abs(signed) > 28f) lamps.Indicate(signed > 0f ? 1 : -1, 3f);
+        }
         if (toEnd < 25f && nextNode >= 0)
         {
             NavPoint c = graph.NodePosition(nextNode);
@@ -204,7 +215,8 @@ public class LundunTrafficCar : MonoBehaviour
         if (isBus)
         {
             LundunDressing dressing = LundunDressing.Instance;
-            if (Time.time < stopUntil) want = 0f;
+            if (Time.time < stopUntil) { want = 0f; pullingOut = true; }
+            else if (pullingOut) { pullingOut = false; if (lamps != null) lamps.Indicate(1, 3f); }      // V4a: pulling out
             else if (dressing != null && dressing.BusStopCount > 0)
             {
                 // pull in at the real shelters (Lundun → 13): ease off, stop alongside, wait, move on
@@ -212,6 +224,7 @@ public class LundunTrafficCar : MonoBehaviour
                 if (Time.time > ignoreStopsUntil && dressing.StopAhead(transform.position, transform.forward, out ahead))
                 {
                     want = Mathf.Min(want, Mathf.Max(1.2f, ahead * 0.5f));
+                    if (lamps != null && ahead < 30f) lamps.Indicate(-1, 1f);                                 // V4a: pulling in
                     if (ahead < 1.5f) { stopUntil = Time.time + stopFor; ignoreStopsUntil = stopUntil + 8f; want = 0f; }
                 }
             }

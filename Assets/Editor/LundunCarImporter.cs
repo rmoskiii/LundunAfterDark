@@ -26,6 +26,8 @@ public static class LundunCarImporter
     const string PlateMeshes = GenDir + "/LundunPlates.asset";
     const string PlateTexture = "Assets/Vehicles/Plates.png";
     const string TaxiTexture = "Assets/Vehicles/TaxiSign.png";
+    const string PoolTexture = "Assets/Vehicles/HeadlightPool.png";
+    const string MeshDir = GenDir + "/Meshes";
     const int PlateRows = 8;
 
     // kept in traffic alongside the new cars (V3: none; the Kenney vans, lorries and ambulance left; the buses have their own list)
@@ -54,7 +56,7 @@ public static class LundunCarImporter
         try
         {
             LundunVehicleBuilder.EnsureFolder(PackDir); LundunVehicleBuilder.EnsureFolder(KestrelDir);
-            LundunVehicleBuilder.EnsureFolder(PrefabDir); LundunVehicleBuilder.EnsureFolder(MatDir);
+            LundunVehicleBuilder.EnsureFolder(PrefabDir); LundunVehicleBuilder.EnsureFolder(MatDir); LundunVehicleBuilder.EnsureFolder(MeshDir);
             Prepare();
             List<string> log = new List<string>();
 
@@ -81,6 +83,9 @@ public static class LundunCarImporter
                 }
                 Tidy();                                                   // done with this file's cars
             }
+
+            // V4a: the buses get lamps and dents too
+            string busReport = Bus(template, log);
 
             // 2. James's car
             string kestrelReport = null;
@@ -115,7 +120,7 @@ public static class LundunCarImporter
 
             string names = ""; foreach (GameObject g in made) names += (names.Length > 0 ? ", " : "") + g.name.Replace("Car_", "");
             Debug.Log("[Lundun] V2 cars: " + made.Count + " traffic cars (" + names + ")" + (kestrelReport != null ? "; " + kestrelReport : "; no model in " + KestrelDir + " (James's car unchanged)") +
-                      (cabs.Count > 0 ? "; black cabs in traffic" : "") + (policeReport != null ? "; " + policeReport : "") +
+                      (cabs.Count > 0 ? "; black cabs in traffic" : "") + (busReport != null ? "; " + busReport : "") + (policeReport != null ? "; " + policeReport : "") +
                       ".\n" + string.Join("\n", log.ToArray()) +
                       "\nNext: Lundun → 23 Street Furniture + Parked Cars (and 23 for Brixtun / Kingsmere if you use them) so the parked cars are the new ones too, then Cmd+S and Play.");
             if (made.Count == 0 && kestrelReport == null)
@@ -168,13 +173,14 @@ public static class LundunCarImporter
                 if (mi.importAnimation) { mi.importAnimation = false; dirty = true; }
                 if (mi.importCameras) { mi.importCameras = false; dirty = true; }
                 if (mi.importLights) { mi.importLights = false; dirty = true; }
+                if (!mi.isReadable) { mi.isReadable = true; dirty = true; }        // V4a: the bodywork dents at runtime
                 if (mi.materialImportMode == ModelImporterMaterialImportMode.None) { mi.materialImportMode = ModelImporterMaterialImportMode.ImportViaMaterialDescription; dirty = true; }
                 if (dirty) mi.SaveAndReimport();
             }
         foreach (string guid in AssetDatabase.FindAssets("t:Texture2D", new[] { PackDir, KestrelDir, "Assets/Vehicles" }))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
-            if (!path.StartsWith(PackDir) && !path.StartsWith(KestrelDir) && path != PlateTexture && path != TaxiTexture) continue;
+            if (!path.StartsWith(PackDir) && !path.StartsWith(KestrelDir) && path != PlateTexture && path != TaxiTexture && path != PoolTexture) continue;
             string file = Path.GetFileNameWithoutExtension(path);
             bool data = file.EndsWith("_MS");
             int max = file.StartsWith("Wheel_") ? 512 : 1024;
@@ -728,6 +734,7 @@ public static class LundunCarImporter
         lod.RecalculateBounds();
 
         SaveShape(root, shape);
+        LampsAndDamage(root, model.transform, car, mats, 0f, template, prefabName, log);
         log.Add("  " + (special != null ? special + " (" + car.name + ")" : car.name) + ": " + b.size.z.ToString("0.0") + " m long, wheels " + (radius * 2f).ToString("0.00") + " m, " + Mathf.Max(1, mats.paints.Count) + " paint job(s)");
         return LundunVehicleBuilder.Save(root, PrefabDir + "/" + prefabName + ".prefab");
     }
@@ -859,6 +866,7 @@ public static class LundunCarImporter
         Transform smoke = target.transform.Find("Smoke");
         if (smoke != null) smoke.localPosition = new Vector3(0f, ground + height * 0.72f, frontZ - 1.0f);
         SaveShape(target, shape);
+        LampsAndDamage(target, model.transform, car, mats, ground, target, what.Split(' ')[0] == "Police" ? "PoliceCar" : "Kestrel", log);
         log.Add("  " + what + ": " + length.ToString("0.0") + " m long, wheels " + (radius * 2f).ToString("0.00") + " m");
         return shape;
     }
@@ -949,6 +957,293 @@ public static class LundunCarImporter
         t.localScale = size;                                    // its BoxCollider is a unit cube
         BoxCollider bc = t.GetComponent<BoxCollider>();
         if (bc != null) { bc.center = Vector3.zero; bc.size = Vector3.one; }
+    }
+
+    // ------------------------------------------------------------------ V4a: lamps and damage
+    /// Which lamp a piece of the lamp texture is, by its colour: red = tail, amber = indicator, clear = head (front) or
+    /// reversing (back); anything else (chrome, dark) is left as it was.
+    static int LampKind(Color c, bool front)
+    {
+        if (c.r > 0.35f && c.r > c.g * 2.2f && c.r > c.b * 2.2f) return (int)LundunCarLamps.Kind.Tail;
+        if (c.r > 0.45f && c.g > c.r * 0.3f && c.g < c.r * 0.82f && c.b < c.g * 0.6f) return 100;          // indicator (side later)
+        if (c.r + c.g + c.b > 1.41f && Mathf.Abs(c.r - c.b) < 0.24f) return (int)(front ? LundunCarLamps.Kind.Head : LundunCarLamps.Kind.Reverse);
+        return -1;
+    }
+
+    /// The body's lamps become their own parts (one per lamp and side, so a crash on the left smashes the left one),
+    /// lamp shapes are added where the model has none (indicators on James's car, tail lights on the bus…), and the
+    /// dents and glass are listed. 'ground' is the road's height in the car's space.
+    static void LampsAndDamage(GameObject carRoot, Transform model, Car car, Materials mats, float ground, GameObject template, string name, List<string> log)
+    {
+        MeshRenderer shell = mats.ShellRenderer;
+        List<LundunCarLamps.Lamp> lamps = new List<LundunCarLamps.Lamp>();
+        Bounds cb = CarBounds(carRoot, model);
+        if (shell != null) SplitLamps(carRoot, shell, car, mats, name, lamps);
+        AddMissingLamps(carRoot, model, shell, cb, lamps);
+        Finish(carRoot, model, cb, ground, template, lamps);
+        int n = lamps.Count;
+        log.Add("  " + name + ": " + n + " lamps");
+    }
+
+    /// The car's size in its own space.
+    static Bounds CarBounds(GameObject carRoot, Transform model)
+    {
+        Bounds b = new Bounds(); bool any = false;
+        foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true))
+        {
+            MeshFilter mf = r.GetComponent<MeshFilter>();
+            if (mf == null || mf.sharedMesh == null) continue;
+            Bounds mb = mf.sharedMesh.bounds;
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 c = mb.center + Vector3.Scale(mb.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                Vector3 p = carRoot.transform.InverseTransformPoint(r.transform.TransformPoint(c));
+                if (!any) { b = new Bounds(p, Vector3.zero); any = true; } else b.Encapsulate(p);
+            }
+        }
+        return b;
+    }
+
+    static void SplitLamps(GameObject carRoot, MeshRenderer shell, Car car, Materials mats, string name, List<LundunCarLamps.Lamp> lamps)
+    {
+        MeshFilter mf = shell.GetComponent<MeshFilter>();
+        Mesh src = mf.sharedMesh;
+        Material[] slotMats = shell.sharedMaterials;
+        Vector3[] v = src.vertices; Vector2[] uv = src.uv;
+        Texture2D atlas = mats.LightsForFront;
+        // group key: kind, side (0 left 1 right), front (for indicators) → triangles
+        Dictionary<int, List<int>> groups = new Dictionary<int, List<int>>();
+        Dictionary<int, Vector3> sum = new Dictionary<int, Vector3>();
+        List<int>[] keep = new List<int>[src.subMeshCount];
+        bool any = false;
+        Matrix4x4 toCar = carRoot.transform.worldToLocalMatrix * shell.transform.localToWorldMatrix;
+        for (int sub = 0; sub < src.subMeshCount; sub++)
+        {
+            int[] tri = src.GetTriangles(sub);
+            keep[sub] = new List<int>(tri);
+            Material sm = sub < slotMats.Length ? slotMats[sub] : null;
+            string role = sm == null ? "" : sm.name.Contains("_Lights") ? "lights" : sm.name == "LC_Headlight" ? "head" : sm.name == "LC_Taillight" ? "tail" : "";
+            if (role == "") continue;
+            if (role == "lights" && (atlas == null || uv == null || uv.Length != v.Length)) continue;
+            keep[sub].Clear();
+            for (int i = 0; i + 2 < tri.Length; i += 3)
+            {
+                Vector3 c = toCar.MultiplyPoint3x4((v[tri[i]] + v[tri[i + 1]] + v[tri[i + 2]]) / 3f);
+                bool front = c.z > 0f;
+                int kind;
+                if (role == "head") kind = (int)LundunCarLamps.Kind.Head;
+                else if (role == "tail") kind = (int)LundunCarLamps.Kind.Tail;
+                else
+                {
+                    Vector2 t = (uv[tri[i]] + uv[tri[i + 1]] + uv[tri[i + 2]]) / 3f;
+                    kind = LampKind(atlas.GetPixelBilinear(t.x - Mathf.Floor(t.x), t.y - Mathf.Floor(t.y)), front);
+                }
+                if (kind == (int)LundunCarLamps.Kind.Tail && front && role == "lights") kind = -1;      // red bits at the front (side markers) stay unlit
+                if (kind < 0) { keep[sub].Add(tri[i]); keep[sub].Add(tri[i + 1]); keep[sub].Add(tri[i + 2]); continue; }
+                int side = c.x < 0f ? 0 : 1;
+                if (kind == 100) kind = side == 0 ? (int)LundunCarLamps.Kind.IndicatorLeft : (int)LundunCarLamps.Kind.IndicatorRight;
+                int key = kind * 4 + side * 2 + (front ? 1 : 0);
+                List<int> g;
+                if (!groups.TryGetValue(key, out g)) { g = new List<int>(); groups[key] = g; sum[key] = Vector3.zero; }
+                g.Add(tri[i]); g.Add(tri[i + 1]); g.Add(tri[i + 2]);
+                sum[key] += c;
+                any = true;
+            }
+        }
+        // an indicator of only a triangle or two is too small to see: a proper lamp block goes there instead
+        foreach (int key in new List<int>(groups.Keys))
+        {
+            LundunCarLamps.Kind k = (LundunCarLamps.Kind)(key / 4);
+            if ((k == LundunCarLamps.Kind.IndicatorLeft || k == LundunCarLamps.Kind.IndicatorRight) && groups[key].Count < 12)
+            {
+                int lightsSlot = -1;
+                for (int sub = 0; sub < src.subMeshCount; sub++) if (sub < slotMats.Length && slotMats[sub] != null && slotMats[sub].name.Contains("_Lights")) lightsSlot = sub;
+                if (lightsSlot >= 0) keep[lightsSlot].AddRange(groups[key]);
+                groups.Remove(key);
+            }
+        }
+        if (groups.Count == 0) return;
+
+        Mesh m = Object.Instantiate(src);
+        m.name = name + "_Shell";
+        List<int> keys = new List<int>(groups.Keys); keys.Sort();
+        m.subMeshCount = src.subMeshCount + keys.Count;
+        for (int sub = 0; sub < src.subMeshCount; sub++) m.SetTriangles(keep[sub], sub);
+        Material[] newMats = new Material[m.subMeshCount];
+        for (int i = 0; i < src.subMeshCount; i++) newMats[i] = i < slotMats.Length ? slotMats[i] : slotMats[slotMats.Length - 1];
+        for (int k = 0; k < keys.Count; k++)
+        {
+            int key = keys[k], slot = src.subMeshCount + k;
+            m.SetTriangles(groups[key], slot);
+            LundunCarLamps.Kind kind = (LundunCarLamps.Kind)(key / 4);
+            newMats[slot] = LampMaterial(kind, mats);
+            lamps.Add(new LundunCarLamps.Lamp { kind = kind, renderer = shell, slot = slot, local = sum[key] / (groups[key].Count / 3) });
+        }
+        m.RecalculateBounds();
+        string path = MeshDir + "/" + name + "_Shell.asset";
+        AssetDatabase.DeleteAsset(path);
+        AssetDatabase.CreateAsset(m, path);
+        mf.sharedMesh = m;
+        shell.sharedMaterials = newMats;
+    }
+
+    /// A lamp's material: the pack's lamp texture glowing (or a plain glowing colour when there's no texture).
+    static Material LampMaterial(LundunCarLamps.Kind kind, Materials mats)
+    {
+        string tex = mats != null ? mats.TexPath("Lights") : null;
+        Texture2D t = tex != null ? AssetDatabase.LoadAssetAtPath<Texture2D>(tex) : null;
+        Color tint = kind == LundunCarLamps.Kind.Tail ? new Color(0.45f, 0.02f, 0.02f) : kind == LundunCarLamps.Kind.Head || kind == LundunCarLamps.Kind.Reverse
+            ? new Color(0.85f, 0.85f, 0.82f) : new Color(0.5f, 0.28f, 0.02f);
+        if (t != null) return Lit("LC_Lamp_" + kind + "_Tex", t, Color.white, null, 0f, 0.85f, t, Color.white * 0.02f);
+        return Lit("LC_Lamp_" + kind, null, tint, null, 0f, 0.9f, null, tint * 0.02f);
+    }
+
+    /// Lamp shapes where the model hasn't got that lamp: little glowing blocks on the body's surface at the corners.
+    static void AddMissingLamps(GameObject carRoot, Transform model, MeshRenderer shell, Bounds cb, List<LundunCarLamps.Lamp> lamps)
+    {
+        float headY = cb.min.y + cb.size.y * 0.42f, tailY = cb.min.y + cb.size.y * 0.47f;
+        float headX = 0f, tailX = 0f;
+        bool rev = false;
+        foreach (LundunCarLamps.Lamp l in lamps)
+        {
+            if (l.kind == LundunCarLamps.Kind.Head) { headY = l.local.y; headX = Mathf.Max(headX, Mathf.Abs(l.local.x)); }
+            if (l.kind == LundunCarLamps.Kind.Tail) { tailY = l.local.y; tailX = Mathf.Max(tailX, Mathf.Abs(l.local.x)); }
+            if (l.kind == LundunCarLamps.Kind.Reverse) rev = true;
+        }
+        float w = cb.extents.x;
+        foreach (int s in new[] { -1, 1 })
+        {
+            if (!Has(lamps, LundunCarLamps.Kind.Head, s, true)) AddLampBlock(carRoot, model, shell, cb, lamps, LundunCarLamps.Kind.Head, s * w * 0.62f, headY, true, new Vector3(0.32f, 0.12f, 0.03f));
+            if (!Has(lamps, LundunCarLamps.Kind.Tail, s, false)) AddLampBlock(carRoot, model, shell, cb, lamps, LundunCarLamps.Kind.Tail, s * w * 0.66f, tailY, false, new Vector3(0.28f, 0.14f, 0.03f));
+            if (!rev) AddLampBlock(carRoot, model, shell, cb, lamps, LundunCarLamps.Kind.Reverse, s * w * 0.3f, tailY - 0.12f, false, new Vector3(0.1f, 0.06f, 0.03f));
+            LundunCarLamps.Kind k = s < 0 ? LundunCarLamps.Kind.IndicatorLeft : LundunCarLamps.Kind.IndicatorRight;
+            // just outside the head and tail lights (or near the corners)
+            float fx = Mathf.Min(w * 0.88f, Mathf.Max(headX + 0.2f, w * 0.75f)), rx = Mathf.Min(w * 0.88f, Mathf.Max(tailX + 0.2f, w * 0.75f));
+            if (!Has(lamps, k, s, true)) AddLampBlock(carRoot, model, shell, cb, lamps, k, s * fx, headY, true, new Vector3(0.1f, 0.07f, 0.03f));
+            if (!Has(lamps, k, s, false)) AddLampBlock(carRoot, model, shell, cb, lamps, k, s * rx, tailY, false, new Vector3(0.1f, 0.07f, 0.03f));
+        }
+    }
+
+    /// Is there a lamp of this kind on this side (−1 left, +1 right), front or back?
+    static bool Has(List<LundunCarLamps.Lamp> lamps, LundunCarLamps.Kind kind, int side, bool front)
+    {
+        foreach (LundunCarLamps.Lamp l in lamps)
+            if (l.kind == kind && (l.local.x < 0f) == (side < 0) && (l.local.z > 0f) == front) return true;
+        return false;
+    }
+
+    static void AddLampBlock(GameObject carRoot, Transform model, MeshRenderer shell, Bounds cb, List<LundunCarLamps.Lamp> lamps,
+                             LundunCarLamps.Kind kind, float x, float y, bool front, Vector3 size)
+    {
+        float z = SurfaceZ(carRoot, shell, model, x, y, front, cb);
+        Vector3 at = new Vector3(x, y, z + (front ? 0.01f : -0.01f));
+        Material mat = LampMaterial(kind, null);
+        string n = "Lamp_" + kind + (front ? "_F" : "_R") + (x < 0f ? "L" : "R");
+        Transform t = Box(model, n, mat, model.InverseTransformPoint(carRoot.transform.TransformPoint(at)), size);
+        lamps.Add(new LundunCarLamps.Lamp { kind = kind, renderer = t.GetComponent<Renderer>(), slot = 0, local = at });
+    }
+
+    /// How far forward (or back) the body reaches at this height and side: where a lamp block sits on it.
+    static float SurfaceZ(GameObject carRoot, MeshRenderer shell, Transform model, float x, float y, bool front, Bounds cb)
+    {
+        float best = front ? float.MinValue : float.MaxValue;
+        List<MeshFilter> parts = new List<MeshFilter>();
+        if (shell != null && shell.GetComponent<MeshFilter>() != null) parts.Add(shell.GetComponent<MeshFilter>());
+        else foreach (MeshFilter mf in model.GetComponentsInChildren<MeshFilter>(true)) if (!mf.name.StartsWith("Wheel")) parts.Add(mf);
+        foreach (MeshFilter mf in parts)
+        {
+            if (mf.sharedMesh == null) continue;
+            Matrix4x4 m = carRoot.transform.worldToLocalMatrix * mf.transform.localToWorldMatrix;
+            if (mf.sharedMesh.isReadable)
+                foreach (Vector3 lv in mf.sharedMesh.vertices)
+                {
+                    Vector3 p = m.MultiplyPoint3x4(lv);
+                    if (Mathf.Abs(p.x - x) > 0.18f || Mathf.Abs(p.y - y) > 0.18f) continue;
+                    best = front ? Mathf.Max(best, p.z) : Mathf.Min(best, p.z);
+                }
+        }
+        if (best == float.MinValue || best == float.MaxValue) best = front ? cb.max.z : cb.min.z;
+        return best;
+    }
+
+    /// The lamps' and the damage's components, filled in.
+    static void Finish(GameObject carRoot, Transform model, Bounds cb, float ground, GameObject template, List<LundunCarLamps.Lamp> lamps)
+    {
+        float headY = cb.min.y + cb.size.y * 0.4f; int nh = 0; float hy = 0f;
+        foreach (LundunCarLamps.Lamp l in lamps) if (l.kind == LundunCarLamps.Kind.Head) { hy += l.local.y; nh++; }
+        if (nh > 0) headY = hy / nh;
+        LundunCarLamps cl = carRoot.GetComponent<LundunCarLamps>();
+        if (cl == null) cl = carRoot.AddComponent<LundunCarLamps>();
+        cl.Setup(lamps.ToArray(), ground, cb.max.z, headY, cb.size.x, PoolMaterial());
+
+        List<MeshFilter> panels = new List<MeshFilter>();
+        List<LundunCarDamage.Pane> panes = new List<LundunCarDamage.Pane>();
+        foreach (MeshFilter mf in model.GetComponentsInChildren<MeshFilter>(true))
+        {
+            string n = mf.name;
+            if (n.StartsWith("Wheel") || n.StartsWith("Plate_") || n.StartsWith("Lamp_") || n.StartsWith("Light") || n == "TaxiSign" || n == "Front" || n == "Back") continue;
+            if (mf.sharedMesh == null) continue;
+            panels.Add(mf);
+            MeshRenderer mr = mf.GetComponent<MeshRenderer>();
+            if (mr == null) continue;
+            Material[] mm = mr.sharedMaterials;
+            for (int i = 0; i < mm.Length; i++) if (mm[i] != null && mm[i].name.Contains("Glass")) panes.Add(new LundunCarDamage.Pane { renderer = mr, slot = i });
+        }
+        AudioClip crunch = null;
+        CarCrash cc = template != null ? template.GetComponent<CarCrash>() : null;
+        if (cc != null) crunch = new SerializedObject(cc).FindProperty("crashSound").objectReferenceValue as AudioClip;
+        LundunCarDamage d = carRoot.GetComponent<LundunCarDamage>();
+        if (d == null) d = carRoot.AddComponent<LundunCarDamage>();
+        d.Setup(panels.ToArray(), panes.ToArray(), Lit("LC_Glass_Smashed", null, new Color(0.7f, 0.72f, 0.74f), null, 0f, 0.25f, null, Color.black), crunch);
+    }
+
+    /// The soft pool of headlight on the road (additive, see-through).
+    static Material PoolMaterial()
+    {
+        string path = MatDir + "/LC_HeadlightPool.mat";
+        Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
+        Shader sh = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        if (sh == null) return null;
+        bool isNew = m == null;
+        if (isNew) m = new Material(sh);
+        m.shader = sh;
+        m.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(PoolTexture));
+        m.SetColor("_BaseColor", new Color(1f, 0.93f, 0.78f, 0.5f));
+        m.SetFloat("_Surface", 1f); m.SetFloat("_Blend", 2f);                 // transparent, additive
+        m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha); m.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
+        m.SetFloat("_SrcBlendAlpha", (float)UnityEngine.Rendering.BlendMode.One); m.SetFloat("_DstBlendAlpha", (float)UnityEngine.Rendering.BlendMode.One);
+        m.SetFloat("_ZWrite", 0f);
+        m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        m.SetOverrideTag("RenderType", "Transparent");
+        m.renderQueue = 3000;
+        if (isNew) AssetDatabase.CreateAsset(m, path); else EditorUtility.SetDirty(m);
+        return m;
+    }
+
+    /// V4a: the double-decker gets lamps (its front lamps light; tail, brake, reversing and indicator lamps added),
+    /// dents and crazed glass.
+    static string Bus(GameObject template, List<string> log)
+    {
+        string path = PrefabDir + "/Bus_DoubleDecker.prefab";
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) return null;
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            Transform model = root.transform.Find("Model");
+            if (model == null) return null;
+            foreach (Transform t in Children(model)) if (t.name.StartsWith("Lamp_")) Object.DestroyImmediate(t.gameObject);
+            Bounds cb = CarBounds(root, model);
+            List<LundunCarLamps.Lamp> lamps = new List<LundunCarLamps.Lamp>();
+            foreach (MeshRenderer r in model.GetComponentsInChildren<MeshRenderer>(true))
+                if (r.sharedMaterial != null && r.sharedMaterial.name.StartsWith("Bus_Lamp"))
+                    lamps.Add(new LundunCarLamps.Lamp { kind = LundunCarLamps.Kind.Head, renderer = r, slot = 0, local = root.transform.InverseTransformPoint(r.transform.position) });
+            AddMissingLamps(root, model, null, cb, lamps);
+            Finish(root, model, cb, 0f, template, lamps);
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+            log.Add("  Bus: " + lamps.Count + " lamps");
+        }
+        finally { PrefabUtility.UnloadPrefabContents(root); }
+        return "the buses have lamps and dents";
     }
 
     // ------------------------------------------------------------------ parked cars (Lundun → 23 uses this)
