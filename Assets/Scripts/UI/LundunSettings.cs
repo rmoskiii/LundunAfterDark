@@ -72,7 +72,7 @@ public class LundunSettings : MonoBehaviour
     private readonly Dictionary<CanvasScaler, Vector2> origRef = new Dictionary<CanvasScaler, Vector2>();
     private float prevTimeScale = 1f;
 
-    private GameObject canvasGo, menu, displayTab, controlsTab;
+    private GameObject canvasGo, menu, displayTab, controlsTab, creditsTab;
     private RectTransform panel;
     private TextMeshProUGUI lookValue, aimValue;
     private int tab;
@@ -170,6 +170,7 @@ public class LundunSettings : MonoBehaviour
         tab = i;
         if (displayTab != null) displayTab.SetActive(i == 0);
         if (controlsTab != null) controlsTab.SetActive(i == 1);
+        if (creditsTab != null) creditsTab.SetActive(i == 2);
         RefreshButtons();
     }
 
@@ -286,8 +287,8 @@ public class LundunSettings : MonoBehaviour
         title.characterSpacing = 18f;
         Top(title.rectTransform, -26f, 64f);
 
-        // A3: two tabs, DISPLAY and CONTROLS
-        Tabs(panel, new[] { "DISPLAY", "CONTROLS" }, -104f);
+        // A3: tabs, DISPLAY and CONTROLS; V3: CREDITS
+        Tabs(panel, new[] { "DISPLAY", "CONTROLS", "CREDITS" }, -104f);
         displayTab = Rect("DisplayTab", panel).gameObject; Stretch((RectTransform)displayTab.transform);
         controlsTab = Rect("ControlsTab", panel).gameObject; Stretch((RectTransform)controlsTab.transform);
         RectTransform dt = (RectTransform)displayTab.transform, ct = (RectTransform)controlsTab.transform;
@@ -309,6 +310,17 @@ public class LundunSettings : MonoBehaviour
         Note(ct, "AUTO fires by itself when the crosshair turns red.  TEST: every weapon, endless spare ammo.  NORMAL: fists, pistol and what you find.", ref y);
         controlsTab.SetActive(false);
 
+        // V3: CREDITS (the car models are CC BY 4.0, which asks for this)
+        creditsTab = Rect("CreditsTab", panel).gameObject; Stretch((RectTransform)creditsTab.transform);
+        TextMeshProUGUI cr = Text((RectTransform)creditsTab.transform, Credits, 24, Color.white);
+        cr.alignment = TextAlignmentOptions.TopLeft;
+        cr.textWrappingMode = TextWrappingModes.Normal;
+        cr.richText = true;
+        RectTransform crr = cr.rectTransform;
+        crr.anchorMin = crr.anchorMax = new Vector2(0f, 1f); crr.pivot = new Vector2(0f, 1f);
+        crr.anchoredPosition = new Vector2(56f, -196f); crr.sizeDelta = new Vector2(888f, 470f);
+        creditsTab.SetActive(false);
+
         RectTransform resume = Rect("Resume", panel);
         resume.anchorMin = resume.anchorMax = new Vector2(0.5f, 0f); resume.pivot = new Vector2(0.5f, 0f);
         resume.anchoredPosition = new Vector2(0f, 40f); resume.sizeDelta = new Vector2(420f, 96f);
@@ -320,6 +332,15 @@ public class LundunSettings : MonoBehaviour
 
         menu.SetActive(false);
     }
+
+    /// V3: who made what (the CC BY 4.0 models must be credited, with the licence and what was changed).
+    const string Credits =
+        "<b>CARS</b>\n" +
+        "<b>Generic Passenger Car Pack</b> by Comrade1280 (Sketchfab), licensed under CC BY 4.0. " +
+        "<color=#9AA3B5>The traffic, parked cars, police car and black cab: repainted, textures resized, number plates, police livery and taxi sign added.</color>\n\n" +
+        "<b>Low Poly Lamborghini Urus</b> by SharkyStudios (Sketchfab), licensed under CC BY 4.0. " +
+        "<color=#9AA3B5>James's car: repainted, no badges, called the Kestrel in the game.</color>\n\n" +
+        "<color=#9AA3B5>CC BY 4.0: creativecommons.org/licenses/by/4.0</color>";
 
     void Tabs(RectTransform panel, string[] names, float y)
     {

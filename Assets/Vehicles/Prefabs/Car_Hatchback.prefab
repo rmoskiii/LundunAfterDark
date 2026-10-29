@@ -16,6 +16,7 @@ GameObject:
   - component: {fileID: 5009913228782950856}
   - component: {fileID: 8319333099163665574}
   - component: {fileID: 5509459630213264648}
+  - component: {fileID: 4367947835699352359}
   m_Layer: 7
   m_Name: Car_Hatchback
   m_TagString: Untagged
@@ -222,6 +223,24 @@ LODGroup:
     - renderer: {fileID: 331228858438986942}
   m_Enabled: 1
   m_GlobalIlluminationLOD: 0
+--- !u!114 &4367947835699352359
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1078678325614488526}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb3b13e019f8c468e9853a23be405575, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LundunCarShape
+  roof: {x: 0, y: 1.5216308, z: -0.73826957}
+  roofWidth: 1.1040345
+  roofLength: 1.7848339
+  nose: {x: 0, y: 0.48692194, z: 2.2694368}
+  width: 1.9595126
+  height: 1.5216311
 --- !u!1 &2729660670639862288
 GameObject:
   m_ObjectHideFlags: 0

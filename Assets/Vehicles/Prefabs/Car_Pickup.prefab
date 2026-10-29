@@ -792,6 +792,7 @@ GameObject:
   - component: {fileID: 4689739694366170867}
   - component: {fileID: 3116410273964747007}
   - component: {fileID: 1269729962755666282}
+  - component: {fileID: 2220185211981420534}
   m_Layer: 7
   m_Name: Car_Pickup
   m_TagString: Untagged
@@ -998,6 +999,24 @@ LODGroup:
     - renderer: {fileID: 4135138185593506569}
   m_Enabled: 1
   m_GlobalIlluminationLOD: 0
+--- !u!114 &2220185211981420534
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8116487957085582830}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb3b13e019f8c468e9853a23be405575, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LundunCarShape
+  roof: {x: 0, y: 1.9102478, z: -0.3604275}
+  roofWidth: 1.4090015
+  roofLength: 1.2099503
+  nose: {x: 0, y: 0.61127937, z: 2.7807536}
+  width: 2.326619
+  height: 1.9102482
 --- !u!1 &8432541818236976763
 GameObject:
   m_ObjectHideFlags: 0

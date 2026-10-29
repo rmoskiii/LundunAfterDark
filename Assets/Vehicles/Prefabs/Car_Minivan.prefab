@@ -671,6 +671,7 @@ GameObject:
   - component: {fileID: 4632018958792682840}
   - component: {fileID: 3492773943847589438}
   - component: {fileID: 8857050298470039289}
+  - component: {fileID: 6095981472246028749}
   m_Layer: 7
   m_Name: Car_Minivan
   m_TagString: Untagged
@@ -877,6 +878,24 @@ LODGroup:
     - renderer: {fileID: 8918731104990704644}
   m_Enabled: 1
   m_GlobalIlluminationLOD: 0
+--- !u!114 &6095981472246028749
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8451083595518614330}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb3b13e019f8c468e9853a23be405575, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LundunCarShape
+  roof: {x: 0, y: 1.9690511, z: -0.94312406}
+  roofWidth: 1.4841784
+  roofLength: 2.8498197
+  nose: {x: 0, y: 0.6347769, z: 2.5186203}
+  width: 2.1023855
+  height: 1.9836779
 --- !u!1 &8617920783791500285
 GameObject:
   m_ObjectHideFlags: 0

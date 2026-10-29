@@ -25,10 +25,13 @@ public static class LundunCarImporter
     const string MatDir = GenDir + "/Materials";
     const string PlateMeshes = GenDir + "/LundunPlates.asset";
     const string PlateTexture = "Assets/Vehicles/Plates.png";
+    const string TaxiTexture = "Assets/Vehicles/TaxiSign.png";
     const int PlateRows = 8;
 
-    // kept in traffic alongside the new cars (white vans, lorries, the ambulance; the buses have their own list)
-    static readonly string[] KeepInTraffic = { "Veh_van", "Veh_delivery", "Veh_delivery-flat", "Veh_truck", "Veh_garbage-truck", "Veh_ambulance" };
+    // kept in traffic alongside the new cars (V3: none; the Kenney vans, lorries and ambulance left; the buses have their own list)
+    static readonly string[] KeepInTraffic = { };
+    // V3: which pack car becomes the police car and the black cab
+    const string PoliceModel = "Wagon", CabModel = "Minivan";
 
     class Part
     {
@@ -56,7 +59,8 @@ public static class LundunCarImporter
             List<string> log = new List<string>();
 
             // 1. the traffic cars
-            List<GameObject> made = new List<GameObject>();
+            List<GameObject> made = new List<GameObject>(), cabs = new List<GameObject>();
+            string policeReport = null;
             int index = 0;
             foreach (string path in Models(PackDir))
             {
@@ -64,9 +68,16 @@ public static class LundunCarImporter
                 foreach (Car car in FindCars(path))
                 {
                     EditorUtility.DisplayProgressBar("Lundun", "Making the " + car.name + "…", 0.2f + 0.05f * index);
-                    GameObject prefab = BuildTrafficCar(car, template, 1 + index % (PlateRows - 1), log);
+                    GameObject prefab = BuildTrafficCar(car, template, 1 + index % (PlateRows - 1), log, null);
                     if (prefab != null) made.Add(prefab);
                     index++;
+                    // V3: the black cab and the police car come from these too
+                    if (car.name == CabModel)
+                    {
+                        GameObject c = BuildTrafficCar(car, template, 1 + index % (PlateRows - 1), log, "Cab");
+                        if (c != null) cabs.Add(c);
+                    }
+                    if (car.name == PoliceModel) { string pr = RebuildPolice(car, log); if (pr != null) policeReport = pr; }
                 }
                 Tidy();                                                   // done with this file's cars
             }
@@ -87,6 +98,7 @@ public static class LundunCarImporter
             {
                 List<GameObject> list = new List<GameObject>();
                 foreach (GameObject g in made) { list.Add(g); list.Add(g); }
+                foreach (GameObject g in cabs) { list.Add(g); list.Add(g); }          // V3: about one car in eleven is a black cab
                 foreach (string keep in KeepInTraffic)
                 {
                     GameObject g = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabDir + "/" + keep + ".prefab");
@@ -103,6 +115,7 @@ public static class LundunCarImporter
 
             string names = ""; foreach (GameObject g in made) names += (names.Length > 0 ? ", " : "") + g.name.Replace("Car_", "");
             Debug.Log("[Lundun] V2 cars: " + made.Count + " traffic cars (" + names + ")" + (kestrelReport != null ? "; " + kestrelReport : "; no model in " + KestrelDir + " (James's car unchanged)") +
+                      (cabs.Count > 0 ? "; black cabs in traffic" : "") + (policeReport != null ? "; " + policeReport : "") +
                       ".\n" + string.Join("\n", log.ToArray()) +
                       "\nNext: Lundun → 23 Street Furniture + Parked Cars (and 23 for Brixtun / Kingsmere if you use them) so the parked cars are the new ones too, then Cmd+S and Play.");
             if (made.Count == 0 && kestrelReport == null)
@@ -161,7 +174,7 @@ public static class LundunCarImporter
         foreach (string guid in AssetDatabase.FindAssets("t:Texture2D", new[] { PackDir, KestrelDir, "Assets/Vehicles" }))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
-            if (!path.StartsWith(PackDir) && !path.StartsWith(KestrelDir) && path != PlateTexture) continue;
+            if (!path.StartsWith(PackDir) && !path.StartsWith(KestrelDir) && path != PlateTexture && path != TaxiTexture) continue;
             string file = Path.GetFileNameWithoutExtension(path);
             bool data = file.EndsWith("_MS");
             int max = file.StartsWith("Wheel_") ? 512 : 1024;
@@ -488,6 +501,7 @@ public static class LundunCarImporter
         public int paintSlot = -1;
         public List<Material> paints = new List<Material>();
         public Color paintColour = new Color(0.6f, 0.61f, 0.63f);
+        public Material forcedPaint;                           // V3: one fixed paint job (the police car, the black cab)
 
         public Materials(string folder, string car)
         {
@@ -520,6 +534,7 @@ public static class LundunCarImporter
             {
                 case "paint":
                 {
+                    if (forcedPaint != null) { if (isBody) paintSlot = slot; return forcedPaint; }
                     Texture2D ms = Tex("Car_" + car + "_MS");
                     List<string> jobs = PaintJobs();
                     if (jobs.Count > 0)
@@ -679,15 +694,25 @@ public static class LundunCarImporter
     }
 
     // ------------------------------------------------------------------ a traffic car
-    static GameObject BuildTrafficCar(Car car, GameObject template, int plateRow, List<string> log)
+    static GameObject BuildTrafficCar(Car car, GameObject template, int plateRow, List<string> log, string special)
     {
         Materials mats = new Materials(car.folder, car.name);
+        if (special != null)
+        {   // V3: one fixed paint job (Cab_<car> texture)
+            string tex = mats.TexPath(special + "_" + car.name);
+            if (tex == null) { log.Add("  " + special + ": no " + special + "_" + car.name + " texture, skipped"); return null; }
+            mats.forcedPaint = Lit("LC_" + car.name + "_" + special, AssetDatabase.LoadAssetAtPath<Texture2D>(tex), Color.white,
+                                   AssetDatabase.LoadAssetAtPath<Texture2D>(mats.TexPath("Car_" + car.name + "_MS")), 0f, 1f, null, Color.black);
+        }
         List<Vector3> wheels; float radius; Bounds b;
-        GameObject root = new GameObject("Car_" + car.name);
+        string prefabName = "Car_" + (special ?? car.name);
+        GameObject root = new GameObject(prefabName);
         root.layer = template.layer;
         GameObject model = BuildModel(car, mats, out wheels, out radius, out b);
+        Shape shape = Measure(mats.ShellRenderer, model.transform, b, Vector3.zero);
         model.transform.SetParent(root.transform, false);
         AddPlates(model, mats.ShellRenderer != null ? mats.ShellRenderer.transform : null, plateRow);
+        if (special == "Cab") AddTaxiSign(model.transform, shape);
         foreach (Transform t in model.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = template.layer;
         b = Bounds(root);
 
@@ -702,18 +727,16 @@ public static class LundunCarImporter
         lod.SetLODs(new[] { new LOD(0.012f, model.GetComponentsInChildren<Renderer>(true)) });
         lod.RecalculateBounds();
 
-        log.Add("  " + car.name + ": " + b.size.z.ToString("0.0") + " m long, wheels " + (radius * 2f).ToString("0.00") + " m, " + Mathf.Max(1, mats.paints.Count) + " paint job(s)");
-        return LundunVehicleBuilder.Save(root, PrefabDir + "/Car_" + car.name + ".prefab");
+        SaveShape(root, shape);
+        log.Add("  " + (special != null ? special + " (" + car.name + ")" : car.name) + ": " + b.size.z.ToString("0.0") + " m long, wheels " + (radius * 2f).ToString("0.00") + " m, " + Mathf.Max(1, mats.paints.Count) + " paint job(s)");
+        return LundunVehicleBuilder.Save(root, PrefabDir + "/" + prefabName + ".prefab");
     }
 
     // ------------------------------------------------------------------ James's car
     /// The scene's "Car" gets the new body; its scripts, springs, bumper, smoke and everything pointing at it stay.
     static string RebuildKestrel(Car car, GameObject jamesCar, List<string> log)
     {
-        CarController cc = jamesCar.GetComponent<CarController>();
-        Rigidbody rb = jamesCar.GetComponent<Rigidbody>();
         Materials mats = new Materials(car.folder, car.name);
-
         // the paint: what the old body kit used, unless the recipe says
         string hex; Color paint;
         if (car.recipe.TryGetValue("paint", out hex) && ColorUtility.TryParseHtmlString(hex, out paint)) mats.paintColour = paint;
@@ -724,21 +747,73 @@ public static class LundunCarImporter
             if (!car.recipe.ContainsKey("paint")) mats.paintColour = new SerializedObject(kit).FindProperty("paintColour").colorValue;
             Object.DestroyImmediate(kit);
         }
+        Reskin(jamesCar, car, mats, 0, log, "James's car (" + car.name + ")");
+        EditorUtility.SetDirty(jamesCar);
+        return "James's car is now the " + car.name;
+    }
 
+    /// V3: the police car (Assets/Prefabs/PoliceCar.prefab) becomes the estate in Battenburg livery with a light bar;
+    /// PoliceAI, the siren, the gunner, the beacons and everything else on it stay.
+    static string RebuildPolice(Car car, List<string> log)
+    {
+        const string path = "Assets/Prefabs/PoliceCar.prefab";
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) return null;
+        Materials mats = new Materials(car.folder, car.name);
+        string tex = mats.TexPath("Police_" + car.name);
+        if (tex == null) { log.Add("  Police car: no Police_" + car.name + " texture, so it stays as it was"); return null; }
+        mats.forcedPaint = Lit("LC_" + car.name + "_Police", AssetDatabase.LoadAssetAtPath<Texture2D>(tex), Color.white,
+                               AssetDatabase.LoadAssetAtPath<Texture2D>(mats.TexPath("Car_" + car.name + "_MS")), 0f, 1f, null, Color.black);
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            PoliceLivery livery = root.GetComponent<PoliceLivery>();
+            if (livery != null) Object.DestroyImmediate(livery);
+            Shape shape = Reskin(root, car, mats, 3, log, "Police car (" + car.name + ")");
+
+            // the light bar on the roof: a dark base, the two flashing beacons on it
+            Transform model = root.transform.Find("Model");
+            Material dark = Lit("LC_Trim", null, new Color(0.03f, 0.03f, 0.035f), null, 0.1f, 0.5f, null, Color.black);
+            Transform bar = Box(model, "LightBar", dark, model.InverseTransformPoint(root.transform.TransformPoint(shape.roof + new Vector3(0f, 0.035f, 0f))),
+                                new Vector3(Mathf.Min(1.15f, shape.roofWidth * 0.85f), 0.07f, 0.26f));
+            float side = Mathf.Min(0.3f, shape.roofWidth * 0.25f);
+            foreach (string n in new[] { "Light_L", "Light_R" })
+            {
+                Transform l = root.transform.Find(n);
+                if (l == null) continue;
+                l.SetParent(model, true);
+                l.localRotation = Quaternion.identity;
+                l.position = root.transform.TransformPoint(shape.roof + new Vector3(n == "Light_L" ? -side : side, 0.11f, 0f));
+                l.localScale = new Vector3(Mathf.Min(0.5f, shape.roofWidth * 0.4f), 0.09f, 0.22f);
+            }
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally { PrefabUtility.UnloadPrefabContents(root); }
+        return "the police car is now the " + car.name + " in Battenburg livery";
+    }
+
+    /// Where a car's roof and nose are (for the police light bar, the armed-response marker, the taxi sign).
+    class Shape { public Vector3 roof, nose; public float roofWidth, roofLength, width, height; }
+
+    /// The new body on an existing car (James's or the police car): its scripts, springs, bumper, smoke and everything
+    /// pointing at it stay; the old boxes stay as unseen collision boxes fitted to the new shape.
+    static Shape Reskin(GameObject target, Car car, Materials mats, int plateRow, List<string> log, string what)
+    {
+        CarController cc = target.GetComponent<CarController>();
+        Rigidbody rb = target.GetComponent<Rigidbody>();
         List<Vector3> wheels; float radius; Bounds b;
         GameObject model = BuildModel(car, mats, out wheels, out radius, out b);
-        AddPlates(model, mats.ShellRenderer != null ? mats.ShellRenderer.transform : null, 0);
+        AddPlates(model, mats.ShellRenderer != null ? mats.ShellRenderer.transform : null, plateRow);
         float height = b.size.y, width = b.size.x, length = b.size.z, frontZ = b.max.z, midZ = b.center.z;
 
-        // out with the old look (the boxes stay as the body's colliders, unseen)
-        foreach (Transform t in Children(jamesCar.transform))
+        // out with the old look
+        foreach (Transform t in Children(target.transform))
         {
             string n = t.name;
             if (n == "BodyKit" || n == "Livery" || n == "Model" || n.StartsWith("Wheel")) Object.DestroyImmediate(t.gameObject);
         }
         foreach (string part in new[] { "Body", "Cabin" })
         {
-            Transform t = jamesCar.transform.Find(part);
+            Transform t = target.transform.Find(part);
             if (t != null && t.GetComponent<MeshRenderer>() != null) t.GetComponent<MeshRenderer>().enabled = false;
         }
 
@@ -755,8 +830,8 @@ public static class LundunCarImporter
         {
             Vector3 w = wheels[0];
             foreach (Vector3 c in wheels) if ((c.z > 0f) == (corners[i][0] == 'F') && (c.x < 0f) == (corners[i][1] == 'L')) w = c;
-            Transform sp = jamesCar.transform.Find("Spring_" + corners[i]);
-            if (sp == null) { sp = new GameObject("Spring_" + corners[i]).transform; sp.SetParent(jamesCar.transform, false); }
+            Transform sp = target.transform.Find("Spring_" + corners[i]);
+            if (sp == null) { sp = new GameObject("Spring_" + corners[i]).transform; sp.SetParent(target.transform, false); }
             sp.localPosition = new Vector3(w.x, 0f, w.z);
             sp.localRotation = Quaternion.identity;
             pts.GetArrayElementAtIndex(i).objectReferenceValue = sp;
@@ -764,28 +839,106 @@ public static class LundunCarImporter
         so.ApplyModifiedPropertiesWithoutUndo();
 
         Vector3 lift = model.transform.position;                       // where BuildModel put it so the wheels touch y = 0
-        model.transform.SetParent(jamesCar.transform, false);
+        Shape shape = Measure(mats.ShellRenderer, model.transform, b, new Vector3(0f, ground, 0f));
+        model.transform.SetParent(target.transform, false);
         model.transform.localPosition = lift + new Vector3(0f, ground, 0f);
         model.transform.localRotation = Quaternion.identity;
-        foreach (Transform t in model.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = jamesCar.layer;
+        foreach (Transform t in model.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = target.layer;
 
         // the body's collision boxes fitted to the new shape
         float low = ground + radius * 1.1f, waist = ground + height * 0.6f, top = ground + height * 0.97f;
-        Fit(jamesCar.transform.Find("Body"), new Vector3(0f, (low + waist) / 2f, midZ), new Vector3(width * 0.95f, waist - low, length * 0.97f));
-        Fit(jamesCar.transform.Find("Cabin"), new Vector3(0f, (waist + top) / 2f, midZ - length * 0.05f), new Vector3(width * 0.8f, top - waist, length * 0.5f));
-        Transform bumper = jamesCar.transform.Find("Bumper");
+        Fit(target.transform.Find("Body"), new Vector3(0f, (low + waist) / 2f, midZ), new Vector3(width * 0.95f, waist - low, length * 0.97f));
+        Fit(target.transform.Find("Cabin"), new Vector3(0f, (waist + top) / 2f, midZ - length * 0.05f), new Vector3(width * 0.8f, top - waist, length * 0.5f));
+        Transform bumper = target.transform.Find("Bumper");
         if (bumper != null)
         {
             bumper.localPosition = new Vector3(0f, ground + height * 0.42f, frontZ - 0.35f);
             BoxCollider bc = bumper.GetComponent<BoxCollider>();
             if (bc != null) { bc.center = Vector3.zero; bc.size = new Vector3(width, height * 0.6f, 1.2f); }
         }
-        Transform smoke = jamesCar.transform.Find("Smoke");
+        Transform smoke = target.transform.Find("Smoke");
         if (smoke != null) smoke.localPosition = new Vector3(0f, ground + height * 0.72f, frontZ - 1.0f);
+        SaveShape(target, shape);
+        log.Add("  " + what + ": " + length.ToString("0.0") + " m long, wheels " + (radius * 2f).ToString("0.00") + " m");
+        return shape;
+    }
 
-        EditorUtility.SetDirty(jamesCar);
-        log.Add("  James's car (" + car.name + "): " + length.ToString("0.0") + " m long, wheels " + (radius * 2f).ToString("0.00") + " m");
-        return "James's car is now the " + car.name;
+    /// The roof's top middle and the nose (bumper height), from the body's own points, in the car's space (the model
+    /// is still at the origin; 'offset' is where it will sit on the car).
+    static Shape Measure(MeshRenderer shell, Transform model, Bounds b, Vector3 offset)
+    {
+        Shape sh = new Shape { width = b.size.x, height = b.size.y };
+        float ground = b.min.y, H = b.size.y, L = b.size.z;
+        sh.roof = new Vector3(0f, b.max.y, b.center.z - L * 0.1f); sh.roofWidth = b.size.x * 0.6f; sh.roofLength = L * 0.35f;
+        sh.nose = new Vector3(0f, ground + H * 0.32f, b.max.z);
+        MeshFilter mf = shell != null ? shell.GetComponent<MeshFilter>() : null;
+        if (mf != null && mf.sharedMesh != null)
+        {
+            Matrix4x4 m = shell.transform.localToWorldMatrix;
+            Vector3[] v = mf.sharedMesh.vertices;
+            float top = float.MinValue;
+            foreach (Vector3 lv in v)
+            {
+                Vector3 p = m.MultiplyPoint3x4(lv);
+                if (Mathf.Abs(p.x) < b.size.x * 0.3f && p.y > top) top = p.y;
+            }
+            float zs = 0f, zmin = float.MaxValue, zmax = float.MinValue, xmax = 0f, nz = float.MinValue; int n = 0;
+            foreach (Vector3 lv in v)
+            {
+                Vector3 p = m.MultiplyPoint3x4(lv);
+                if (p.y > top - 0.06f) { zs += p.z; n++; zmin = Mathf.Min(zmin, p.z); zmax = Mathf.Max(zmax, p.z); xmax = Mathf.Max(xmax, Mathf.Abs(p.x)); }
+                float y = p.y - ground;
+                if (Mathf.Abs(p.x) < 0.4f && y > H * 0.2f && y < H * 0.45f) nz = Mathf.Max(nz, p.z);
+            }
+            if (n > 0) { sh.roof = new Vector3(0f, top, zs / n); sh.roofLength = Mathf.Max(0.5f, zmax - zmin); sh.roofWidth = Mathf.Max(0.6f, xmax * 2f); }
+            if (nz > float.MinValue) sh.nose.z = nz;
+        }
+        sh.roof += offset; sh.nose += offset;
+        return sh;
+    }
+
+    static void SaveShape(GameObject car, Shape s)
+    {
+        LundunCarShape c = car.GetComponent<LundunCarShape>();
+        if (c == null) c = car.AddComponent<LundunCarShape>();
+        c.Set(s.roof, s.roofWidth, s.roofLength, s.nose, s.width, s.height);
+    }
+
+    /// A box part (no collider) under parent, at a local position.
+    static Transform Box(Transform parent, string name, Material m, Vector3 localPos, Vector3 size)
+    {
+        Transform old = parent.Find(name);
+        if (old != null) Object.DestroyImmediate(old.gameObject);
+        GameObject g = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        Object.DestroyImmediate(g.GetComponent<Collider>());
+        g.name = name;
+        g.transform.SetParent(parent, false);
+        g.transform.localPosition = localPos; g.transform.localRotation = Quaternion.identity; g.transform.localScale = size;
+        MeshRenderer r = g.GetComponent<MeshRenderer>(); r.sharedMaterial = m; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        g.layer = parent.gameObject.layer;
+        return g.transform;
+    }
+
+    /// V3: the black cab's roof sign: a lit yellow box with TAXI front and back.
+    static void AddTaxiSign(Transform model, Shape shape)
+    {
+        Texture2D tex = AssetDatabase.LoadAssetAtPath<Texture2D>(TaxiTexture);
+        Material lit = Lit("LC_TaxiSign_Box", null, new Color(1f, 0.82f, 0.15f), null, 0f, 0.6f, null, new Color(1f, 0.75f, 0.2f) * 0.8f);
+        Material words = Lit("LC_TaxiSign", tex, Color.white, null, 0f, 0.6f, tex, Color.white * 0.9f);
+        Vector3 at = shape.roof + new Vector3(0f, 0.07f, Mathf.Min(shape.roofLength * 0.3f, 0.35f));
+        Transform box = Box(model, "TaxiSign", lit, model.InverseTransformPoint(model.parent != null ? model.parent.TransformPoint(at) : at), new Vector3(0.42f, 0.13f, 0.16f));
+        for (int side = 0; side < 2; side++)
+        {
+            GameObject q = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Object.DestroyImmediate(q.GetComponent<Collider>());
+            q.name = side == 0 ? "Front" : "Back";
+            q.transform.SetParent(box, false);
+            q.transform.localPosition = new Vector3(0f, 0f, side == 0 ? 0.505f : -0.505f);
+            q.transform.localRotation = side == 0 ? Quaternion.Euler(0f, 180f, 0f) : Quaternion.identity;    // a quad faces −Z
+            q.transform.localScale = new Vector3(0.96f, 0.9f, 1f);
+            MeshRenderer r = q.GetComponent<MeshRenderer>(); r.sharedMaterial = words; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            q.layer = model.gameObject.layer;
+        }
     }
 
     static void Fit(Transform t, Vector3 centre, Vector3 size)
@@ -806,6 +959,8 @@ public static class LundunCarImporter
         { "suv", new[] { "SUV", "Offroad", "Minivan" } },
         { "suv-luxury", new[] { "SUV", "Pickup", "Minivan" } },
         { "sedan-sports", new[] { "Sport", "Coupe", "Sedan" } },
+        { "van", new[] { "Pickup", "Minivan" } },                 // V3: the Kenney vans are gone
+        { "delivery", new[] { "Minivan", "Pickup" } },
     };
 
     /// The new car to park in a bay meant for this old model (vans stay vans), the same one every time for this spot;

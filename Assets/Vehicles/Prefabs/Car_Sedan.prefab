@@ -440,6 +440,7 @@ GameObject:
   - component: {fileID: 6452450282941298753}
   - component: {fileID: 1087182591151903868}
   - component: {fileID: 8303598274334668596}
+  - component: {fileID: 4228706411608490329}
   m_Layer: 7
   m_Name: Car_Sedan
   m_TagString: Untagged
@@ -646,6 +647,24 @@ LODGroup:
     - renderer: {fileID: 945957219568474859}
   m_Enabled: 1
   m_GlobalIlluminationLOD: 0
+--- !u!114 &4228706411608490329
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4867098739258837820}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb3b13e019f8c468e9853a23be405575, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LundunCarShape
+  roof: {x: 0, y: 1.5102986, z: -0.42054984}
+  roofWidth: 1.236065
+  roofLength: 1.4506838
+  nose: {x: 0, y: 0.48329565, z: 2.4380548}
+  width: 2.1900058
+  height: 1.510299
 --- !u!1 &5017384797810770571
 GameObject:
   m_ObjectHideFlags: 0

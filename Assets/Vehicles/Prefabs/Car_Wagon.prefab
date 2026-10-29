@@ -882,6 +882,7 @@ GameObject:
   - component: {fileID: 2438258909308298195}
   - component: {fileID: 1360293161505031480}
   - component: {fileID: 5430834947671383839}
+  - component: {fileID: 6288849750509950326}
   m_Layer: 7
   m_Name: Car_Wagon
   m_TagString: Untagged
@@ -1088,3 +1089,21 @@ LODGroup:
     - renderer: {fileID: 6037298430589501251}
   m_Enabled: 1
   m_GlobalIlluminationLOD: 0
+--- !u!114 &6288849750509950326
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8772717289658375714}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb3b13e019f8c468e9853a23be405575, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LundunCarShape
+  roof: {x: 0, y: 1.5529175, z: -0.9251142}
+  roofWidth: 1.1616024
+  roofLength: 1.8769326
+  nose: {x: 0, y: 0.4969337, z: 2.4446776}
+  width: 2.1942337
+  height: 1.5529178

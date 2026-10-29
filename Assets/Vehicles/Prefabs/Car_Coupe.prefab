@@ -748,6 +748,7 @@ GameObject:
   - component: {fileID: 2254371211048375760}
   - component: {fileID: 1521818936959922576}
   - component: {fileID: 5476232839992375610}
+  - component: {fileID: 4847804119583961690}
   m_Layer: 7
   m_Name: Car_Coupe
   m_TagString: Untagged
@@ -954,6 +955,24 @@ LODGroup:
     - renderer: {fileID: 4210149189423130168}
   m_Enabled: 1
   m_GlobalIlluminationLOD: 0
+--- !u!114 &4847804119583961690
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5553813839815678040}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb3b13e019f8c468e9853a23be405575, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LundunCarShape
+  roof: {x: 0, y: 1.4378232, z: -0.4718699}
+  roofWidth: 1.2888607
+  roofLength: 1.3076527
+  nose: {x: 0, y: 0.46010345, z: 2.4031935}
+  width: 4.1190815
+  height: 1.4378233
 --- !u!1 &5748968643958028951
 GameObject:
   m_ObjectHideFlags: 0

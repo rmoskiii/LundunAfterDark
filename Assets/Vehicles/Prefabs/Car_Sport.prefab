@@ -108,6 +108,7 @@ GameObject:
   - component: {fileID: 3576536081650409746}
   - component: {fileID: 8935673879417300018}
   - component: {fileID: 8152597535427824644}
+  - component: {fileID: 1705329047133937566}
   m_Layer: 7
   m_Name: Car_Sport
   m_TagString: Untagged
@@ -314,6 +315,24 @@ LODGroup:
     - renderer: {fileID: 5554986183062401421}
   m_Enabled: 1
   m_GlobalIlluminationLOD: 0
+--- !u!114 &1705329047133937566
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2171199409298917602}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb3b13e019f8c468e9853a23be405575, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LundunCarShape
+  roof: {x: 0, y: 1.1699297, z: -0.30901992}
+  roofWidth: 0.6
+  roofLength: 0.9839748
+  nose: {x: 0, y: 0.37437758, z: 2.311155}
+  width: 1.9898936
+  height: 1.16993
 --- !u!1 &2335554787793920131
 GameObject:
   m_ObjectHideFlags: 0

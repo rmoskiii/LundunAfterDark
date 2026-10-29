@@ -39,9 +39,24 @@ public class PoliceAI : MonoBehaviour
         officersDeployedThisStop = false;
     }
 
+    /// V3: the renderer that shows whether the car is on screen: the real body ("Shell", from Lundun → 10), else the first
+    /// one switched on (the old boxes are switched off on the new cars, and a switched-off renderer is never "visible").
+    Renderer VisibleBody()
+    {
+        Renderer first = null;
+        foreach (Renderer r in GetComponentsInChildren<Renderer>(true))
+        {
+            if (r.name == "Shell") return r;
+            if (first == null && r.enabled && r.GetComponent<BlinkingLight>() == null) first = r;
+        }
+        return first != null ? first : GetComponentInChildren<Renderer>();
+    }
+
     /// Armed response cars: a yellow roof marker, black side bands and a push bar, so you can tell them apart.
     void ApplyArmedLook()
     {
+        LundunCarShape shape = GetComponent<LundunCarShape>();
+        if (shape != null) { ApplyArmedLookV3(shape); return; }
         Transform body = transform.Find("Body"), cabin = transform.Find("Cabin");
         Renderer br = body != null ? body.GetComponent<Renderer>() : null;
         if (br == null || br.sharedMaterial == null) return;
@@ -59,6 +74,23 @@ public class PoliceAI : MonoBehaviour
         Plate("ARV_BandL", new Vector3(bp.x - bs.x * 0.5f - 0.012f, y, bp.z), new Vector3(0.02f, bs.y * 0.16f, bs.z * 0.94f), black);
         Plate("ARV_BandR", new Vector3(bp.x + bs.x * 0.5f + 0.012f, y, bp.z), new Vector3(0.02f, bs.y * 0.16f, bs.z * 0.94f), black);
         Plate("ARV_PushBar", new Vector3(bp.x, bp.y - bs.y * 0.15f, bp.z + bs.z * 0.5f + 0.06f), new Vector3(bs.x * 0.7f, bs.y * 0.35f, 0.08f), black);
+    }
+
+    /// V3: on the real-car body: the yellow roof marker behind the light bar and a black push bar on the nose (the side
+    /// bands of the old boxes don't fit a curved body, and the Battenburg livery already covers the sides).
+    void ApplyArmedLookV3(LundunCarShape shape)
+    {
+        Renderer br = VisibleBody();
+        if (br == null || br.sharedMaterial == null) return;
+        Material yellow = new Material(br.sharedMaterial) { name = "ARV_Yellow" };
+        yellow.SetTexture("_BaseMap", null); yellow.SetTexture("_MetallicGlossMap", null); yellow.DisableKeyword("_METALLICSPECGLOSSMAP");
+        yellow.SetColor("_BaseColor", new Color(1f, 0.8f, 0.08f)); yellow.color = new Color(1f, 0.8f, 0.08f);
+        Material black = new Material(yellow) { name = "ARV_Black" };
+        black.SetColor("_BaseColor", new Color(0.04f, 0.04f, 0.05f)); black.color = new Color(0.04f, 0.04f, 0.05f);
+        Vector3 roof = shape.Roof;
+        Plate("ARV_Roof", roof + new Vector3(0f, 0.012f, -Mathf.Min(0.45f, shape.RoofLength * 0.3f)), new Vector3(shape.RoofWidth * 0.7f, 0.02f, Mathf.Min(0.6f, shape.RoofLength * 0.35f)), yellow);
+        Vector3 nose = shape.Nose;
+        Plate("ARV_PushBar", nose + new Vector3(0f, -shape.Height * 0.05f, 0.06f), new Vector3(shape.Width * 0.55f, shape.Height * 0.2f, 0.08f), black);
     }
 
     void Plate(string name, Vector3 localPos, Vector3 localScale, Material m)
@@ -155,7 +187,7 @@ public class PoliceAI : MonoBehaviour
         car.IsDriven = false;                    // the player isn't driving this one
         car.ProportionalBrake = true;            // R3: eased braking (patrols; chases still brake flat out)
         path = new NavMeshPath();
-        bodyRenderer = GetComponentInChildren<Renderer>();
+        bodyRenderer = VisibleBody();
         destination = WantedSystem.Instance.LastKnownPosition;
         if (IsPatrolCar) { destination = transform.position; beat = transform.position; beatSet = true; StartCoroutine(LightsOffNextFrame()); }
         if (Armed) ApplyArmedLook();                                    // W3

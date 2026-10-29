@@ -1,8 +1,9 @@
-Lundun After Dark: vehicle model credits (shown in Settings → Credits from V3)
+Lundun After Dark: vehicle model credits (also in the game: Settings → CREDITS)
 
 "Generic Passenger Car Pack" by Comrade1280, licensed under CC BY 4.0
   https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5
-  Changes: paint colours added, textures resized, number plates added; used as Lundun's traffic and parked cars.
+  Changes: paint colours added, textures resized, number plates added, police livery and taxi sign added; used as
+  Lundun's traffic and parked cars, the police car (the estate) and the black cab (the people carrier).
 
 "Low Poly Lamborghini Urus" by SharkyStudios, licensed under CC BY 4.0
   https://sketchfab.com/3d-models/low-poly-lamborghini-urus-f53a9e268c144aec9cc4b1a7b3f0fe27

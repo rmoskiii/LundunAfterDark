@@ -723,6 +723,7 @@ GameObject:
   - component: {fileID: 2251963931401913130}
   - component: {fileID: 8179132648464095806}
   - component: {fileID: 716634880735088871}
+  - component: {fileID: 5047398842893549572}
   m_Layer: 7
   m_Name: Car_SUV
   m_TagString: Untagged
@@ -926,6 +927,24 @@ LODGroup:
     - renderer: {fileID: 1226651880797634901}
   m_Enabled: 1
   m_GlobalIlluminationLOD: 0
+--- !u!114 &5047398842893549572
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8535942123745699323}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb3b13e019f8c468e9853a23be405575, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LundunCarShape
+  roof: {x: 0, y: 1.9503559, z: -1.074639}
+  roofWidth: 1.3121498
+  roofLength: 2.0046415
+  nose: {x: 0, y: 0.62411404, z: 2.5192585}
+  width: 2.3266191
+  height: 1.9503564
 --- !u!1 &8549729700465990789
 GameObject:
   m_ObjectHideFlags: 0
