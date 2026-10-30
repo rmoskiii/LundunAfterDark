@@ -221,7 +221,8 @@ public static class LundunCarImporter
         {
             MeshFilter mf = r.GetComponent<MeshFilter>();
             if (mf == null || mf.sharedMesh == null) continue;
-            Bounds b = r.bounds;
+            Bounds b = new Bounds(); bool any = false;
+            Grow(ref b, ref any, r, Matrix4x4.identity);
             if (b.size.x > 14f || b.size.z > 14f) continue;                         // a ground plane or backdrop, not a car part
             parts.Add(new Part { name = r.name, src = r.transform, mesh = mf.sharedMesh, mats = r.sharedMaterials, b = b });
         }
@@ -487,16 +488,45 @@ public static class LundunCarImporter
         return g.transform;
     }
 
+    /// The world box around everything drawn under g, measured from the actual points. (Unity's quick renderer
+    /// box is the mesh's own box turned: for a mesh stored at an angle, like the coupe's body, it comes out too big.)
     static Bounds Bounds(GameObject g)
     {
-        Renderer[] rs = g.GetComponentsInChildren<Renderer>(true);
-        if (rs.Length == 0) return new Bounds(g.transform.position, Vector3.zero);
-        Bounds b = rs[0].bounds;
-        foreach (Renderer r in rs) b.Encapsulate(r.bounds);
+        Bounds b = new Bounds(g.transform.position, Vector3.zero); bool any = false;
+        foreach (Renderer r in g.GetComponentsInChildren<Renderer>(true)) Grow(ref b, ref any, r, Matrix4x4.identity);
         return b;
     }
 
-    static Bounds RBounds(Transform t) { Renderer r = t.GetComponent<Renderer>(); return r != null ? r.bounds : new Bounds(t.position, Vector3.zero); }
+    static Bounds RBounds(Transform t)
+    {
+        Renderer r = t.GetComponent<Renderer>();
+        Bounds b = new Bounds(t.position, Vector3.zero); bool any = false;
+        if (r != null) Grow(ref b, ref any, r, Matrix4x4.identity);
+        return b;
+    }
+
+    /// Adds a renderer's points (taken into 'space' after the world) to the box.
+    static void Grow(ref Bounds b, ref bool any, Renderer r, Matrix4x4 space)
+    {
+        MeshFilter mf = r.GetComponent<MeshFilter>();
+        Mesh mesh = mf != null ? mf.sharedMesh : null;
+        if (mesh == null || !mesh.isReadable)
+        {   // nothing to measure point by point: the renderer's own box
+            Bounds rb = r.bounds;
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 c = space.MultiplyPoint3x4(rb.center + Vector3.Scale(rb.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1)));
+                if (!any) { b = new Bounds(c, Vector3.zero); any = true; } else b.Encapsulate(c);
+            }
+            return;
+        }
+        Matrix4x4 m = space * r.transform.localToWorldMatrix;
+        foreach (Vector3 v in mesh.vertices)
+        {
+            Vector3 p = m.MultiplyPoint3x4(v);
+            if (!any) { b = new Bounds(p, Vector3.zero); any = true; } else b.Encapsulate(p);
+        }
+    }
 
     // ------------------------------------------------------------------ materials
     class Materials
@@ -989,18 +1019,9 @@ public static class LundunCarImporter
     static Bounds CarBounds(GameObject carRoot, Transform model)
     {
         Bounds b = new Bounds(); bool any = false;
+        Matrix4x4 toCar = carRoot.transform.worldToLocalMatrix;
         foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true))
-        {
-            MeshFilter mf = r.GetComponent<MeshFilter>();
-            if (mf == null || mf.sharedMesh == null) continue;
-            Bounds mb = mf.sharedMesh.bounds;
-            for (int i = 0; i < 8; i++)
-            {
-                Vector3 c = mb.center + Vector3.Scale(mb.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
-                Vector3 p = carRoot.transform.InverseTransformPoint(r.transform.TransformPoint(c));
-                if (!any) { b = new Bounds(p, Vector3.zero); any = true; } else b.Encapsulate(p);
-            }
-        }
+            if (r.GetComponent<MeshFilter>() != null && r.GetComponent<MeshFilter>().sharedMesh != null) Grow(ref b, ref any, r, toCar);
         return b;
     }
 
