@@ -29,6 +29,26 @@ public class VehicleSystem : MonoBehaviour
     /// shows both on foot and driving.
     public static GameObject SharedControls;
     public bool PointToSteer => pointToSteer;
+
+    // ------------------------------------------------------------------ L1: how James steers (Settings → CONTROLS → STEERING)
+    /// PAD: drag your left thumb sideways to steer (more drag, more lock), GAS and BRAKE pedals on the right.
+    /// ARROWS: left/right buttons and the same pedals. POINT: the joystick points where to go (V1).
+    public enum Steering { Pad, Arrows, Point }
+    const string SteeringKey = "Lundun.Steering", DriveInfoKey = "Lundun.DriveInfo";
+    static bool steeringLoaded;
+    static Steering steering = Steering.Pad;
+    public static Steering SteeringMode
+    {
+        get { if (!steeringLoaded) { steering = (Steering)Mathf.Clamp(PlayerPrefs.GetInt(SteeringKey, 0), 0, 2); steeringLoaded = true; } return steering; }
+        set { steering = value; steeringLoaded = true; PlayerPrefs.SetInt(SteeringKey, (int)value); PlayerPrefs.Save(); }
+    }
+    /// L1: the driving readout (Settings → DISPLAY → DRIVE INFO): for finding why a car won't drive.
+    public static bool ShowDriveInfo
+    {
+        get { return PlayerPrefs.GetInt(DriveInfoKey, 0) == 1; }
+        set { PlayerPrefs.SetInt(DriveInfoKey, value ? 1 : 0); PlayerPrefs.Save(); }
+    }
+    private Vector2 sentNow;
     private UnityEngine.InputSystem.InputAction moveAction;
 
     private CarController nearbyCar;
@@ -77,7 +97,11 @@ public class VehicleSystem : MonoBehaviour
 
         if (currentCar != null)
         {
-            if (pointToSteer) { SteerByStick(); return; }
+            if (pointToSteer)
+            {
+                if (SteeringMode == Steering.Point) SteerByStick(); else DriveByPads();
+                return;
+            }
             // Turn held buttons into steering and throttle
             float throttle = (gasButton.IsHeld ? 1f : 0f) - (brakeButton.IsHeld ? 1f : 0f);
             float steer = (rightButton.IsHeld ? 1f : 0f) - (leftButton.IsHeld ? 1f : 0f);
@@ -133,6 +157,65 @@ public class VehicleSystem : MonoBehaviour
         currentCar.SetTouchInput(throttle, steer);
         currentCar.SetHandbrake(brakeButton != null && brakeButton.IsHeld);      // the Brake button is the HANDBRAKE now
     }
+
+    // ------------------------------------------------------------------ L1: steering pad / arrows + pedals
+    /// The pad (or arrows) steer, the GAS and BRAKE pedals drive: BRAKE slows, and once stopped it reverses.
+    /// On a keyboard (the editor), WASD / arrows do the same when nothing's touched.
+    void DriveByPads()
+    {
+        LundunDriveControls dc = LundunDriveControls.Instance;
+        float steer = dc != null ? dc.Steer : 0f;
+        float throttle = dc != null ? dc.Gas - dc.Brake : 0f;
+        if (moveAction == null) moveAction = UnityEngine.InputSystem.InputSystem.actions.FindAction("Move");
+        if (moveAction != null && (dc == null || !dc.Touched))
+        {
+            Vector2 k = moveAction.ReadValue<Vector2>();
+            if (Mathf.Abs(steer) < 0.01f) steer = k.x;
+            if (Mathf.Abs(throttle) < 0.01f) throttle = k.y;
+        }
+        sentNow = new Vector2(steer, throttle);
+        currentCar.SetTouchInput(throttle, steer);
+        currentCar.SetHandbrake(brakeButton != null && brakeButton.IsHeld);
+    }
+
+    // ------------------------------------------------------------------ L1: the driving readout
+    void OnGUI()
+    {
+        if (currentCar == null || !ShowDriveInfo) return;
+        CarController c = currentCar;
+        Rigidbody rb = c.GetComponent<Rigidbody>();
+        LundunCarDamage dmg = c.GetComponent<LundunCarDamage>();
+        string touching = "";
+        UnityEngine.EventSystems.EventSystem es = UnityEngine.EventSystems.EventSystem.current;
+        if (es != null)
+        {
+            System.Collections.Generic.List<Vector2> fingers = new System.Collections.Generic.List<Vector2>();
+            UnityEngine.InputSystem.Touchscreen ts = UnityEngine.InputSystem.Touchscreen.current;
+            if (ts != null)
+                foreach (UnityEngine.InputSystem.Controls.TouchControl t in ts.touches)
+                    if (t.press.isPressed) fingers.Add(t.position.ReadValue());
+            UnityEngine.InputSystem.Mouse mouse = UnityEngine.InputSystem.Mouse.current;
+            if (fingers.Count == 0 && mouse != null && mouse.leftButton.isPressed) fingers.Add(mouse.position.ReadValue());
+            foreach (Vector2 f in fingers)
+            {
+                System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult> hits = new System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult>();
+                UnityEngine.EventSystems.PointerEventData pe = new UnityEngine.EventSystems.PointerEventData(es) { position = f };
+                es.RaycastAll(pe, hits);
+                touching += "  finger→" + (hits.Count > 0 ? hits[0].gameObject.name : "nothing");
+            }
+        }
+        string text = c.name + (c.enabled ? "" : " (SWITCHED OFF)") + "   driven " + c.IsDriven + "   locked " + controlsLocked + "   steering " + SteeringMode +
+                      "\nsent steer/gas " + V(sentNow) + "   car used " + V(c.InputNow) +
+                      "\nwheels on road " + c.GroundedWheels + "/4   speed " + (c.Speed * 2.237f).ToString("0") + " mph   handbrake " + c.Handbraking +
+                      (rb != null ? "\nbody: kinematic " + rb.isKinematic + "  frozen " + rb.constraints + "  asleep " + rb.IsSleeping() + "  y " + c.transform.position.y.ToString("0.00") : "") +
+                      (dmg != null ? "\ntouching: " + dmg.Touching : "") +
+                      "\ntime scale " + Time.timeScale + touching;
+        GUIStyle st = new GUIStyle(GUI.skin.box) { fontSize = Mathf.RoundToInt(Screen.height / 40f), alignment = TextAnchor.UpperLeft, wordWrap = true };
+        st.normal.textColor = Color.white;
+        GUI.Box(new Rect(Screen.width * 0.2f, Screen.height * 0.12f, Screen.width * 0.6f, Screen.height * 0.26f), text, st);
+    }
+
+    static string V(Vector2 v) { return "(" + v.x.ToString("0.00") + ", " + v.y.ToString("0.00") + ")"; }
 
     // Hooked up to the 🚗 button's On Click
     public void EnterCar()

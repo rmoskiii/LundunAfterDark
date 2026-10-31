@@ -302,6 +302,10 @@ public class LundunHud : MonoBehaviour
             speedNumber = MakeText(srt, "0", 76f, new Vector2(0f, 26f));
             TextMeshProUGUI unit = MakeText(srt, "MPH", 26f, new Vector2(0f, -8f));
             unit.color = new Color(1f, 1f, 1f, 0.6f); unit.characterSpacing = 8f;
+
+            // L1: the steering pad / arrows and the GAS and BRAKE pedals (Settings → CONTROLS → STEERING)
+            if (GetComponent<LundunDriveControls>() == null)
+                gameObject.AddComponent<LundunDriveControls>().Setup((RectTransform)brake.parent, brake, srt, stick, fontAsset);
         }
     }
 

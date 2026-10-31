@@ -46,6 +46,28 @@ public class LundunCarDamage : MonoBehaviour
     {
         if (rb != null) { lastVelocity = rb.linearVelocity; lastSpin = rb.angularVelocity; }
     }
+
+    /// L1: what the car is touching right now, for the driving readout ("nothing" when it's clear).
+    public string Touching => Time.time - touchedAt < 0.3f ? touchedName : "nothing";
+    private string touchedName = "nothing";
+    private float touchedAt = -1f;
+    private CarController cc;
+
+    /// L1: James pushing into street furniture from a standstill (or very slowly): after a moment it gives way, like GTA,
+    /// so a car parked against a railing or bollard is never stuck.
+    void OnCollisionStay(Collision c)
+    {
+        if (c.collider == null) return;
+        if (c.contactCount > 0 && Mathf.Abs(c.GetContact(0).normal.y) < 0.75f)
+        {
+            touchedAt = Time.time;
+            touchedName = c.collider.name + " (" + LayerMask.LayerToName(c.collider.gameObject.layer) + ")";
+        }
+        if (LundunSmash.Instance == null) return;
+        if (cc == null) cc = GetComponent<CarController>();
+        if (cc == null || !cc.IsDriven || Mathf.Abs(cc.InputNow.y) < 0.3f) return;
+        LundunSmash.Instance.Push(c.collider, Time.fixedDeltaTime, transform.forward * Mathf.Sign(cc.InputNow.y) * 3f);
+    }
     private static Transform listener;
 
     public void Setup(MeshFilter[] dentable, Pane[] windows, Material smashed, AudioClip sound)

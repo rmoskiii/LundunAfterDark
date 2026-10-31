@@ -164,6 +164,8 @@ public class LundunSettings : MonoBehaviour
     void SetUi(int i) { UiSize = i; PlayerPrefs.SetInt(UiKey, i); PlayerPrefs.Save(); ApplyUiSize(); RefreshButtons(); }
     void SetHaptics(int i) { LundunHaptics.Enabled = i == 0; PlayerPrefs.SetInt(HapticsKey, i == 0 ? 1 : 0); PlayerPrefs.Save(); RefreshButtons(); LundunHaptics.Light(); }
     void SetStats(int i) { if (LundunHud.Instance != null) LundunHud.Instance.ShowStats(i == 1); RefreshButtons(); }
+    void SetSteering(int i) { VehicleSystem.SteeringMode = (VehicleSystem.Steering)i; RefreshButtons(); }       // L1
+    void SetDriveInfo(int i) { VehicleSystem.ShowDriveInfo = i == 1; RefreshButtons(); }                          // L1
 
     void SetTab(int i)
     {
@@ -279,7 +281,7 @@ public class LundunSettings : MonoBehaviour
         Image dim = menu.AddComponent<Image>(); dim.color = new Color(0f, 0.01f, 0.03f, 0.72f);       // blocks touches to the game
 
         panel = Rect("Panel", mr);
-        panel.sizeDelta = new Vector2(1000f, 850f);
+        panel.sizeDelta = new Vector2(1000f, 960f);
         Image pi = panel.gameObject.AddComponent<Image>();
         pi.sprite = LundunHudArt.Panel; pi.type = Image.Type.Sliced; pi.pixelsPerUnitMultiplier = 0.35f; pi.color = Ink;
 
@@ -300,14 +302,16 @@ public class LundunSettings : MonoBehaviour
         Row(dt, "UI SIZE", "ui", new[] { "SMALL", "NORMAL", "LARGE" }, SetUi, ref y);
         Row(dt, "HAPTICS", "haptics", new[] { "ON", "OFF" }, SetHaptics, ref y);
         Row(dt, "PERFORMANCE", "stats", new[] { "HIDE", "SHOW" }, SetStats, ref y);
+        Row(dt, "DRIVE INFO", "driveinfo", new[] { "HIDE", "SHOW" }, SetDriveInfo, ref y);
 
         y = -196f;
+        Row(ct, "STEERING", "steering", new[] { "PAD", "ARROWS", "POINT" }, SetSteering, ref y);       // L1
         lookValue = Stepper(ct, "LOOK SPEED", StepLook, ref y);
         aimValue = Stepper(ct, "AIM SPEED", StepAim, ref y);
         Row(ct, "AIM ASSIST", "assist", new[] { "OFF", "LIGHT", "STANDARD", "STRONG" }, SetAssist, ref y);
         Row(ct, "FIRE", "fire", new[] { "MANUAL", "AUTO" }, SetFire, ref y);
         Row(ct, "LOADOUT", "loadout", new[] { "TEST", "NORMAL" }, SetLoadout, ref y);
-        Note(ct, "AUTO fires by itself when the crosshair turns red.  TEST: every weapon, endless spare ammo.  NORMAL: fists, pistol and what you find.", ref y);
+        Note(ct, "STEERING: PAD = slide your left thumb sideways, ARROWS = left/right buttons (both with GAS and BRAKE pedals), POINT = the joystick.  AUTO fires when the crosshair turns red.  TEST: every weapon, endless ammo.", ref y);
         controlsTab.SetActive(false);
 
         // V3: CREDITS (the car models are CC BY 4.0, which asks for this)
@@ -450,6 +454,8 @@ public class LundunSettings : MonoBehaviour
         Mark("assist", assistLevel);
         Mark("fire", autoFire ? 1 : 0);
         Mark("loadout", testLoadout ? 0 : 1);
+        Mark("steering", (int)VehicleSystem.SteeringMode);
+        Mark("driveinfo", VehicleSystem.ShowDriveInfo ? 1 : 0);
         if (lookValue != null) lookValue.text = lookSpeed.ToString("0.0") + "×";
         if (aimValue != null) aimValue.text = Mathf.RoundToInt(aimSpeed * 100f) + "%";
     }

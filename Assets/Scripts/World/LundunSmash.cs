@@ -77,6 +77,7 @@ public class LundunSmash : MonoBehaviour
         public Prop prop;
         public List<Collider> colliders = new List<Collider>();
         public bool broken; public float brokenAt;
+        public float pushed, pushedAt = -1f;           // L1: pushed against by a car, for how long
         public List<Saved> saved = new List<Saved>();
         public int lampIndex = -1;
         public Vector3 pole;                   // lamps: where the column stands (the head hangs over the road)
@@ -232,6 +233,21 @@ public class LundunSmash : MonoBehaviour
         keep = f.keep;
         Break(s, point, velocity, f);
         return true;
+    }
+
+    /// L1: a car pushing against this collider for 'dt' seconds (from a standstill, or slowly). Light things give way
+    /// after a moment, medium ones after a second or so; heavy ones (phone boxes, shelters, bin stores) never.
+    public void Push(Collider c, float dt, Vector3 shove)
+    {
+        State s;
+        if (!ready || c == null || !byCollider.TryGetValue(c, out s) || s.broken) return;
+        Feel f = For(s.prop.kind);
+        if (f.breakAt >= 12f) return;
+        float needs = f.breakAt < 4f ? 0.35f : f.breakAt < 6.5f ? 0.8f : 1.2f;
+        if (s.pushedAt < Time.time - 0.3f) s.pushed = 0f;          // a fresh push
+        s.pushed += dt; s.pushedAt = Time.time;
+        if (s.pushed < needs) return;
+        Break(s, c.ClosestPoint(c.transform.position), shove, f);
     }
 
     /// Is this a piece of furniture that breaks when hit this hard (whether or not it's already gone)? 'keep' = how
