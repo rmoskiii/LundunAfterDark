@@ -119,6 +119,7 @@ public class PoliceAI : MonoBehaviour
     {
         if (state != State.Patrolling) return;
         state = State.Responding;
+        roadArrived = false; route.Clear();    // L2: plan a new route to the call
         Lights(true);
     }
 
@@ -186,6 +187,7 @@ public class PoliceAI : MonoBehaviour
         car = GetComponent<CarController>();
         car.IsDriven = false;                    // the player isn't driving this one
         car.ProportionalBrake = true;            // R3: eased braking (patrols; chases still brake flat out)
+        body = GetComponent<Rigidbody>();        // L2
         path = new NavMeshPath();
         bodyRenderer = VisibleBody();
         destination = WantedSystem.Instance.LastKnownPosition;
@@ -254,8 +256,10 @@ public class PoliceAI : MonoBehaviour
 
             case State.Responding:
                 destination = wanted.LastKnownPosition;
-                if (FlatDistance(destination) < arriveDistance)
+                // L2: or as close as the road goes (the spot may be on a pavement or in a yard)
+                if (FlatDistance(destination) < arriveDistance || roadArrived)
                 {
+                    roadArrived = false;
                     wanted.BeginSearch();
                     state = State.Searching;
                 }
@@ -277,12 +281,22 @@ public class PoliceAI : MonoBehaviour
                 break;
 
             case State.Searching:
-                // Reached the spot? Pick somewhere else nearby to look
-                if (FlatDistance(destination) < arriveDistance)
-                    destination = RandomNavPoint(wanted.LastKnownPosition, searchRadius);
+                // Reached the spot? Pick somewhere else nearby to look (L2: on a road, so the car can get there)
+                if (FlatDistance(destination) < arriveDistance || roadArrived)
+                {
+                    roadArrived = false;
+                    destination = LundunPatrols.RoadPoint(wanted.LastKnownPosition, 0f, searchRadius * 2f, out Vector3 rp)
+                        ? rp : RandomNavPoint(wanted.LastKnownPosition, searchRadius);
+                }
                 break;
 
             case State.Returning:
+                // L2: at the end of the road it was heading for: carry on to another one further out
+                if (roadArrived)
+                {
+                    roadArrived = false;
+                    if (LundunPatrols.RoadPoint(transform.position, 120f, 260f, out Vector3 away)) destination = away;
+                }
                 returnTimer += Time.deltaTime;
                 // Quietly remove the car once it's been leaving a while and is off screen
                 if (returnTimer > 6f && (bodyRenderer == null || !bodyRenderer.isVisible))
@@ -293,8 +307,323 @@ public class PoliceAI : MonoBehaviour
         // R3: on patrol they drive the roads like careful drivers (in lane, at the limit, braking for traffic and people);
         // off the roads (after a chase), the old way gets them back onto one
         if (state == State.Patrolling && PatrolOnRoads()) return;
+        // L2: responding, chasing, searching and leaving: on the roads, looking ahead (the old way only off the roads)
+        if (state != State.Patrolling && DriveWithControl(wanted)) return;
+        driveNote = "OFF ROAD";
         Drive();
     }
+
+    // ------------------------------------------------------------------ L2: driving with control
+    // Responding, searching and leaving, they follow the roads lane by lane (the NavMesh is made for people: following
+    // it took them over kerbs and between bollards). They look ahead the whole time: brake for anything in their way,
+    // slow for cars crossing in front and for bends, go round a car stopped in the lane, and steer off walls, parked
+    // cars and street furniture. Lights and siren mean faster and no giving way, not that they stop looking.
+    // Close behind James they drive at him, but contact is only on purpose: from 3★ a PIT (alongside, then turning
+    // into his back wheel), never head-on; below that, or just after a PIT, they sit on his tail at a gap.
+    static readonly LundunDriver.Profile sirenDriver = new LundunDriver.Profile
+    {
+        style = LundunDriver.Style.Normal, speed = 1.3f, headway = 0.8f, minGap = 3f, brake = 8f, accel = 1f,
+        junctionSpeed = 0f, junctionFrom = 0f, giveWay = 0, watchPeople = true, hornAfter = 1.5f
+    };
+    static readonly LundunDriver.Profile calmDriver = LundunDriver.For(LundunDriver.Style.Normal);
+    static int whiskerMask = -1, bodyMask = -1;
+    static readonly RaycastHit[] castHits = new RaycastHit[12];
+    private readonly List<Vector3> route = new List<Vector3>();
+    private Rigidbody body;
+    private int routeAt, pitSide;
+    private Vector3 routeGoal;
+    private bool roadArrived;
+    private float nextRoute, blockedFor, overtakeUntil, pitUntilAgain, crossCheckAt, crossLimit = float.MaxValue;
+    private float stillFor, firstCarReset, lastSteer;
+    private int carResets;
+    private string driveNote = "";
+
+    bool DriveWithControl(WantedSystem wanted)
+    {
+        if (whiskerMask == -1) { whiskerMask = LayerMask.GetMask("Default", "Smash"); bodyMask = LayerMask.GetMask("Vehicle", "NPC", "Player"); }
+        if (reverseTimer > 0f)
+        {
+            reverseTimer -= Time.deltaTime;
+            car.SetTouchInput(-1f, -lastSteer);
+            driveNote = "BACK UP";
+            return true;
+        }
+        Transform james = wanted.PlayerTarget;
+        if (state == State.Pursuing && james != null && FlatDistance(james.position) < 40f) { ChaseClose(james); return true; }
+        LundunNavigation nav = LundunNavigation.Instance;
+        LundunRoadGraph g = nav != null ? nav.Graph : null;
+        if (g == null) return false;
+        return FollowRoute(g, destination, state != State.Returning);
+    }
+
+    /// Along the roads to 'goal' (the route is planned again every second, or as soon as the goal moves). False if
+    /// there's no route or the car is well off the road (then the old NavMesh way gets it back).
+    bool FollowRoute(LundunRoadGraph g, Vector3 goal, bool sirens)
+    {
+        Vector3 pos = transform.position; pos.y = 0f; goal.y = 0f;
+        if (Time.time >= nextRoute || (goal - routeGoal).sqrMagnitude > 144f)
+        {
+            nextRoute = Time.time + 1f;
+            if ((goal - routeGoal).sqrMagnitude > 144f) roadArrived = false;
+            routeGoal = goal;
+            route.Clear(); routeAt = 0;
+            g.NearestOnRoad(new NavPoint(pos.x, pos.z), out int edge, out double t, out double off);
+            if (edge >= 0 && off <= 14.0)
+            {
+                foreach (NavPoint p in g.Route(new NavPoint(pos.x, pos.z), new NavPoint(goal.x, goal.z), out double metres))
+                    route.Add(new Vector3((float)p.x, 0f, (float)p.z));
+                // the last bit off the road (onto a pavement, into a yard) is for people on foot: the car stops at the road
+                if (route.Count >= 3 && (route[route.Count - 1] - route[route.Count - 2]).magnitude > 5f) route.RemoveAt(route.Count - 1);
+            }
+        }
+        if (route.Count < 2) return false;
+
+        // where along the route we are
+        while (routeAt < route.Count - 2)
+        {
+            Vector3 a = route[routeAt], d = route[routeAt + 1] - a;
+            float len = d.magnitude;
+            if (len < 0.5f || Vector3.Dot(pos - a, d / len) > len - 2.5f) routeAt++; else break;
+        }
+        Vector3 A = route[routeAt], seg = route[routeAt + 1] - A;
+        float segLen = seg.magnitude;
+        Vector3 dir = segLen > 0.01f ? seg / segLen : transform.forward;
+        float s = Mathf.Clamp(Vector3.Dot(pos - A, dir), 0f, segLen);
+        if (Mathf.Abs(Vector3.Dot(pos - A, new Vector3(-dir.z, 0f, dir.x))) > 16f) { route.Clear(); nextRoute = Time.time + 0.5f; return false; }
+
+        // aim a little ahead, on the left (UK); out to the right while going round something stopped in the lane
+        float speed = car.Speed;
+        float laneOff = Time.time < overtakeUntil ? -1.8f : sirens ? 1.3f : 1.8f;
+        float remain = s + 6f + Mathf.Max(0f, speed) * 0.45f;
+        Vector3 aim = route[route.Count - 1];
+        for (int i = routeAt; i < route.Count - 1; i++)
+        {
+            Vector3 a = route[i], d = route[i + 1] - a;
+            float l = d.magnitude;
+            if (remain <= l || i == route.Count - 2)
+            {
+                Vector3 u = l > 0.01f ? d / l : dir;
+                aim = a + u * Mathf.Min(remain, l) + (i > 0 ? new Vector3(-u.z, 0f, u.x) * laneOff : Vector3.zero);
+                break;
+            }
+            remain -= l;
+        }
+
+        // speed: quick with the siren, slower into bends, stopping at the end
+        PoliceTiers.Tier tier = PoliceTiers.For(WantedSystem.Instance.Stars);
+        float want = !sirens ? 11f : state == State.Searching ? 11f : 20f * tier.carThrottle;
+        float toNode = segLen - s;
+        for (int k = routeAt + 1; k < route.Count - 1; k++)
+        {
+            if (toNode < 45f)
+            {
+                float ang = Vector3.Angle(route[k] - route[k - 1], route[k + 1] - route[k]);
+                if (ang > 25f)
+                {
+                    float through = Mathf.Lerp(sirens ? 12f : 9f, sirens ? 6.5f : 4.5f, Mathf.InverseLerp(25f, 100f, ang));
+                    want = Mathf.Min(want, through + Mathf.Sqrt(2f * 6f * Mathf.Max(0f, toNode - 4f)));
+                }
+            }
+            toNode += (route[k + 1] - route[k]).magnitude;
+        }
+        want = Mathf.Min(want, Mathf.Sqrt(2f * 6f * Mathf.Max(0f, toNode - 4f)));       // toNode is now the distance to the end
+        if (toNode < 7f) roadArrived = true;
+
+        Go(want, SteerTo(aim), sirens ? sirenDriver : calmDriver, null, sirens ? "ROAD (siren)" : "ROAD");
+        return true;
+    }
+
+    /// Within 40 m of James: on foot, up to him (they pull over and get out); in a car, on his tail, or a PIT from 3★.
+    void ChaseClose(Transform james)
+    {
+        Vector3 jp = james.position; jp.y = 0f;
+        Vector3 me = transform.position; me.y = 0f;
+        float dist = (jp - me).magnitude;
+        PoliceTiers.Tier tier = PoliceTiers.For(WantedSystem.Instance.Stars);
+        CarController jc = james.GetComponent<CarController>();
+        if (jc == null)
+        {
+            Go(Mathf.Min(16f * tier.carThrottle, Mathf.Sqrt(2f * 6f * Mathf.Max(0f, dist - 6f)) + 1f), SteerTo(jp), sirenDriver, null, "TO JAMES (on foot)");
+            return;
+        }
+
+        Rigidbody jrb = jc.GetComponent<Rigidbody>();
+        Vector3 jv = jrb != null ? jrb.linearVelocity : Vector3.zero; jv.y = 0f;
+        Vector3 jf = james.forward; jf.y = 0f;
+        jf = jf.sqrMagnitude > 0.001f ? jf.normalized : Vector3.forward;
+        Vector3 jr = new Vector3(jf.z, 0f, -jf.x);
+        float jSpeed = Mathf.Max(0f, Vector3.Dot(jv, jf));
+        Vector3 rel = me - jp;
+        float along = Vector3.Dot(rel, jf), lat = Vector3.Dot(rel, jr);
+        float facing = Vector3.Dot(transform.forward, jf);
+
+        // PIT: same way as James, not in front of him
+        if (tier.ram && Time.time >= pitUntilAgain && facing > 0.3f && along < 1.5f)
+        {
+            if (Mathf.Abs(lat) > 0.6f) pitSide = lat > 0f ? 1 : -1; else if (pitSide == 0) pitSide = 1;
+            if (along < -4f || Mathf.Abs(lat) > 4.5f)
+                Go(jSpeed + 7f, SteerTo(jp - jf * 2.2f + jr * (pitSide * 2.4f) + jv * 0.5f), sirenDriver, james, "PIT: coming alongside");
+            else
+                Go(jSpeed + 4f, SteerTo(jp - jf * 1.4f + jv * 0.35f), sirenDriver, james, "PIT: turning in");
+            return;
+        }
+
+        // coming at each other: pull over to the left and slow, never into him head-on
+        if (facing < -0.3f && Vector3.Dot(jp - me, transform.forward) > 0f && dist < 30f)
+        {
+            Go(Mathf.Min(6f, Mathf.Max(0f, car.Speed)), SteerTo(me + transform.forward * 10f - transform.right * 3.5f), sirenDriver, null, "AVOID HEAD-ON");
+            return;
+        }
+
+        // on his tail, about 10 m back (the look-ahead brakes for his car like any other)
+        Vector3 lead = jp + jv * Mathf.Clamp(dist / 15f, 0.2f, 1.2f);
+        Go(Mathf.Clamp(jSpeed + (dist - 10f) * 0.7f, 0f, 24f), SteerTo(lead), sirenDriver, null, Time.time < pitUntilAgain ? "FOLLOW (after PIT)" : "FOLLOW");
+    }
+
+    float SteerTo(Vector3 p)
+    {
+        Vector3 local = transform.InverseTransformPoint(new Vector3(p.x, transform.position.y, p.z));
+        return Mathf.Clamp(Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg / 25f, -1f, 1f);
+    }
+
+    /// Drive towards 'want' m/s, steering 'steer', with the look-ahead: anything in the way (except 'ignore', the car
+    /// being PITted), cars about to cross in front, and walls, parked cars and street furniture to steer off.
+    void Go(float want, float steer, LundunDriver.Profile p, Transform ignore, string note)
+    {
+        float speed = car.Speed;
+        bool overtaking = Time.time < overtakeUntil;
+
+        // anything in the way, looking where we're turning (further the faster we go)
+        bool emergency = false, blocked = false, carInWay = false;
+        float look = Mathf.Min(45f, 6f + Mathf.Max(0f, speed) * 1.6f);
+        Vector3 castDir = Quaternion.Euler(0f, steer * 18f, 0f) * transform.forward;
+        Vector3 front = transform.position + transform.forward * 2.4f + Vector3.up * 0.6f;
+        int n = Physics.SphereCastNonAlloc(front, 0.85f, castDir, castHits, look, bodyMask, QueryTriggerInteraction.Ignore);
+        float nearest = float.MaxValue; RaycastHit hit = new RaycastHit();
+        for (int i = 0; i < n; i++)
+        {
+            RaycastHit h = castHits[i];
+            if (h.collider == null || h.transform.IsChildOf(transform)) continue;
+            if (ignore != null && h.transform.IsChildOf(ignore)) continue;
+            Health hp = h.collider.GetComponentInParent<Health>();
+            if (hp != null && hp.IsDead) continue;
+            if (h.distance < nearest) { nearest = h.distance; hit = h; }
+        }
+        if (nearest < float.MaxValue)
+        {
+            Rigidbody orb = hit.collider.attachedRigidbody;
+            float other = orb != null ? Mathf.Max(0f, Vector3.Dot(orb.linearVelocity, castDir)) : 0f;
+            float limit = Mathf.Sqrt(2f * p.brake * Mathf.Max(0f, nearest - p.minGap)) + other;
+            want = Mathf.Min(want, limit);
+            blocked = limit < 1f;
+            carInWay = hit.collider.GetComponentInParent<CarController>() != null;
+            if (nearest < 1.5f && speed > 1f) emergency = true;
+        }
+
+        // cars about to cross in front (time to the closest approach): slow so they pass first
+        if (Time.time >= crossCheckAt)
+        {
+            crossCheckAt = Time.time + 0.2f;
+            crossLimit = float.MaxValue;
+            Vector3 myV = body != null ? body.linearVelocity : transform.forward * speed; myV.y = 0f;
+            foreach (CarController c in CarController.All)
+            {
+                if (c == null || c == car || (ignore != null && c.transform == ignore)) continue;
+                Vector3 rp = c.transform.position - transform.position; rp.y = 0f;
+                if (rp.sqrMagnitude > 35f * 35f || Vector3.Dot(rp, transform.forward) < 1f) continue;
+                Rigidbody crb = c.GetComponent<Rigidbody>();
+                Vector3 ov = crb != null ? crb.linearVelocity : Vector3.zero; ov.y = 0f;
+                if (ov.sqrMagnitude < 0.8f || Vector3.Angle(ov, transform.forward) < 35f) continue;   // parked, or going our way
+                Vector3 rv = ov - myV;
+                float vv = rv.sqrMagnitude;
+                if (vv < 0.01f) continue;
+                float t = -Vector3.Dot(rp, rv) / vv;
+                if (t <= 0f || t > 2.5f || (rp + rv * t).magnitude > 3.5f) continue;
+                crossLimit = Mathf.Min(crossLimit, Mathf.Max(0f, Mathf.Max(0f, speed) * (t / 2.5f) - 1f));
+            }
+        }
+        want = Mathf.Min(want, crossLimit);
+
+        // walls, parked cars, bollards, railings: steer off them, and don't drive into one straight ahead
+        float wl = 3.5f + Mathf.Max(0f, speed) * 0.35f;
+        Vector3 o = transform.position + Vector3.up * 0.7f + transform.forward * 2f, side = transform.right * 0.8f;
+        if (Physics.Raycast(o - side, Quaternion.Euler(0f, -22f, 0f) * transform.forward, out RaycastHit hl, wl, whiskerMask, QueryTriggerInteraction.Ignore))
+            steer += 0.6f * (1f - hl.distance / wl);
+        if (Physics.Raycast(o + side, Quaternion.Euler(0f, 22f, 0f) * transform.forward, out RaycastHit hr, wl, whiskerMask, QueryTriggerInteraction.Ignore))
+            steer -= 0.6f * (1f - hr.distance / wl);
+        if (Physics.Raycast(o, transform.forward, out RaycastHit hc, wl + 2f, whiskerMask, QueryTriggerInteraction.Ignore))
+            want = Mathf.Min(want, Mathf.Max(3f, Mathf.Sqrt(2f * 8f * Mathf.Max(0f, hc.distance - 1.5f))));
+        steer = Mathf.Clamp(steer, -1f, 1f);
+
+        // a car stopped in the lane: wait a moment, then go round it on the right
+        if (blocked && carInWay && Mathf.Abs(speed) < 1.5f && ignore == null && state != State.Returning) blockedFor += Time.deltaTime; else blockedFor = 0f;
+        if (blockedFor > 1.2f) { blockedFor = 0f; overtakeUntil = Time.time + 3.5f; }
+        if (overtaking) want = Mathf.Min(want, 6f);
+
+        // the watchdog: wants to move but hasn't for a couple of seconds (wedged on something): back up and try again;
+        // three times in a row off screen, it's put back on the road
+        // (also nose to nose with a car that isn't moving: the look-ahead says stop, but waiting there gets nowhere)
+        bool wedged = carInWay && nearest < 1f && Mathf.Abs(speed) < 0.5f;
+        if ((want > 1.5f || wedged) && Mathf.Abs(speed) < 0.8f && !emergency) stillFor += Time.deltaTime; else stillFor = 0f;
+        if (stillFor > 2.2f)
+        {
+            stillFor = 0f;
+            reverseTimer = 1.2f;
+            lastSteer = steer;
+            if (Time.time - firstCarReset > 15f) { firstCarReset = Time.time; carResets = 0; }
+            if (++carResets >= 3 && (bodyRenderer == null || !bodyRenderer.isVisible)) { carResets = 0; reverseTimer = 0f; BackOnRoad(); }
+            return;
+        }
+
+        lastSteer = steer;
+        driveNote = overtaking ? note + " / going round" : note;
+        car.SetTouchInput(LundunDriver.Pedal(speed, want, p, emergency), steer);
+    }
+
+    /// Stuck for good and nobody's looking: put the car on the nearest road, in the left lane, facing along it.
+    void BackOnRoad()
+    {
+        LundunNavigation nav = LundunNavigation.Instance;
+        if (nav == null || nav.Graph == null) return;
+        Vector3 pos = transform.position;
+        NavPoint q = nav.Graph.NearestOnRoad(new NavPoint(pos.x, pos.z), out int edge, out double t, out double off);
+        if (edge < 0) return;
+        nav.Graph.EdgeEnds(edge, out int a, out int b);
+        NavPoint pa = nav.Graph.NodePosition(a), pb = nav.Graph.NodePosition(b);
+        Vector3 along = new Vector3((float)(pb.x - pa.x), 0f, (float)(pb.z - pa.z)).normalized;
+        Vector3 toGoal = destination - pos; toGoal.y = 0f;
+        if (Vector3.Dot(along, toGoal) < 0f) along = -along;
+        Vector3 spot = new Vector3((float)q.x, pos.y + 0.4f, (float)q.z) + new Vector3(-along.z, 0f, along.x) * 1.8f;
+        transform.SetPositionAndRotation(spot, Quaternion.LookRotation(along, Vector3.up));
+        if (body != null) { body.position = spot; body.rotation = transform.rotation; body.linearVelocity = Vector3.zero; body.angularVelocity = Vector3.zero; }
+        route.Clear(); nextRoute = 0f;
+        driveNote = "BACK ON ROAD";
+    }
+
+    void OnCollisionEnter(Collision c)
+    {
+        // made contact with James's car: that was the PIT; drop back for a few seconds before trying again
+        WantedSystem w = WantedSystem.Instance;
+        if (w == null || w.PlayerTarget == null || c.collider == null) return;
+        if (c.collider.transform.IsChildOf(w.PlayerTarget)) pitUntilAgain = Time.time + 5f;
+    }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    static GUIStyle carDebugStyle;
+    void OnGUI()
+    {
+        // PoliceTiers → Show Officer States: what each car is doing, above it
+        if (!PoliceTiers.ShowOfficerStates) return;
+        Camera cam = Camera.main;
+        if (cam == null) return;
+        Vector3 sp = cam.WorldToScreenPoint(transform.position + Vector3.up * 2.6f);
+        if (sp.z <= 0f) return;
+        if (carDebugStyle == null) carDebugStyle = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+        string s = state.ToString().ToUpperInvariant() + (state == State.Patrolling || state == State.Parked ? "" : ": " + driveNote);
+        carDebugStyle.normal.textColor = s.Contains("BACK") || s.Contains("OFF ROAD") ? Color.yellow : s.Contains("PIT") ? new Color(1f, 0.5f, 0.3f) : new Color(0.6f, 0.85f, 1f);
+        GUI.Label(new Rect(sp.x - 160f, Screen.height - sp.y - 14f, 320f, 28f), s, carDebugStyle);
+    }
+#endif
 
     // ------------------------------------------------------------------ R3: patrolling on the roads
     private int pFrom = -1, pTo = -1, pNext = -1;

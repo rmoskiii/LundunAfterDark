@@ -278,6 +278,7 @@ public class PoliceOfficer : MonoBehaviour
         if (state != State.Chase) { CancelTaser(); SetAim(false); }
         if (state != State.Chase && state != State.Search) holding = false;
         canSeeNow = canSee;
+        Watchdog(target, wanted);
 
         // ---------- do it ----------
         switch (state)
@@ -303,6 +304,16 @@ public class PoliceOfficer : MonoBehaviour
 
         bool shooting = Armed && stars >= starsToShoot && distance > closeRange && distance < shootRange && playerAlive && canSeeNow;
 
+        // L2: fire and move: a burst standing still (2–3.5 s), then a second or so moving up, never rooted to one spot
+        if (shooting && Time.time < advanceUntil) shooting = false;
+        else if (shooting)
+        {
+            if (standingSince < 0f) { standingSince = Time.time; burstFor = Random.Range(2f, 3.5f); }
+            if (Time.time - standingSince > burstFor) { advanceUntil = Time.time + Random.Range(1f, 1.6f); standingSince = -1f; shooting = false; }
+        }
+        else standingSince = -1f;
+        if (!shooting && Time.time < advanceUntil) debugNote = "MOVE UP";
+
         SetAim(shooting);
         if (shooting)
         {
@@ -327,7 +338,7 @@ public class PoliceOfficer : MonoBehaviour
         {
             Repath(target.position, tier.repath);
             Unstick(distance > 2.5f);
-            debugNote = "CHASE";
+            if (Time.time >= advanceUntil) debugNote = "CHASE";
         }
         if (distance < 2f) FaceTowards(target.position);
     }
@@ -345,6 +356,58 @@ public class PoliceOfficer : MonoBehaviour
 
     // ------------------------------------------------------------------ R1: never freeze
     private bool canSeeNow;
+
+    // ------------------------------------------------------------------ L2: the watchdog
+    private float standingSince = -1f, burstFor, advanceUntil;
+    private Vector3 wdPos;
+    private float wdSince, lastReset = -99f, resetShowUntil;
+    private int resets;
+
+    /// Chasing or searching, an officer who hasn't moved half a metre in 2.5 s (and isn't standing to shoot, aiming the
+    /// Taser, pacing where he can't reach James, or right next to him) is reset: Taser and aim cancelled, a fresh path
+    /// to the nearest point he CAN reach, and a step onto clear ground if it happens twice in a row. The overlay shows
+    /// "RESET" (and how many so far) when it does.
+    void Watchdog(Transform target, WantedSystem wanted)
+    {
+        Vector3 here = transform.position;
+        bool exempt = (state != State.Chase && state != State.Search) || holding || taserAt > 0f
+                   || debugNote == "SHOOT" || FlatDistance(target.position) < 2.5f
+                   || (state == State.Search && FlatDistance(wanted.LastKnownPosition) < 3f);    // looking round where James was
+        Vector3 moved = here - wdPos; moved.y = 0f;
+        if (exempt || moved.sqrMagnitude > 0.36f) { wdPos = here; wdSince = Time.time; return; }
+        if (Time.time - wdSince < 2.5f) return;
+
+        resets++;
+        resetShowUntil = Time.time + 1.5f;
+        wdPos = here; wdSince = Time.time;
+        CancelTaser();
+        aiming = true; SetAim(false);                 // always tell the animator: aim off
+        stuckFor = 0f;
+        if (!agent.isOnNavMesh) { nextNavFix = 0f; FixNavMesh(); }
+        if (!agent.isOnNavMesh) return;
+        Vector3 goal = Reachable(state == State.Chase ? target.position : wanted.LastKnownPosition);
+        if (Time.time - lastReset < 6f)
+        {
+            // second time running: a step towards the goal onto clear ground first
+            Vector3 to = goal - here; to.y = 0f;
+            Vector3 step = here + (to.sqrMagnitude > 0.01f ? to.normalized : transform.forward) * 1.5f + Random.insideUnitSphere * 0.8f;
+            if (NavMesh.SamplePosition(step, out NavMeshHit sh, 2f, NavMesh.AllAreas)) agent.Warp(sh.position);
+        }
+        lastReset = Time.time;
+        agent.isStopped = false;
+        agent.ResetPath();
+        agent.SetDestination(goal);
+        nextRepath = Time.time + 0.5f;
+    }
+
+    /// The nearest point on the walkable ground to 'p' (James on a roof, in a car on a kerb, over a wall).
+    static Vector3 Reachable(Vector3 p)
+    {
+        if (NavMesh.SamplePosition(p, out NavMeshHit h, 2f, NavMesh.AllAreas)) return h.position;
+        if (NavMesh.SamplePosition(p, out h, 6f, NavMesh.AllAreas)) return h.position;
+        if (NavMesh.SamplePosition(p, out h, 15f, NavMesh.AllAreas)) return h.position;
+        return p;
+    }
 
     /// The aiming pose on or off (only tells the animator when it changes, and always lets it be switched off).
     void SetAim(bool on)
@@ -436,9 +499,11 @@ public class PoliceOfficer : MonoBehaviour
         if (sp.z <= 0f) return;
         if (debugStyle == null) debugStyle = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
         string s = state == State.Chase || state == State.Search ? debugNote : state.ToString().ToUpperInvariant();
+        if (Time.time < resetShowUntil) s = "RESET " + resets + " · " + s;          // L2: the watchdog just stepped in
         if (aiming) s += " (aim)";
         if (agent != null && agent.enabled && agent.isOnNavMesh && agent.isStopped) s += " (stopped)";
-        debugStyle.normal.textColor = s.StartsWith("HOLD") || s.StartsWith("UNSTICK") || s.StartsWith("OFF") ? Color.yellow : Color.white;
+        debugStyle.normal.textColor = s.StartsWith("RESET") ? new Color(1f, 0.45f, 0.3f)
+            : s.StartsWith("HOLD") || s.StartsWith("UNSTICK") || s.StartsWith("OFF") ? Color.yellow : Color.white;
         GUI.Label(new Rect(sp.x - 120f, Screen.height - sp.y - 14f, 240f, 28f), s, debugStyle);
     }
 #endif
@@ -560,7 +625,8 @@ public class PoliceOfficer : MonoBehaviour
     {
         if (Time.time < nextRepath || !agent.isOnNavMesh) return;
         nextRepath = Time.time + interval;
-        agent.SetDestination(to);
+        // L2: a spot off the walkable ground used to leave him with no path at all (standing still): go as near as he can
+        if (!agent.SetDestination(to)) agent.SetDestination(Reachable(to));
     }
 
     void Stop()
