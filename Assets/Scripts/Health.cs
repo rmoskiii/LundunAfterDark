@@ -26,6 +26,9 @@ public class Health : MonoBehaviour
     private Color originalColour;
 
     public bool IsDead => currentHealth <= 0f;
+    /// S1: how much is left, and the most there is (missions: someone beaten in a fight gives up).
+    public float Current => currentHealth;
+    public float Max => maxHealth;
     public bool DiedFromPhysics { get; private set; }
     /// R2: the killing blow was a gunshot (never launches the body; a strong one knocks it back instead).
     public bool KilledByGunfire { get; private set; }

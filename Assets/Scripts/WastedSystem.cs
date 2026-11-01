@@ -5,6 +5,9 @@ using UnityEngine.UI;
 
 public class WastedSystem : MonoBehaviour
 {
+    /// S1: James has just died (a running mission fails).
+    public static event System.Action Happened;
+
     [Header("References")]
     [SerializeField] private VehicleSystem vehicleSystem;
     [SerializeField] private PlayerHealth playerHealth;
@@ -32,6 +35,7 @@ public class WastedSystem : MonoBehaviour
 
     IEnumerator WastedSequence()
     {
+        try { if (Happened != null) Happened(); } catch (System.Exception e) { Debug.LogException(e); }
         bool onFoot = !vehicleSystem.IsDriving;
         Vector3 diedAt = vehicleSystem.PlayerTarget.position;
         Transform body = playerHealth.Body;

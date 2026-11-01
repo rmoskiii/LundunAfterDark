@@ -371,7 +371,11 @@ public class LundunGangs : MonoBehaviour
     static void Toast(string s) { if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(s); }
 
     // ------------------------------------------------------------------ spawning
-    void Spawn(Gang gang, int spotIndex, float hour) { SpawnAt(gang, gang.spots[spotIndex], spotIndex, hour); }
+    void Spawn(Gang gang, int spotIndex, float hour)
+    {
+        if (LundunMissionZones.Inside(gang.spots[spotIndex])) return;          // S1: not on a mission's set piece
+        SpawnAt(gang, gang.spots[spotIndex], spotIndex, hour);
+    }
 
     /// A group of the gang at 'at' (their corner, or for a raid, wherever they set off from: spotIndex −1).
     Group SpawnAt(Gang gang, Vector3 at, int spotIndex, float hour)

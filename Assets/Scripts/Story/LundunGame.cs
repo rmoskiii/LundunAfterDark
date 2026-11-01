@@ -284,7 +284,7 @@ public static class LundunWallet
     }
 
     /// No bills while you're new: nothing until three story missions are done.
-    static bool Bills { get { return LundunGame.IsStory && LundunStory.Data.missionsDone >= 3; } }
+    static bool Bills { get { return LundunGame.IsStory && LundunStory.Data.missionsDone >= 3 && !LundunMissions.Running; } }   // S1: retries are free
 
     /// WASTED: £50 + 2% of your cash, at most £500.
     public static void HospitalBill()

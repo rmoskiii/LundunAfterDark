@@ -143,6 +143,7 @@ public class LundunSettings : MonoBehaviour
         Time.timeScale = 0f;
         AudioListener.pause = true;
         menu.SetActive(true);
+        if (switchLabel != null) switchLabel.text = LundunMissions.Running ? "QUIT MISSION" : LundunGame.IsStory ? "SWITCH TO FREE ROAM" : "SWITCH TO STORY";   // S1
         FitPanel();
         if (fpsNote != null) fpsNote.text = FpsNoteText();
         RefreshButtons();
@@ -348,6 +349,8 @@ public class LundunSettings : MonoBehaviour
 
     /// S0: SWITCH TO STORY / SWITCH TO FREE ROAM, beside RESUME. The story saves first, then the city reloads in the
     /// other mode (S1: not during a mission).
+    private TextMeshProUGUI switchLabel;
+
     void SwitchButton(RectTransform panel)
     {
         bool story = LundunGame.IsStory;
@@ -360,12 +363,14 @@ public class LundunSettings : MonoBehaviour
         sb.onClick.AddListener(() =>
         {
             LundunHaptics.Light();
+            // S1: during a mission this is QUIT MISSION (back to free roam in the story); switch modes after
+            if (LundunMissions.Running) { Resume(); LundunMissions.Instance.Quit(); return; }
             IsOpen = false;
             menu.SetActive(false);
             LundunGame.Play(story ? LundunGame.Mode.FreeRoam : LundunGame.Mode.Story, false);
         });
         sw.gameObject.AddComponent<LundunPressFX>();
-        TextMeshProUGUI st = Text(sw, story ? "SWITCH TO FREE ROAM" : "SWITCH TO STORY", 28, Color.white); Stretch(st.rectTransform); st.characterSpacing = 4f;
+        switchLabel = Text(sw, story ? "SWITCH TO FREE ROAM" : "SWITCH TO STORY", 28, Color.white); Stretch(switchLabel.rectTransform); switchLabel.characterSpacing = 4f;
     }
 
     /// V3: who made what (the CC BY 4.0 models must be credited, with the licence and what was changed).

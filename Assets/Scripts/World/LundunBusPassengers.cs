@@ -156,6 +156,7 @@ public class LundunBusPassengers : MonoBehaviour
     /// Top the queue up: at first straight onto the spots (if nobody can see them), then newcomers now and then, walking up.
     void Fill(Stop s)
     {
+        if (LundunMissionZones.Inside(s.point)) return;                      // S1: a mission's set piece
         if (Time.time >= s.nextWant) { s.nextWant = Time.time + 40f; s.want = WantAt(); }
         if (s.queue.Count >= s.want) { s.filling = false; return; }
         if (Time.time < s.nextArrival) return;

@@ -29,10 +29,16 @@ public class LundunAngryDriver : MonoBehaviour
     const float RunSpeed = 6f, PunchRange = 1.7f, PunchDamage = 7f, BigPunchDamage = 12f, CarKickDamage = 3f;
     const float ShootMin = 6f, ShootMax = 14f, ShotDamage = 6f, ShotToCar = 3f;
 
-    public void Begin(bool withGun)
+    private float giveUpBeyond = 40f, damageScale = 1f;
+
+    public void Begin(bool withGun) { Begin(withGun, 20f, 40f, 1f); }
+
+    /// S1: a mission's enemy: keeps at it for 'seconds', gives up only beyond 'range' metres, hits 'damage' × as hard.
+    public void Begin(bool withGun, float seconds, float range, float damage)
     {
+        giveUpBeyond = range; damageScale = damage;
         armed = withGun;
-        until = Time.time + 20f;
+        until = Time.time + seconds;
         nextHit = Time.time + (armed ? 1.2f : 0.6f);
         agent = GetComponent<NavMeshAgent>();
         brain = GetComponent<NPCBrain>();
@@ -55,7 +61,7 @@ public class LundunAngryDriver : MonoBehaviour
         Transform target = vehicles.PlayerTarget;
         Vector3 to = target.position - transform.position; to.y = 0f;
         float d = to.magnitude;
-        if (d > 40f) { CalmDown(); return; }
+        if (d > giveUpBeyond) { CalmDown(); return; }
         if (LundunStagger.Busy(gameObject)) return;       // shoved / hit: wait till they're back on their feet
 
         if (armed)
@@ -75,7 +81,7 @@ public class LundunAngryDriver : MonoBehaviour
                 nextHit = Time.time + Random.Range(0.8f, 1.3f);
                 Vector3 from = transform.position + Vector3.up * 1.4f + transform.forward * 0.4f;
                 float chance = Mathf.Lerp(0.6f, 0.3f, d / ShootMax);
-                Vector3 end = PoliceAim.Fire(transform, from, target, chance, ShootMax * 1.5f, ShotDamage, ShotToCar);
+                Vector3 end = PoliceAim.Fire(transform, from, target, chance, ShootMax * 1.5f, ShotDamage * damageScale, ShotToCar);
                 ShowTracer(gunProp != null ? gunProp.transform.position : from, end);
                 recoil = 1f;                               // kick the gun up (no shooting clip needed)
             }
@@ -94,16 +100,16 @@ public class LundunAngryDriver : MonoBehaviour
                 if (vehicles.IsDriving)
                 {
                     VehicleHealth vh = target.GetComponent<VehicleHealth>();
-                    if (vh != null) vh.TakeDamage(CarKickDamage);
+                    if (vh != null) vh.TakeDamage(CarKickDamage * damageScale);
                 }
                 else if (PlayerHealth.Instance != null)
                 {
-                    PlayerHealth.Instance.TakeDamage(big ? BigPunchDamage : PunchDamage);
+                    PlayerHealth.Instance.TakeDamage((big ? BigPunchDamage : PunchDamage) * damageScale);
                     if (big) LundunPlayerReact.Punched();    // James reels from it
                 }
             }
             // you drove off fast: give up
-            if (vehicles.IsDriving && vehicles.PlayerSpeed > 8f && d > 12f) { CalmDown(); return; }
+            if (vehicles.IsDriving && vehicles.PlayerSpeed > 8f && d > 12f && giveUpBeyond <= 40f) { CalmDown(); return; }
         }
 
         if (animator != null) animator.SetFloat("Speed", agent.velocity.magnitude, 0.1f, Time.deltaTime);

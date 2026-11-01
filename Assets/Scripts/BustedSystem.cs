@@ -5,6 +5,9 @@ using UnityEngine.UI;
 
 public class BustedSystem : MonoBehaviour
 {
+    /// S1: James has just been arrested (a running mission fails).
+    public static event System.Action Happened;
+
     [Header("References")]
     [SerializeField] private VehicleSystem vehicleSystem;
     [SerializeField] private Transform policeStation;     // where you appear after arrest
@@ -72,6 +75,7 @@ public class BustedSystem : MonoBehaviour
     IEnumerator BustedSequence()
     {
         busted = true;
+        try { if (Happened != null) Happened(); } catch (System.Exception e) { Debug.LogException(e); }
         Vector3 arrestedAt = vehicleSystem.PlayerTarget.position;
         arrestMeter.gameObject.SetActive(false);
         vehicleSystem.LockControls(true);

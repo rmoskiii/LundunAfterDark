@@ -240,6 +240,7 @@ public class LundunHomeless : MonoBehaviour
             if (cam != null && LundunView.CanSee(cam, s.at)) continue;               // never appear in view: try again later
             s.rolled = true;
             if (Random.value > s.weight * (night ? 1.15f : 0.85f)) continue;
+            if (LundunMissionZones.Inside(s.at)) { s.rolled = false; continue; }   // S1: a mission's set piece
             s.who = Make(s, night);
             if (s.who != null) present++;
         }

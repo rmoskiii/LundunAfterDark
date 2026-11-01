@@ -118,6 +118,7 @@ public class LundunCyclists : MonoBehaviour
             pos = new Vector3((float)p.x, 0f, (float)p.z) + left * Mathf.Max(1.2f, (float)(w * 0.5) - 1.1f);
             if (cam != null && LundunView.CanSee(cam, pos)) return;
         }
+        if (LundunMissionZones.Inside(pos)) return;                              // S1: a mission's set piece
         if (!NavMesh.SamplePosition(pos + Vector3.up, out NavMeshHit hit, 3f, NavMesh.AllAreas)) return;
         pos = hit.position;
         if (Physics.CheckSphere(pos + Vector3.up * 0.8f, 2.5f, LayerMask.GetMask("Vehicle", "Player"), QueryTriggerInteraction.Ignore)) return;

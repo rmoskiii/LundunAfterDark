@@ -6,7 +6,7 @@ using UnityEngine.UI;
 /// S0: the start menu, the money on the HUD (Story only) and the story's autosave. Added by LundunGame to the city.
 ///   start menu  when the game launches: CONTINUE STORY (with your money and missions done), NEW STORY (asks first if
 ///               there's a story to lose) and FREE ROAM (the game as it's always been). The one you played last is lit
-///   money       under the clock: "£12,450", with "+£500" in green or "−£100 Hospital bill" in red underneath for a moment
+///   money       top right, under the weapon panel: "£12,450", with "+£500" in green or "−£100 Hospital bill" in red underneath for a moment
 ///               (editor and development builds: tap the money three times for £500 of test cash)
 ///   autosave    every 30 seconds, when you leave the app, and before switching modes
 [DefaultExecutionOrder(310)]
@@ -28,7 +28,7 @@ public class LundunStoryUI : MonoBehaviour
     IEnumerator Start()
     {
         yield return null;                                  // the HUD (and its font) builds itself first
-        if (LundunGame.IsStory) BuildMoney();
+        if (LundunGame.IsStory) { BuildMoney(); if (GetComponent<LundunMissions>() == null) gameObject.AddComponent<LundunMissions>(); }   // S1
         if (LundunGame.ShowStartMenu) OpenMenu();
     }
 
@@ -55,27 +55,18 @@ public class LundunStoryUI : MonoBehaviour
     // ------------------------------------------------------------------ money on the HUD
     void BuildMoney()
     {
-        GameObject clockGo = GameObject.Find("Clock");
-        RectTransform clock = clockGo != null ? clockGo.transform as RectTransform : null;
-        RectTransform parent = clock != null ? (RectTransform)clock.parent : MakeCanvas("LundunMoney", 60).transform as RectTransform;
-        money = Label(parent, "money", 34f, Color.white, TextAlignmentOptions.Left);
-        popup = Label(parent, "moneyPopup", 26f, Gain, TextAlignmentOptions.Left);
+        // top right, just under the weapon panel (LundunWeapons: 330 × 112 at 36, 26 from the corner), in the HUD itself
+        // so it stays when the on-foot controls hide for driving
+        GameObject onFoot = GameObject.Find("OnFootControls");
+        RectTransform parent = onFoot != null && onFoot.transform.parent is RectTransform
+            ? (RectTransform)onFoot.transform.parent : MakeCanvas("LundunMoney", 60).transform as RectTransform;
+        money = Label(parent, "money", 38f, Color.white, TextAlignmentOptions.Right);
+        popup = Label(parent, "moneyPopup", 26f, Gain, TextAlignmentOptions.Right);
         RectTransform mr = money.rectTransform, pr = popup.rectTransform;
-        if (clock != null)
-        {
-            // just under the clock, lined up with it
-            mr.anchorMin = clock.anchorMin; mr.anchorMax = clock.anchorMax; mr.pivot = new Vector2(0f, 1f);
-            Vector2 left = clock.anchoredPosition + new Vector2(-clock.sizeDelta.x * clock.pivot.x, -clock.sizeDelta.y * (1f - clock.pivot.y));
-            mr.anchoredPosition = left + new Vector2(0f, -6f);
-        }
-        else
-        {
-            mr.anchorMin = mr.anchorMax = new Vector2(0f, 1f); mr.pivot = new Vector2(0f, 1f);
-            mr.anchoredPosition = new Vector2(40f, -330f);
-        }
-        mr.sizeDelta = new Vector2(420f, 44f);
-        pr.anchorMin = mr.anchorMin; pr.anchorMax = mr.anchorMax; pr.pivot = mr.pivot;
-        pr.anchoredPosition = mr.anchoredPosition + new Vector2(0f, -42f); pr.sizeDelta = new Vector2(520f, 36f);
+        mr.anchorMin = mr.anchorMax = new Vector2(1f, 1f); mr.pivot = new Vector2(1f, 1f);
+        mr.anchoredPosition = new Vector2(-40f, -146f); mr.sizeDelta = new Vector2(420f, 46f);
+        pr.anchorMin = pr.anchorMax = new Vector2(1f, 1f); pr.pivot = new Vector2(1f, 1f);
+        pr.anchoredPosition = new Vector2(-40f, -190f); pr.sizeDelta = new Vector2(560f, 36f);
         popup.gameObject.SetActive(false);
         money.text = LundunWallet.Format(LundunWallet.Cash);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD

@@ -133,6 +133,7 @@ public class LundunPatrols : MonoBehaviour
         {
             if (!PavementPoint(player, footSpawnNearest, footSpawnFarthest, out Vector3 p)) return;
             if (OnCamera(p)) continue;
+            if (LundunMissionZones.Inside(p)) continue;                      // S1: a mission's set piece
             Quaternion facing = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
             PoliceOfficer lead = Instantiate(prefab, p, facing);
             lead.StartPatrol(null);
@@ -160,6 +161,7 @@ public class LundunPatrols : MonoBehaviour
             Vector3 left = new Vector3(-along.z, 0f, along.x);
             Vector3 spot = new Vector3((float)p.x, 1f, (float)p.z) + left * (float)(halfWidth * 0.5);      // UK: left lane
             if (OnCamera(spot)) continue;
+            if (LundunMissionZones.Inside(spot)) continue;                   // S1: a mission's set piece
             if (Physics.CheckSphere(spot + Vector3.up, 6f, LayerMask.GetMask("Vehicle", "Player"), QueryTriggerInteraction.Ignore)) continue;
             if (!NavMesh.SamplePosition(spot, out NavMeshHit hit, 4f, NavMesh.AllAreas)) continue;
             PoliceAI car = Instantiate(prefab, hit.position + Vector3.up * 0.8f, Quaternion.LookRotation(along, Vector3.up));

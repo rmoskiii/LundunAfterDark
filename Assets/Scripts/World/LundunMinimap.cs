@@ -109,6 +109,25 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
         }
     }
 
+    /// S1: a marker that follows this transform (missions: their letters and the objective); clamp = stays on the
+    /// edge when it's off the map.
+    public void Track(Transform t, Color col, string label, float size, bool clamp)
+    {
+        if (t == null || blipLayer == null) return;
+        Untrack(t);
+        AddStatic(t, col, label, size, clamp, 1f);
+    }
+
+    public void Untrack(Transform t)
+    {
+        for (int i = statics.Count - 1; i >= 0; i--)
+            if (statics[i].target == t || statics[i].target == null && t == null)
+            {
+                if (statics[i].rt != null) Destroy(statics[i].rt.gameObject);
+                statics.RemoveAt(i);
+            }
+    }
+
     void AddStatic(Transform t, Color col, string label, float size, bool clamp, float alpha)
     {
         Blip b = NewBlip(col, label, size);
