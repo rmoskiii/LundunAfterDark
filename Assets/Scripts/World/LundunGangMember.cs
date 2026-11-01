@@ -33,7 +33,6 @@ public class LundunGangMember : MonoBehaviour
     private Health health;
     private NPCBrain brain;
     private VehicleSystem vehicles;
-    private PlayerController playerMove;
     private Vector3 home;
     private float nextShuffle, closeFor, nextHit, windupUntil, nextPath, pickOnUntil;
     private int swings;
@@ -87,6 +86,18 @@ public class LundunGangMember : MonoBehaviour
     }
 
     // ------------------------------------------------------------------ orders from the group
+    /// L3: James walked or ran into this one (LundunPopulation, on contact). On the corner it counts towards it kicking
+    /// off: walking into one gets the warning, jogging into one nearly starts it, sprinting into one starts it. Jogging or
+    /// sprinting they're knocked back a step first (mid-fight too), then square up.
+    public void Bumped(Vector3 from, Vector3 dir, bool shove, bool hard)
+    {
+        if (IsDead) return;
+        if (state == State.Hang) closeFor += hard ? 6f : shove ? 4f : 2.6f;
+        if (!shove) return;
+        LundunStagger.Play(gameObject, "Hit", hard ? 0.9f : 0.6f, false, float.NaN, null,
+            new LundunStagger.Options { slide = dir * (hard ? 3f : 2f), slideTime = 0.35f });
+    }
+
     public void Fight()
     {
         if (IsDead) return;
@@ -196,8 +207,7 @@ public class LundunGangMember : MonoBehaviour
             if (d < 7f) gangs.Look(group);
             // stood right by them (or bumped one): a warning, then it kicks off
             if (d < 3.5f) closeFor += Time.deltaTime; else closeFor = Mathf.Max(0f, closeFor - Time.deltaTime);
-            if (playerMove == null && PlayerHealth.Instance != null) playerMove = PlayerHealth.Instance.Body.GetComponent<PlayerController>();
-            if (d < 1.05f && playerMove != null && playerMove.MoveIntent.sqrMagnitude > 1f) closeFor += 2.6f;     // a bump
+            // (L3: a bump is reported the moment it happens: Bumped)
             if (closeFor > 2.5f) gangs.Warn(group);
             if (closeFor > 5.5f) gangs.StartFight(group);
         }

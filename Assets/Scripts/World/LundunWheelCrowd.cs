@@ -426,6 +426,27 @@ public class LundunWheelCrowd : MonoBehaviour
         return c != null && LundunView.CanSee(c, world);
     }
 
+    // ------------------------------------------------------------------ L3: bumped
+    static readonly List<LundunWheelCrowd> crowds = new List<LundunWheelCrowd>();
+    void OnEnable() { crowds.Add(this); }
+    void OnDisable() { crowds.Remove(this); }
+
+    /// James bumped into one of this crowd: they step out of it and become an ordinary pedestrian (no panic), so the
+    /// bump can play on them like on anyone; the crowd takes them back once they're out of sight, as after trouble.
+    /// False if they're not walking about in one of the crowds right now.
+    public static bool LetGo(GameObject go)
+    {
+        foreach (LundunWheelCrowd c in crowds)
+            foreach (Person p in c.people)
+            {
+                if (p.go != go) continue;
+                if (p.state == State.Released || p.state == State.Off || p.state == State.Riding) return false;
+                c.Release(p, go.transform.position, false);
+                return p.agent != null && p.agent.enabled;
+            }
+        return false;
+    }
+
     // ------------------------------------------------------------------ trouble
     void OnGunshot(Vector3 from)
     {
@@ -452,7 +473,7 @@ public class LundunWheelCrowd : MonoBehaviour
         }
     }
 
-    void Release(Person p, Vector3 from)
+    void Release(Person p, Vector3 from, bool panic = true)
     {
         queue.Remove(p);
         if (p.spot >= 0 && p.spot < spotTaken.Length) { spotTaken[p.spot] = false; p.spot = -1; }
@@ -464,7 +485,7 @@ public class LundunWheelCrowd : MonoBehaviour
         p.agent.enabled = true;
         p.agent.Warp(hit.position);
         p.brain.enabled = true;
-        p.brain.Panic(from);
+        if (panic) p.brain.Panic(from);
     }
 
     void Recapture(Person p)

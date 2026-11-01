@@ -237,6 +237,9 @@ public class PoliceOfficer : MonoBehaviour
         // R1: off the walkable ground (got out of a car at a kerb, knocked about): put him back on it, don't just stop
         if (!agent.isOnNavMesh) { FixNavMesh(); debugNote = "OFF NAVMESH"; return; }
 
+        // L3: shoved: the stagger moves him, then he carries on
+        if (LundunStagger.Busy(gameObject)) { sawLastFrame = false; return; }
+
         // Hold still while BUSTED / WASTED plays out
         if (VehicleSystem.Locked) { Stop(); return; }
 

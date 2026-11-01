@@ -164,55 +164,183 @@ public class LundunPopulation : MonoBehaviour
     const float ShoveClip = 4.3f;               // Anim_Shove_reaction (stumble and spin round)
     const float ShoveClipYaw = 12f;             // the stumble drifts ~12° right of straight ahead
 
-    /// James running into a pedestrian on foot (every frame, but only ~20 people to check). It counts the moment their
-    /// bodies touch, judged by how fast James is trying to go (his body is stopped by theirs, so his actual speed
-    /// would say almost nothing):
+    // L3: bumps find people by touch, not from the pedestrian list: gang members, the market and Wheel crowds, carjacked
+    // drivers, officers on foot and the royal guards get bumped too, each in their own way
+    static int npcMask = -1;
+    static readonly Collider[] bumpNear = new Collider[16];
+    private readonly Dictionary<Collider, Component> personOf = new Dictionary<Collider, Component>();
+    private LundunRoyalGuard[] guards;
+    private float nextGuardLook, nextLine;
+    private Vector3 bumpFrom, bumpDir;
+    private float bumpSpeed;
+
+    /// James running into someone on foot. It counts the moment their bodies touch: his character controller reports
+    /// it as it happens (LundunBumpSensor), and every frame anyone within touching distance a little ahead of where he's
+    /// going counts too (people who walk into him, and those his controller slides past). Judged by how fast James is
+    /// trying to go (his body is stopped by theirs, so his actual speed would say almost nothing):
     ///   walking   they brush past: a step aside and a look back at him
     ///   jogging   a short stagger, pushed the way he was going (no spin)
     ///   sprinting the full stumble, straight into it (its slow start skipped), turning into it rather than snapping
     /// James checks a little, more the harder he hit them, and the camera gives a small knock.
     void CheckShoves()
     {
+        if (!BumpReady()) return;
+        Vector3 me = bumpFrom;
+        float myRadius = playerBody.radius * Mathf.Max(playerBody.transform.lossyScale.x, playerBody.transform.lossyScale.z);
+        float touch = Mathf.Min(shoveReach, myRadius + 0.3f + touchGap);
+
+        // people on the NPC layer (pedestrians, gangs, the crowds, drivers)
+        if (npcMask == -1) npcMask = LayerMask.GetMask("NPC");
+        int n = Physics.OverlapCapsuleNonAlloc(me + Vector3.up * 0.7f, me + Vector3.up * 1.4f, touch, bumpNear, npcMask, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < n; i++) if (bumpNear[i] != null && Touched(bumpNear[i], true)) return;
+
+        // officers on foot and the guards aren't on that layer: checked by distance (there are only a few)
+        foreach (PoliceOfficer o in PoliceOfficer.Active)
+            if (o != null && Near(o.transform.position, me, touch) && TouchedPerson(o, true)) return;
+        if (guards == null || Time.time >= nextGuardLook) { nextGuardLook = Time.time + 10f; guards = FindObjectsByType<LundunRoyalGuard>(FindObjectsSortMode.None); }
+        foreach (LundunRoyalGuard g in guards)
+            if (g != null && Near(g.transform.position, me, touch) && TouchedPerson(g, true)) return;
+    }
+
+    /// James on foot and trying to move: where he is and which way he's going (for this frame's bumps).
+    bool BumpReady()
+    {
         PlayerHealth ph = PlayerHealth.Instance;
-        if (ph == null || ph.IsDead || !ph.OnFoot || Time.time < nextShove) return;
+        if (ph == null || ph.IsDead || !ph.OnFoot || Time.time < nextShove || ph.Body == null) return false;
         if (playerBody == null || playerBody.transform != ph.Body)
         {
             playerBody = ph.Body.GetComponent<CharacterController>();
             playerMove = ph.Body.GetComponent<PlayerController>();
+            if (ph.Body.GetComponent<LundunBumpSensor>() == null) ph.Body.gameObject.AddComponent<LundunBumpSensor>();
         }
-        if (playerBody == null) return;
+        if (playerBody == null) return false;
         Vector3 v = playerMove != null ? playerMove.MoveIntent : playerBody.velocity; v.y = 0f;
-        float speed = v.magnitude;
-        if (speed < 0.6f) return;
-        Vector3 me = ph.Body.position, dir = v / speed;
-        float myRadius = playerBody.radius * Mathf.Max(ph.Body.lossyScale.x, ph.Body.lossyScale.z);
-        foreach (Ped p in peds)
-        {
-            if (!p.active || p.go == null || (p.health != null && p.health.IsDead)) continue;
-            Vector3 to = p.go.transform.position - me; to.y = 0f;
-            float theirRadius = p.agent != null ? p.agent.radius * Mathf.Max(p.go.transform.lossyScale.x, p.go.transform.lossyScale.z) : 0.3f;
-            float touch = Mathf.Min(shoveReach, myRadius + theirRadius + touchGap);
-            if (to.sqrMagnitude > touch * touch || Vector3.Dot(to.normalized, dir) < 0.25f) continue;
-            if (LundunStagger.Busy(p.go)) continue;
-            if (bumpedUntil.TryGetValue(p.go, out float until) && Time.time < until) continue;
-            Bump(p, me, dir, speed);
-            nextShove = Time.time + 0.15f;
-            return;
-        }
+        bumpSpeed = v.magnitude;
+        if (bumpSpeed < 0.6f) return false;
+        bumpFrom = ph.Body.position;
+        bumpDir = v / bumpSpeed;
+        return true;
     }
 
-    void Bump(Ped p, Vector3 from, Vector3 dir, float speed)
+    static bool Near(Vector3 a, Vector3 b, float d) { Vector3 t = a - b; t.y = 0f; return t.sqrMagnitude <= d * d; }
+
+    /// Something James touched (from his controller, or the check above): if it's a person ahead of him, bump them.
+    public bool Touched(Collider c, bool alreadyReady)
     {
-        GameObject who = p.go;
+        if (!alreadyReady && !BumpReady()) return false;
+        Component who;
+        if (!personOf.TryGetValue(c, out who))
+        {
+            if (personOf.Count > 400) personOf.Clear();
+            who = c.GetComponentInParent<LundunRoyalGuard>();
+            if (who == null)
+            {
+                Health h = c.GetComponentInParent<Health>();
+                // a person, not a bin: they think (pedestrians, drivers, the crowds), they're in a gang, or they're police
+                if (h != null && (h.GetComponent<NPCBrain>() != null || h.GetComponent<LundunGangMember>() != null || h.GetComponent<PoliceOfficer>() != null)) who = h;
+            }
+            personOf[c] = who;
+        }
+        return who != null && TouchedPerson(who, alreadyReady);
+    }
+
+    bool TouchedPerson(Component person, bool alreadyReady)
+    {
+        if (!alreadyReady && !BumpReady()) return false;
+        GameObject who = person.gameObject;
+        if (!who.activeInHierarchy) return false;
+        Vector3 to = who.transform.position - bumpFrom; to.y = 0f;
+        if (to.sqrMagnitude > 0.0001f && Vector3.Dot(to.normalized, bumpDir) < 0.25f) return false;      // beside or behind him
+        if (bumpedUntil.TryGetValue(who, out float until) && Time.time < until) return false;
         if (bumpedUntil.Count > 64) { List<GameObject> old = new List<GameObject>(); foreach (var kv in bumpedUntil) if (kv.Key == null || kv.Value < Time.time) old.Add(kv.Key); foreach (GameObject g in old) bumpedUntil.Remove(g); }
-        bool fighting = who.GetComponent<LundunAngryDriver>() != null;
         if (cameraFollow == null) cameraFollow = FindAnyObjectByType<CameraFollow>();
+
+        LundunRoyalGuard guard = person as LundunRoyalGuard;
+        if (guard != null) { BumpGuard(guard); return Done(); }
+        Health h = who.GetComponent<Health>();
+        if (h != null && h.IsDead) return false;
+        if (LundunStagger.Busy(who)) return false;
+
+        PoliceOfficer cop = who.GetComponent<PoliceOfficer>();
+        if (cop != null) { BumpOfficer(cop); return Done(); }
+        LundunGangMember gm = who.GetComponent<LundunGangMember>();
+        if (gm != null)
+        {
+            bumpedUntil[who] = Time.time + 1.5f;
+            gm.Bumped(bumpFrom, bumpDir, bumpSpeed >= shoveSpeed, bumpSpeed >= sprintShoveSpeed);
+            Check(bumpSpeed >= sprintShoveSpeed ? 2 : bumpSpeed >= shoveSpeed ? 1 : 0);
+            return Done();
+        }
+        // someone walking the market or the Wheel's set paths: they become an ordinary pedestrian for a while (no panic)
+        UnityEngine.AI.NavMeshAgent agent = who.GetComponent<UnityEngine.AI.NavMeshAgent>();
+        if (agent != null && !agent.enabled && !LundunMarketCrowd.LetGo(who) && !LundunWheelCrowd.LetGo(who)) return false;
+        if (agent == null || !agent.enabled) return false;
+        Bump(who, bumpFrom, bumpDir, bumpSpeed);
+        return Done();
+    }
+
+    bool Done() { nextShove = Time.time + 0.15f; return true; }
+
+    /// James checks (0 brush, 1 stagger, 2 full stumble) and the camera gives a knock.
+    void Check(int hard)
+    {
+        if (playerMove != null) playerMove.Bump(hard == 0 ? bumpSlow.x : hard == 1 ? bumpSlow.y : bumpSlow.z, hard == 0 ? 0.2f : hard == 1 ? 0.25f : 0.3f);
+        if (cameraFollow != null && hard > 0) cameraFollow.AddShake(hard == 1 ? bumpShake.x : bumpShake.y);
+    }
+
+    void Say(string[] lines, float gap)
+    {
+        if (Time.time < nextLine || LundunNavigation.Instance == null) return;
+        nextLine = Time.time + gap;
+        LundunNavigation.Instance.ShowToast(lines[rng.Next(lines.Length)]);
+    }
+
+    static readonly string[] Shouts = { "\"Oi! Watch it!\"", "\"Do you MIND?\"", "\"Look where you're going, mate!\"", "\"Easy!\"", "\"What's your problem?\"" };
+    static readonly string[] GuardLines = { "Guard: \"Mind yourself, sir.\"", "Guard: \"Step back, please.\"", "Guard: \"Keep your distance from the guard!\"" };
+    static readonly string[] OfficerLines = { "Officer: \"Oi! Watch where you're going.\"", "Officer: \"Steady on, sunshine.\"", "Officer: \"Careful, mate.\"" };
+    static readonly string[] OfficerShoved = { "Officer: \"Right, that's assault!\"", "Officer: \"You've just shoved a police officer!\"" };
+
+    /// The royal guard doesn't budge: James bounces off, and gets told off.
+    void BumpGuard(LundunRoyalGuard g)
+    {
+        bumpedUntil[g.gameObject] = Time.time + 2.5f;
+        Check(bumpSpeed >= shoveSpeed ? 2 : 1);
+        PlayerHealth ph = PlayerHealth.Instance;
+        if (ph != null && ph.Body != null) g.Alert(ph.Body, 4f);
+        Say(GuardLines, 4f);
+    }
+
+    /// An officer on foot pushes back: walking or jogging into him, James is checked and told to watch it (a patrol stops
+    /// and faces him). Sprinting into him is a shove: he staggers, and that's assaulting an officer.
+    void BumpOfficer(PoliceOfficer cop)
+    {
+        GameObject who = cop.gameObject;
+        bumpedUntil[who] = Time.time + 2f;
+        if (bumpSpeed >= sprintShoveSpeed)
+        {
+            float slideTime = Mathf.Min(0.5f, staggerFor);
+            LundunStagger.Play(who, "Hit", staggerFor, false, float.NaN, null,
+                new LundunStagger.Options { slide = bumpDir * (staggerPush * 3f / slideTime), slideTime = slideTime });
+            CrimeSystem.Report(CrimeType.AssaultOfficer, who.transform.position + Vector3.up * 1.5f);
+            Check(2);
+            Say(OfficerShoved, 3f);
+            return;
+        }
+        if (playerMove != null) playerMove.Bump(0.3f, 0.35f);                 // he holds his ground and pushes back
+        if (cameraFollow != null) cameraFollow.AddShake(bumpShake.x);
+        cop.Warn(bumpFrom);
+        Say(OfficerLines, 4f);
+    }
+
+    void Bump(GameObject who, Vector3 from, Vector3 dir, float speed)
+    {
+        bool fighting = who.GetComponent<LundunAngryDriver>() != null;
 
         // walking: brush past
         if (speed < shoveSpeed)
         {
             bumpedUntil[who] = Time.time + 1.5f;
-            if (playerMove != null) playerMove.Bump(bumpSlow.x, 0.2f);
+            Check(0);
             if (fighting) return;                                                      // squared up already: no step aside
             LundunBrush.Play(who, from, dir);
             return;
@@ -221,6 +349,7 @@ public class LundunPopulation : MonoBehaviour
         bumpedUntil[who] = Time.time + 2f;
         Vector3 pushedFrom = from;
         double roll = rng.NextDouble();
+        if (!fighting) Say(Shouts, roll < shoveFightBack ? 1.5f : 5f);             // L3: some shout (the ones squaring up always do)
         System.Action after = () =>
         {
             if (fighting || who == null) return;                                       // already having a go at James
@@ -238,8 +367,7 @@ public class LundunPopulation : MonoBehaviour
             float slideTime = Mathf.Min(0.5f, staggerFor);
             LundunStagger.Play(who, "Hit", staggerFor, false, float.NaN, after,
                 new LundunStagger.Options { slide = dir * (staggerPush * 3f / slideTime), slideTime = slideTime });   // eases out: covers staggerPush
-            if (playerMove != null) playerMove.Bump(bumpSlow.y, 0.25f);
-            if (cameraFollow != null) cameraFollow.AddShake(bumpShake.x);
+            Check(1);
             return;
         }
 
@@ -247,8 +375,7 @@ public class LundunPopulation : MonoBehaviour
         float yaw = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg - ShoveClipYaw;          // stumble the way James pushed them
         LundunStagger.Play(who, "Shoved", Mathf.Min(stumbleFor, ShoveClip - stumbleSkip), true, yaw, after,
             new LundunStagger.Options { startAt = stumbleSkip, turnRate = 900f, blendOut = true });
-        if (playerMove != null) playerMove.Bump(bumpSlow.z, 0.3f);
-        if (cameraFollow != null) cameraFollow.AddShake(bumpShake.y);
+        Check(2);
     }
 
     // ------------------------------------------------------------------ pedestrians
