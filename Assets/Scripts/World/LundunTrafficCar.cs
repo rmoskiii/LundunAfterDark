@@ -53,6 +53,21 @@ public class LundunTrafficCar : MonoBehaviour
 
     public bool IsBus { get { return isBus; } }
 
+    // ------------------------------------------------------------------ L5: passengers (LundunBusPassengers)
+    /// Every bus in the game.
+    public static readonly List<LundunTrafficCar> Buses = new List<LundunTrafficCar>();
+    /// Stopped at a bus stop right now.
+    public bool AtStop { get { return isBus && CurrentMode == Mode.Driving && HasDriver && Time.time < stopUntil; } }
+    /// When it stopped at the current (or last) stop.
+    public float StoppedAt { get; private set; }
+    /// Stay at the stop until this time (people still getting on and off), then indicate and pull out.
+    public void HoldAtStop(float until)
+    {
+        if (!isBus) return;
+        stopUntil = until;
+        ignoreStopsUntil = Mathf.Max(ignoreStopsUntil, until + 8f);
+    }
+
     // R3: the driver
     public LundunDriver.Style Style { get; private set; }
     private LundunDriver.Profile profile = LundunDriver.For(LundunDriver.Style.Normal);
@@ -77,12 +92,14 @@ public class LundunTrafficCar : MonoBehaviour
 
     void OnEnable()
     {
+        if (isBus && !Buses.Contains(this)) Buses.Add(this);              // L5
         VehicleSystem.Entering += OnEntering;
         PlayerCombat.GunshotFired += OnGunshot;
     }
 
     void OnDisable()
     {
+        Buses.Remove(this);
         VehicleSystem.Entering -= OnEntering;
         PlayerCombat.GunshotFired -= OnGunshot;
     }
@@ -235,13 +252,13 @@ public class LundunTrafficCar : MonoBehaviour
                 {
                     want = Mathf.Min(want, Mathf.Max(1.2f, ahead * 0.5f));
                     if (lamps != null && ahead < 30f) lamps.Indicate(-1, 1f);                                 // V4a: pulling in
-                    if (ahead < 1.5f) { stopUntil = Time.time + stopFor; ignoreStopsUntil = stopUntil + 8f; want = 0f; }
+                    if (ahead < 1.5f) { stopUntil = Time.time + stopFor; ignoreStopsUntil = stopUntil + 8f; want = 0f; StoppedAt = Time.time; }
                 }
             }
             else
             {
                 sinceStop += Mathf.Max(0f, speed) * Time.deltaTime;
-                if (sinceStop > stopEvery && toEnd > 30f && s > 20f) { stopUntil = Time.time + stopFor; sinceStop = 0f; want = 0f; }
+                if (sinceStop > stopEvery && toEnd > 30f && s > 20f) { stopUntil = Time.time + stopFor; sinceStop = 0f; want = 0f; StoppedAt = Time.time; }
             }
         }
         // R3: what's ahead (cars at a safe gap, people in the road or stepping out), eased throttle and brakes, the horn

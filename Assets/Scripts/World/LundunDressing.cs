@@ -38,6 +38,8 @@ public class LundunDressing : MonoBehaviour
     private bool blinkOn;
 
     public int BusStopCount { get { return busStops.Length; } }
+    /// L5: bus stop i: x, z of the stopping point (in the lane by the kerb) and the direction buses travel (x, z).
+    public Vector4 BusStop(int i) { return busStops[i]; }
     public string[] StationNames { get { return stationNames; } }
     public Vector3[] StationPositions { get { return stationPositions; } }
 
