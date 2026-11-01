@@ -63,15 +63,16 @@ public static class LundunDriver
     /// The fastest they should go given what's ahead: other cars and things (a cast down the lane, further the faster
     /// they go; a moving car is followed at a safe gap) and people (in the road, or stepping out for those who watch).
     /// emergency = brake as hard as possible now; blocked = it's something in front holding them up.
-    public static float Ahead(Transform me, float speed, Profile p, float laneHalf, Senses s, out bool emergency, out bool blocked)
+    /// front: how far ahead of its middle the vehicle's nose is (a bus is much longer than a car).
+    public static float Ahead(Transform me, float speed, Profile p, float laneHalf, Senses s, out bool emergency, out bool blocked, float front = 2.8f)
     {
         if (carMask == -1) { carMask = LayerMask.GetMask("Vehicle", "Player", "NPC"); peopleMask = LayerMask.GetMask("NPC", "Player"); }
         emergency = false; blocked = false;
         float limit = float.MaxValue;
         Vector3 fwd = me.forward;
-        Vector3 front = me.position + fwd * 2.8f + Vector3.up * 0.6f;
+        Vector3 nose = me.position + fwd * front + Vector3.up * 0.6f;
         float look = Mathf.Min(55f, 6f + Mathf.Max(0f, speed) * (p.headway + 1.4f));
-        if (Physics.SphereCast(front, 0.9f, fwd, out RaycastHit hit, look, carMask, QueryTriggerInteraction.Ignore) && !hit.transform.IsChildOf(me))
+        if (Physics.SphereCast(nose, 0.9f, fwd, out RaycastHit hit, look, carMask, QueryTriggerInteraction.Ignore) && !hit.transform.IsChildOf(me))
         {
             float d = hit.distance;
             float other = 0f;
@@ -93,7 +94,7 @@ public static class LundunDriver
             s.peopleLimit = float.MaxValue;
             float len = Mathf.Min(32f, 6f + Mathf.Max(0f, speed) * 1.6f);
             float side = laneHalf + (p.watchPeople ? 1.6f : 0.3f);
-            Vector3 centre = me.position + fwd * (2.5f + len * 0.5f) + Vector3.up;
+            Vector3 centre = me.position + fwd * (front - 0.3f + len * 0.5f) + Vector3.up;
             int n = Physics.OverlapBoxNonAlloc(centre, new Vector3(side, 1.2f, len * 0.5f), near, me.rotation, peopleMask, QueryTriggerInteraction.Ignore);
             Vector3 right = me.right;
             for (int i = 0; i < n; i++)
@@ -102,7 +103,7 @@ public static class LundunDriver
                 if (c == null || c.transform.IsChildOf(me)) continue;
                 Health h = c.GetComponentInParent<Health>();
                 if (h != null && h.IsDead) continue;
-                Vector3 rel = c.transform.position - (me.position + fwd * 2.5f);
+                Vector3 rel = c.transform.position - (me.position + fwd * (front - 0.3f));
                 float along = Vector3.Dot(rel, fwd), lat = Vector3.Dot(rel, right);
                 if (along < 0f) continue;
                 bool inPath = Mathf.Abs(lat) < laneHalf + 0.4f;
@@ -218,7 +219,7 @@ public static class LundunDriver
         bool baysStreet = width > 9.5 && width < 10.5;      // L3: 10 m streets have parked cars along the kerb: keep clear of them
         return narrowHighStreet ? 1.6f
              : baysStreet ? (float)(width * 0.25) - 0.35f
-             : bus ? Mathf.Max((float)(width * 0.25), (float)(width * 0.5) - 1.8f)
+             : bus ? Mathf.Max((float)(width * 0.25), (float)(width * 0.5) - 2.1f)      // fix: a little more room from the kerb
              : (float)(width * 0.25);
     }
 }

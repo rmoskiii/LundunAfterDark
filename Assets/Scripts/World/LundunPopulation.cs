@@ -557,7 +557,7 @@ public class LundunPopulation : MonoBehaviour
             float d = Flat(c.go.transform.position, player);
             bool seen = SeenCar(c, cam);
             bool damaged = c.health != null && (c.health.IsWrecked || c.health.IsBurning || c.health.Current < 60f);
-            if (d > carDespawnBeyond + (c.bus ? 40f : 0f) && !seen)
+            if (d > carDespawnBeyond - (c.bus ? 20f : 0f) && !seen)            // fix: buses go once they've moved on
             {
                 if (damaged || c.go.transform.position.y < -5f) { Destroy(c.go); cars.RemoveAt(i); continue; }
                 c.go.SetActive(false); c.active = false; continue;
@@ -650,6 +650,19 @@ public class LundunPopulation : MonoBehaviour
         if (busCount >= target) return;
         LundunNavigation nav = LundunNavigation.Instance;
         if (nav == null || nav.Graph == null) return;
+        // fix: with real bus stops, buses are sent to the stops near James where people are waiting (from out of sight,
+        // a little way back down the road), so you see them where they belong: pulling in, people on and off, away
+        LundunBusPassengers stopsNear = LundunBusPassengers.Instance;
+        if (stopsNear != null && LundunDressing.Instance != null && LundunDressing.Instance.BusStopCount > 0)
+        {
+            int index; Vector3 point, travel;
+            if (Time.time >= nextBusTry && stopsNear.StopWantingBus(out index, out point, out travel))
+            {
+                nextBusTry = Time.time + 2f;
+                if (SendBusTo(nav.Graph, point, travel, player)) stopsNear.Sent(index);
+            }
+            return;
+        }
         if (busRoutes == null)
         {
             busRoutes = new List<List<int>>();
@@ -698,6 +711,63 @@ public class LundunPopulation : MonoBehaviour
             return;
         }
     }
+
+    private float nextBusTry;
+    private readonly List<int> busScratch = new List<int>();
+
+    /// A bus on the road 70–120 m before this stop (back along the way buses come), out of sight, heading for it.
+    bool SendBusTo(LundunRoadGraph g, Vector3 stop, Vector3 travel, Vector3 player)
+    {
+        NavPoint on = g.NearestOnRoad(new NavPoint(stop.x, stop.z), out int e, out double t, out double off);
+        if (e < 0) return false;
+        g.EdgeEnds(e, out int from, out int to);
+        if (Vector3.Dot(Node(g, to) - Node(g, from), travel) < 0f) { int x = from; from = to; to = x; }
+        Vector3 here = new Vector3((float)on.x, 0f, (float)on.z);
+        float back = (float)(rng.NextDouble() * 50.0 + 70.0);
+        bool found = false;
+        for (int step = 0; step < 6 && !found; step++)
+        {
+            Vector3 F = Node(g, from);
+            float d = Flat(here, F);
+            if (back <= d - 8f) { here += (F - here).normalized * back; found = true; break; }
+            back -= d; here = F;
+            // the road that leads most straight into 'from'
+            g.NextNodes(from, to, busScratch);
+            Vector3 dirIn = (Node(g, to) - F).normalized;
+            int bestP = -1; float bestA = 50f;
+            foreach (int o in busScratch)
+            {
+                float ang = Vector3.Angle((F - Node(g, o)).normalized, dirIn);
+                if (ang < bestA) { bestA = ang; bestP = o; }
+            }
+            if (bestP < 0) return false;
+            to = from; from = bestP;
+        }
+        if (!found) return false;
+        Vector3 along = (Node(g, to) - Node(g, from)).normalized;
+        double w; string cls; g.EdgeInfo(from, to, out w, out cls);
+        Vector3 pos = here + new Vector3(-along.z, 0f, along.x) * LundunDriver.LaneOffset(w, false, true);
+        float dp = Flat(pos, player);
+        if (dp < 60f || dp > 190f) return false;
+        Camera cam = Camera.main;
+        if (cam != null && LundunView.CanSee(cam, pos)) return false;
+        if (Physics.CheckSphere(pos + Vector3.up * 1.5f, 7f, LayerMask.GetMask("Vehicle", "Player"), QueryTriggerInteraction.Ignore)) return false;
+        Car c = GetPooledBus();
+        if (c == null) return false;
+        Quaternion rot = Quaternion.LookRotation(along, Vector3.up);
+        Vector3 at = pos + Vector3.up * 1.2f;
+        c.go.transform.SetPositionAndRotation(at, rot);
+        c.go.SetActive(true);
+        c.rb.position = at; c.rb.rotation = rot;
+        c.rb.linearVelocity = along * busSpeed * 0.5f; c.rb.angularVelocity = Vector3.zero;
+        c.cc.SetTouchInput(0f, 0f);
+        Fresh(c);
+        c.active = true;
+        c.ai.BeginDriving(g, from, to, busSpeed);
+        return true;
+    }
+
+    static Vector3 Node(LundunRoadGraph g, int n) { NavPoint p = g.NodePosition(n); return new Vector3((float)p.x, 0f, (float)p.z); }
 
     Car GetPooledBus()
     {

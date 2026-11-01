@@ -74,6 +74,8 @@ public class LundunTrafficCar : MonoBehaviour
     private readonly LundunDriver.Senses senses = new LundunDriver.Senses();
     private bool toJunction;
     private bool dareRed;                  // L4: this time, a reckless driver runs the red
+    private float nose = 2.2f, pivotBack;  // fix: the vehicle's length (stop lines, look-ahead) and where a bus turns about
+    private float wedgedFor, backUpUntil, lastSteer;
 
     void RollStyle()
     {
@@ -88,6 +90,11 @@ public class LundunTrafficCar : MonoBehaviour
         car = GetComponent<CarController>();
         lamps = GetComponent<LundunCarLamps>();
         rng = new System.Random(++seedCounter * 7919 + System.Environment.TickCount);
+        // how far its nose is ahead of its middle (a bus is twice a car's length), and buses turn about their back axle
+        LundunCarShape shape = GetComponent<LundunCarShape>();
+        if (shape != null && shape.Nose.z > 0.5f) nose = shape.Nose.z;
+        else { BoxCollider bc = GetComponent<BoxCollider>(); if (bc != null && bc.size.z > 1f) nose = bc.center.z + bc.size.z * 0.5f; }
+        if (isBus) { pivotBack = nose * 0.55f; car.TurnPivotBack = pivotBack; }
     }
 
     void OnEnable()
@@ -196,6 +203,7 @@ public class LundunTrafficCar : MonoBehaviour
         }
 
         Vector3 local = transform.InverseTransformPoint(new Vector3(target.x, transform.position.y, target.z));
+        local.z += pivotBack;                                       // a bus steers from its back axle, so it doesn't cut corners
         float angle = Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg;
         float steer = Mathf.Clamp(angle / steerAngleForFull, -1f, 1f);
 
@@ -226,7 +234,7 @@ public class LundunTrafficCar : MonoBehaviour
                 want = Mathf.Min(want, profile.junctionSpeed + Mathf.Sqrt(2f * profile.brake * Mathf.Max(0f, toEnd - 6f)));
             if (toEnd < 30f && LundunDriver.GiveWay(transform, speed, B, toEnd, profile, senses))
             {
-                float stopLine = (float)(width * 0.5) + 4f;                // short of the crossing road
+                float stopLine = (float)(width * 0.5) + 4f + Mathf.Max(0f, nose - 2.2f);   // short of the crossing road (fix: by its nose)
                 want = Mathf.Min(want, Mathf.Sqrt(2f * profile.brake * Mathf.Max(0f, toEnd - stopLine)));
             }
         }
@@ -237,7 +245,8 @@ public class LundunTrafficCar : MonoBehaviour
         if (lights != null && Time.time >= panicUntil)
         {
             float line = lights.StopAhead(fromNode, toNode, nextNode, toEnd, Mathf.Max(0f, speed), profile.brake, Style == LundunDriver.Style.Reckless, dareRed);
-            if (line >= 0f) { want = Mathf.Min(want, Mathf.Sqrt(2f * profile.brake * Mathf.Max(0f, line - 0.5f))); atLights = true; }
+            // fix: its nose stops a metre short of the line (a bus used to stop with half of it in the junction)
+            if (line >= 0f) { want = Mathf.Min(want, Mathf.Sqrt(2f * profile.brake * Mathf.Max(0f, line - nose - 1f))); atLights = true; }
         }
         if (isBus)
         {
@@ -264,10 +273,43 @@ public class LundunTrafficCar : MonoBehaviour
         // R3: what's ahead (cars at a safe gap, people in the road or stepping out), eased throttle and brakes, the horn
         float laneHalf = Mathf.Max(1.4f, (float)(width * 0.25));
         bool emergency, blocked;
-        want = Mathf.Min(want, LundunDriver.Ahead(transform, speed, profile, laneHalf, senses, out emergency, out blocked));
+        want = Mathf.Min(want, LundunDriver.Ahead(transform, speed, profile, laneHalf, senses, out emergency, out blocked, nose + 0.3f));
         float throttle = LundunDriver.Pedal(speed, want, profile, emergency);
         LundunDriver.Horn(transform, speed, blocked && !atLights, profile, senses);     // L4: nobody honks in a queue at a red light
+
+        // fix: wedged (on a kerb, against a railing, knocked across the lane) and going nowhere although nothing's in
+        // front: back up and try again; well out of line and nobody watching, put back in its lane
+        bool atStop = isBus && Time.time < stopUntil;
+        if (want > 1.5f && Mathf.Abs(speed) < 0.5f && !blocked && !atLights && !atStop) wedgedFor += Time.deltaTime; else wedgedFor = 0f;
+        if (Time.time < backUpUntil) { car.SetTouchInput(-0.7f, -lastSteer); return; }
+        if (wedgedFor > 3f)
+        {
+            wedgedFor = 0f;
+            Vector3 lane = LanePoint(A, dir, Mathf.Clamp(s, 0f, segLen), width);
+            Vector3 off = pos - lane; off.y = 0f;
+            bool outOfLine = off.magnitude > 2.5f || Vector3.Angle(transform.forward, dir) > 35f;
+            if (outOfLine && !Seen()) { BackInLane(lane, dir); return; }
+            backUpUntil = Time.time + 1.5f;
+            lastSteer = steer;
+            return;
+        }
         car.SetTouchInput(throttle, steer);
+    }
+
+    bool Seen()
+    {
+        Camera cam = Camera.main;
+        return cam != null && LundunView.CanSee(cam, transform.position);
+    }
+
+    /// Put back in its lane, facing along the road, at rest (only when nobody can see it).
+    void BackInLane(Vector3 lane, Vector3 dir)
+    {
+        Rigidbody rb = GetComponent<Rigidbody>();
+        Vector3 at = new Vector3(lane.x, transform.position.y + 0.3f, lane.z);
+        Quaternion rot = Quaternion.LookRotation(dir, Vector3.up);
+        transform.SetPositionAndRotation(at, rot);
+        if (rb != null) { rb.position = at; rb.rotation = rot; rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }
     }
 
     Vector3 LanePoint(Vector3 start, Vector3 dir, float along, double width)
@@ -298,7 +340,27 @@ public class LundunTrafficCar : MonoBehaviour
             return;
         }
         graph.NextNodes(toNode, fromNode, scratch);
+        if (isBus && scratch.Count > 1) { nextNode = MainRoadOn(); return; }
         nextNode = scratch.Count > 0 ? scratch[rng.Next(scratch.Count)] : fromNode;
+    }
+
+    /// Fix: a bus (not on a fixed loop) stays on the main roads, where the stops are: the arterial or Ring road that
+    /// carries straight on if there is one, else the straightest way that isn't a service lane.
+    int MainRoadOn()
+    {
+        NavPoint a = graph.NodePosition(fromNode), b = graph.NodePosition(toNode);
+        Vector3 dir = new Vector3((float)(b.x - a.x), 0f, (float)(b.z - a.z)).normalized;
+        int best = scratch[0]; float bestScore = float.MaxValue;
+        foreach (int o in scratch)
+        {
+            NavPoint c = graph.NodePosition(o);
+            Vector3 nd = new Vector3((float)(c.x - b.x), 0f, (float)(c.z - b.z)).normalized;
+            double w; string cls;
+            graph.EdgeInfo(toNode, o, out w, out cls);
+            float score = Vector3.Angle(dir, nd) + (cls == "arterial" || cls == "ring" || cls == "bridge" ? 0f : cls == "street" ? 60f : 400f);
+            if (score < bestScore) { bestScore = score; best = o; }
+        }
+        return best;
     }
 
     // ------------------------------------------------------------------ drivers

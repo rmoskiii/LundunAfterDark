@@ -70,6 +70,8 @@ public class CarController : MonoBehaviour
     /// R3: AI drivers brake as hard as they press (throttle −0.3 = 30% brakes), for smooth stops. Off (the default, and
     /// always for James): any brake press is full brakes, as before.
     public bool ProportionalBrake { get; set; }
+    /// Fix: AI only: how far behind the middle the vehicle turns about (its back axle). 0 = about the middle (cars).
+    public float TurnPivotBack { get; set; }
     public float Speed => Vector3.Dot(rb.linearVelocity, transform.forward);
 
     void OnEnable() { All.Add(this); }
@@ -136,6 +138,13 @@ public class CarController : MonoBehaviour
         float steerAmount = Mathf.Clamp01(Mathf.Abs(speed) / 4f) * Mathf.Sign(speed);
         float yaw = steer * turnSpeed * steerAmount * Time.fixedDeltaTime;
         rb.MoveRotation(rb.rotation * Quaternion.Euler(0f, yaw, 0f));
+        if (TurnPivotBack > 0f && yaw != 0f)
+        {
+            // long vehicles (buses) turn about their back axle, not their middle: the back follows the front round a
+            // corner instead of swinging out into the kerb and whatever stands on it
+            Vector3 middle = forward * TurnPivotBack;                                  // the middle, seen from the pivot
+            rb.MovePosition(rb.position - middle + Quaternion.Euler(0f, yaw, 0f) * middle);
+        }
 
         Vector3 right = transform.right;
         float sideSpeed = Vector3.Dot(rb.linearVelocity, right);

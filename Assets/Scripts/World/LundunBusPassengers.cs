@@ -44,6 +44,7 @@ public class LundunBusPassengers : MonoBehaviour
         public bool active, filling;
         public int want;
         public float nextArrival, nextWant;
+        public float servedAt = -999f, awaitedUntil;        // fix: when a bus last called, and one's on its way
         public readonly List<Person> queue = new List<Person>();
     }
 
@@ -240,6 +241,7 @@ public class LundunBusPassengers : MonoBehaviour
             handled[bus] = bus.StoppedAt;
             Stop s = StopFor(bus);
             if (s == null) continue;                       // a stop nobody's near: the bus just waits its usual time
+            s.servedAt = Time.time; s.awaitedUntil = 0f;
             Job jb = new Job { bus = bus, stop = s, arrived = Time.time, deadline = Time.time + 12f, nextOff = Time.time + 0.8f };
             float h = LundunClock.Instance != null ? LundunClock.Instance.Hour : 22f;
             jb.toGetOff = h >= 7f && h < 22f ? rng.Next(0, 5) : rng.Next(0, 3);
@@ -258,6 +260,29 @@ public class LundunBusPassengers : MonoBehaviour
             bus.HoldAtStop(jb.deadline);
             jobs.Add(jb);
         }
+    }
+
+    /// Fix: a stop near James that wants a bus (people waiting, no bus for 50 s, none already on its way): where the
+    /// bus stops and the way buses travel there. LundunPopulation sends one in from out of sight behind it; true if
+    /// there's one. Call Sent(i) once the bus is on its way.
+    public bool StopWantingBus(out int index, out Vector3 point, out Vector3 travel)
+    {
+        index = -1; point = Vector3.zero; travel = Vector3.forward;
+        Vector3 james = James();
+        float best = float.MaxValue;
+        foreach (Stop s in stops)
+        {
+            if (!s.active || Time.time - s.servedAt < 50f || Time.time < s.awaitedUntil) continue;
+            float d = Flat(s.point, james);
+            if (s.queue.Count == 0 && d > 60f) continue;              // nobody waiting: only if James is right there
+            if (d < best) { best = d; index = s.index; point = s.point; travel = s.travel; }
+        }
+        return index >= 0;
+    }
+
+    public void Sent(int index)
+    {
+        foreach (Stop s in stops) if (s.index == index) s.awaitedUntil = Time.time + 75f;
     }
 
     Stop StopFor(LundunTrafficCar bus)
