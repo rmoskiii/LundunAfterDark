@@ -46,15 +46,20 @@ public class LundunPlaces : MonoBehaviour
     {
         string saved = LundunSave.GetString(PrefKey, "");                  // S0: Story keeps its own home
         home = Find(saved);
+        // never chosen one yet (a new story, or Free Roam's first time): James's own home, the Peckam Safehouse
+        if (home == null) home = Find(DefaultHome);
         Transform player = Player();
         if (home != null && player != null)
         {
-            // start the session at the safehouse you used last
+            // start the session at the safehouse you used last (or at home): at the front door, the Kestrel on the drive
             Teleport(player, home.door, home.doorYaw);
             ParkKestrel(home);
         }
         else if (player != null) home = NearestOf("safehouse", player.position);
     }
+
+    /// James's home, where a new story (and Free Roam, until you pick another safehouse) starts.
+    const string DefaultHome = "SAFE_PECKAM";
 
     void Update()
     {

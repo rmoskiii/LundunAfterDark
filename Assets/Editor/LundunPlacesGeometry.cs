@@ -44,6 +44,9 @@ namespace LundunGreybox
                 new PlaceSite { id = "SAFE_KNIGHT", kind = "safehouse", name = "Knightsbury Mews Safehouse", roadId = "R08", anchorX = 450, anchorZ = 1045, len = 17, depth = 16, height = 8, style = "stucco" },
                 new PlaceSite { id = "SAFE_CANARY", kind = "safehouse", name = "Canary Quay Safehouse", roadId = "R12", anchorX = 1365, anchorZ = 760, len = 17, depth = 16, height = 13, style = "modern" },
                 new PlaceSite { id = "SAFE_GILMORE", kind = "safehouse", name = "Gilmore Estate Safehouse", roadId = "R25", anchorX = 380, anchorZ = 160, len = 17, depth = 16, height = 8, style = "brick" },
+                // James's home (the story starts here): a brick house on Choumert Grove, just off Peckam High Street.
+                // Same id as the old high-street spot it replaces, so a home saved there still finds it.
+                new PlaceSite { id = "SAFE_PECKAM", kind = "safehouse", name = "Peckam Safehouse", roadId = "R22", anchorX = 990, anchorZ = 120, len = 17, depth = 16, height = 8, style = "brick" },
             };
         }
 
@@ -126,10 +129,13 @@ namespace LundunGreybox
                 else Safehouse(s);
                 D.Count(s.kind == "hospital" ? "hospitals" : s.kind == "police" ? "police stations" : "safehouses");
             }
-            // the existing Peckam safehouse (in the old high street) — door and Kestrel bay from the spawn points
+            // Peckam Safehouse: a real house on Choumert Grove now (it used to be a door on the old high street, from the
+            // spawn points). Only if its plot couldn't be fitted does the old spot stand in, so there's always a home.
+            bool peckam = false;
+            foreach (PlaceInfo p in D.places) if (p.id == "SAFE_PECKAM") peckam = true;
             LwSpawn start = null, car = null;
             foreach (LwSpawn sp in W.spawns) { if (sp.id == "SP_PLAYER_START") start = sp; if (sp.id == "SP_KESTREL") car = sp; }
-            if (start != null)
+            if (!peckam && start != null)
                 D.places.Add(new PlaceInfo { id = "SAFE_PECKAM", kind = "safehouse", name = "Peckam Safehouse", doorX = start.x, doorZ = start.z, doorYaw = start.yaw,
                                              hasCar = car != null, carX = car != null ? car.x : 0, carZ = car != null ? car.z : 0, carYaw = car != null ? car.yaw : 0 });
         }
