@@ -106,6 +106,14 @@ public class LundunSmash : MonoBehaviour
 
     public void SetData(Prop[] list, Renderer[] meshesIn) { props = list; targets = meshesIn; }
 
+    /// L6: where things of this kind stand (the dumped mattresses and sofas mark the rough spots).
+    public List<Vector3> Where(Kind kind)
+    {
+        List<Vector3> l = new List<Vector3>();
+        foreach (Prop p in props) if (p.kind == kind) l.Add(p.at);
+        return l;
+    }
+
     /// L4: something built while the game runs that comes loose whole when a car hits it hard enough (the traffic
     /// lights): its own colliders, what kind of thing it is (how hard it is to knock down), its size, and who to tell
     /// when it's knocked down (true) or put back (false).

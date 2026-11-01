@@ -124,6 +124,7 @@ public class LundunPopulation : MonoBehaviour
         if (gangs && GetComponent<LundunGangs>() == null) gameObject.AddComponent<LundunGangs>();     // R4a
         if (GetComponent<LundunTrafficLights>() == null) gameObject.AddComponent<LundunTrafficLights>();   // L4
         if (GetComponent<LundunBusPassengers>() == null) gameObject.AddComponent<LundunBusPassengers>();   // L5
+        if (GetComponent<LundunHomeless>() == null) gameObject.AddComponent<LundunHomeless>();             // L6
         if (showStats) MakeStats();
     }
 
@@ -144,6 +145,7 @@ public class LundunPopulation : MonoBehaviour
         int target = Mathf.RoundToInt(PedestrianBudget * Scale * TimeOfDayFactor);
         target = Mathf.Max(0, target - LundunGangs.ActiveMembers);              // R4a: gang members share the budget
         target = Mathf.Max(0, target - LundunBusPassengers.Active);             // L5: so do people at the bus stops
+        target = Mathf.Max(0, target - LundunHomeless.Active);                  // L6: and people sleeping rough
         TickPedestrians(player, target);
         int movingTarget = Mathf.RoundToInt(MovingCarBudget * Scale * TimeOfDayFactor);
         int parkedTarget = Mathf.RoundToInt(ParkedCarBudget * Scale);
@@ -264,6 +266,9 @@ public class LundunPopulation : MonoBehaviour
         if (h != null && h.IsDead) return false;
         if (LundunStagger.Busy(who)) return false;
 
+        // L6: someone sitting or lying on the pavement: they're not knocked over; they wake up or tell James to watch it
+        LundunHomelessPerson rough = who.GetComponent<LundunHomelessPerson>();
+        if (rough != null && rough.OnTheGround) { bumpedUntil[who] = Time.time + 2f; Check(0); rough.Bumped(); return Done(); }
         PoliceOfficer cop = who.GetComponent<PoliceOfficer>();
         if (cop != null) { BumpOfficer(cop); return Done(); }
         LundunGangMember gm = who.GetComponent<LundunGangMember>();

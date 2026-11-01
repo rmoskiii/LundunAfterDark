@@ -53,6 +53,8 @@ public class LundunTrain : MonoBehaviour
     private float nextCheck;
 
     public bool Riding { get { return riding; } }
+    /// L6: the line (at rail-head height), south end to the buffers.
+    public Vector3[] Path { get { return path; } }
     public float Speed { get { return v; } }
 
     public void SetData(Vector3[] p, Transform[] c, float station, float depot, Vector3 spot, Vector3 way)
