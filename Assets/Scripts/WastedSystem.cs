@@ -79,6 +79,7 @@ public class WastedSystem : MonoBehaviour
             vehicleSystem.RespawnPlayer(wakeAt, wakeRot);
         }
         catch (System.Exception e) { Debug.LogException(e); }
+        try { LundunWallet.HospitalBill(); } catch (System.Exception e) { Debug.LogException(e); }      // S0: Story only, gentle
         playerHealth.ResetHealth();
         vehicleSystem.LockControls(false);
         yield return new WaitForSecondsRealtime(0.5f);

@@ -44,7 +44,7 @@ public class LundunClock : MonoBehaviour
     void Awake()
     {
         Instance = this;
-        Hour = Mathf.Repeat(rememberTime ? PlayerPrefs.GetFloat(SaveKey, startHour) : startHour, 24f);
+        Hour = Mathf.Repeat(rememberTime ? LundunSave.GetFloat(SaveKey, startHour) : startHour, 24f);      // S0: Story has its own time
         Speed = 1f;
         keyLooks = new[] { night, night, dawn, dawn, day, day, dusk, dusk, night, night };
         if (lighting != null) lighting.DrivenByClock = true;
@@ -62,7 +62,9 @@ public class LundunClock : MonoBehaviour
 
     void OnRespawn() { AddHours(respawnSkipHours); }
 
-    void Save() { if (rememberTime) { PlayerPrefs.SetFloat(SaveKey, Hour); PlayerPrefs.Save(); } }
+    /// S0: note the time (for the save), and write it down.
+    public void Remember() { if (rememberTime) LundunSave.SetFloat(SaveKey, Hour); }
+    public void Save() { if (rememberTime) { Remember(); LundunSave.Save(); } }
     void OnApplicationPause(bool paused) { if (paused) Save(); }
     void OnApplicationQuit() { Save(); }
 

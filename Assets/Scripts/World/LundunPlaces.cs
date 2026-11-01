@@ -44,7 +44,7 @@ public class LundunPlaces : MonoBehaviour
 
     void Start()
     {
-        string saved = PlayerPrefs.GetString(PrefKey, "");
+        string saved = LundunSave.GetString(PrefKey, "");                  // S0: Story keeps its own home
         home = Find(saved);
         Transform player = Player();
         if (home != null && player != null)
@@ -70,7 +70,7 @@ public class LundunPlaces : MonoBehaviour
             Vector3 d = s.door - p; d.y = 0f;
             if (d.sqrMagnitude > homeRadius * homeRadius) continue;
             home = s;
-            PlayerPrefs.SetString(PrefKey, s.id); PlayerPrefs.Save();
+            LundunSave.SetString(PrefKey, s.id); LundunSave.Save();
             if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(s.name + "\nYou'll start here next time");
         }
 

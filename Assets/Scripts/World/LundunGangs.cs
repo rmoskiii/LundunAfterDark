@@ -49,7 +49,7 @@ public class LundunGangs : MonoBehaviour
     /// R4b: James has been into this gang's area (so it shows on the map).
     public static bool Discovered(string district)
     {
-        try { return PlayerPrefs.GetInt(SeenKey + district, 0) == 1; } catch { return false; }
+        try { return LundunSave.GetInt(SeenKey + district, 0) == 1; } catch { return false; }     // S0: per mode
     }
 
     public class Group
@@ -321,7 +321,7 @@ public class LundunGangs : MonoBehaviour
             foreach (LwPoly d in nav.World.districts)
             {
                 if (d.id != gang.district || !InPoly(me.x, me.z, d.polygon)) continue;
-                try { PlayerPrefs.SetInt(SeenKey + gang.district, 1); PlayerPrefs.Save(); } catch { }
+                try { LundunSave.SetInt(SeenKey + gang.district, 1); LundunSave.Save(); } catch { }
                 Toast(gang.name.ToUpperInvariant() + " ENDS: on your map now");
             }
         }

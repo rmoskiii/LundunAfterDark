@@ -114,6 +114,7 @@ public class BustedSystem : MonoBehaviour
             vehicleSystem.RespawnPlayer(releaseAt, releaseRot);
         }
         catch (System.Exception e) { Debug.LogException(e); }
+        try { LundunWallet.ArrestFine(); } catch (System.Exception e) { Debug.LogException(e); }       // S0: Story only, gentle
         vehicleSystem.LockControls(false);
         progress = 0f;
         yield return new WaitForSecondsRealtime(0.5f);

@@ -185,7 +185,8 @@ public class LundunWeapons : MonoBehaviour
         Instance = this;
         if (weapons == null || weapons.Length != 5) weapons = Defaults();
         for (int i = 0; i < weapons.Length; i++) { weapons[i].inMag = weapons[i].magazine; weapons[i].spare = weapons[i].reserve; }
-        testLoadout = LundunSettings.TestLoadout;             // G2: the pause-menu LOADOUT setting
+        // G2: the pause-menu LOADOUT setting; S0: in Story it's always your own weapons and real ammo
+        testLoadout = LundunGame.IsStory ? false : LundunSettings.TestLoadout;
         unlimitedReserve = testLoadout;
         UpdateOwned();
         cc = GetComponent<CharacterController>();
@@ -251,6 +252,40 @@ public class LundunWeapons : MonoBehaviour
         if (ch != null) { crosshair = (RectTransform)ch.transform; crosshairScale = crosshair.localScale; }
         BuildHud();
         Equip(1, true);
+        LundunStory.ApplyWeapons(this);                    // S0: Story: the weapons and ammo you had
+    }
+
+    // ------------------------------------------------------------------ S0: the story save
+    /// What James owns (fists and the pistol always), and his spare and loaded ammo.
+    public void GetState(bool[] ownedOut, int[] spareOut, int[] magOut)
+    {
+        for (int i = 0; i < weapons.Length && i < ownedOut.Length; i++)
+        {
+            ownedOut[i] = i <= 1 || picked[i];
+            spareOut[i] = weapons[i].spare;
+            magOut[i] = weapons[i].inMag;
+        }
+    }
+
+    /// Put back what was saved.
+    public void SetState(bool[] ownedIn, int[] spareIn, int[] magIn)
+    {
+        for (int i = 0; i < weapons.Length && i < ownedIn.Length; i++)
+        {
+            picked[i] = i > 1 && ownedIn[i];
+            weapons[i].spare = Mathf.Max(0, spareIn[i]);
+            weapons[i].inMag = Mathf.Clamp(magIn[i], 0, weapons[i].magazine);
+        }
+        UpdateOwned();
+        if (!owned[current]) Equip(1, true);
+        Refresh();
+    }
+
+    /// BUSTED in Story: the guns stay, some spare ammo goes (not the pistol's).
+    public void LoseSpare(float share)
+    {
+        for (int i = 2; i < weapons.Length; i++) weapons[i].spare = Mathf.FloorToInt(weapons[i].spare * (1f - Mathf.Clamp01(share)));
+        Refresh();
     }
 
     /// Give James a weapon and/or ammo (pick-ups, shops, a dropped carbine).
@@ -268,6 +303,7 @@ public class LundunWeapons : MonoBehaviour
     /// G2: switch between the test loadout and normal play.
     public void SetTestMode(bool on)
     {
+        if (LundunGame.IsStory) return;                   // S0: Story always uses your own weapons
         testLoadout = on;
         unlimitedReserve = on;
         if (!on) foreach (Weapon w in weapons) { w.spare = w.reserve; w.inMag = Mathf.Min(w.inMag, w.magazine); }   // a fair, full start

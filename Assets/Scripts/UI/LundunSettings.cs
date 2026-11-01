@@ -199,6 +199,7 @@ public class LundunSettings : MonoBehaviour
 
     void SetLoadout(int i)
     {
+        if (LundunGame.IsStory) return;                     // S0: not in Story
         testLoadout = i == 0; PlayerPrefs.SetInt(LoadoutKey, testLoadout ? 1 : 0); PlayerPrefs.Save();
         if (LundunWeapons.Instance != null) LundunWeapons.Instance.SetTestMode(testLoadout);
         RefreshButtons();
@@ -310,7 +311,14 @@ public class LundunSettings : MonoBehaviour
         aimValue = Stepper(ct, "AIM SPEED", StepAim, ref y);
         Row(ct, "AIM ASSIST", "assist", new[] { "OFF", "LIGHT", "STANDARD", "STRONG" }, SetAssist, ref y);
         Row(ct, "FIRE", "fire", new[] { "MANUAL", "AUTO" }, SetFire, ref y);
-        Row(ct, "LOADOUT", "loadout", new[] { "TEST", "NORMAL" }, SetLoadout, ref y);
+        if (LundunGame.IsStory)
+        {
+            // S0: Story always uses the weapons you've earned or found (Free Roam keeps the LOADOUT choice)
+            Label(ct, "LOADOUT", y);
+            Note(ct, "STORY: the weapons you've earned or found, with real ammo.", ref y);
+            y -= RowGap - 50f;
+        }
+        else Row(ct, "LOADOUT", "loadout", new[] { "TEST", "NORMAL" }, SetLoadout, ref y);
         Note(ct, "STEERING: PAD = slide your left thumb sideways, ARROWS = left/right buttons (both with GAS and BRAKE pedals), POINT = the joystick.  AUTO fires when the crosshair turns red.  TEST: every weapon, endless ammo.", ref y);
         controlsTab.SetActive(false);
 
@@ -327,7 +335,8 @@ public class LundunSettings : MonoBehaviour
 
         RectTransform resume = Rect("Resume", panel);
         resume.anchorMin = resume.anchorMax = new Vector2(0.5f, 0f); resume.pivot = new Vector2(0.5f, 0f);
-        resume.anchoredPosition = new Vector2(0f, 40f); resume.sizeDelta = new Vector2(420f, 96f);
+        resume.anchoredPosition = new Vector2(LundunGame.CanSwitch ? 230f : 0f, 40f); resume.sizeDelta = new Vector2(420f, 96f);
+        if (LundunGame.CanSwitch) SwitchButton(panel);
         Image ri = resume.gameObject.AddComponent<Image>();
         ri.sprite = LundunHudArt.Pill; ri.type = Image.Type.Sliced; ri.pixelsPerUnitMultiplier = 0.67f; ri.color = Accent;
         Button rb = resume.gameObject.AddComponent<Button>(); rb.targetGraphic = ri; rb.onClick.AddListener(Resume);
@@ -335,6 +344,28 @@ public class LundunSettings : MonoBehaviour
         TextMeshProUGUI rt = Text(resume, "RESUME", 38, new Color(0.08f, 0.05f, 0.02f)); Stretch(rt.rectTransform); rt.characterSpacing = 10f;
 
         menu.SetActive(false);
+    }
+
+    /// S0: SWITCH TO STORY / SWITCH TO FREE ROAM, beside RESUME. The story saves first, then the city reloads in the
+    /// other mode (S1: not during a mission).
+    void SwitchButton(RectTransform panel)
+    {
+        bool story = LundunGame.IsStory;
+        RectTransform sw = Rect("SwitchMode", panel);
+        sw.anchorMin = sw.anchorMax = new Vector2(0.5f, 0f); sw.pivot = new Vector2(0.5f, 0f);
+        sw.anchoredPosition = new Vector2(-230f, 40f); sw.sizeDelta = new Vector2(420f, 96f);
+        Image si = sw.gameObject.AddComponent<Image>();
+        si.sprite = LundunHudArt.Pill; si.type = Image.Type.Sliced; si.pixelsPerUnitMultiplier = 0.67f; si.color = new Color(1f, 1f, 1f, 0.12f);
+        Button sb = sw.gameObject.AddComponent<Button>(); sb.targetGraphic = si;
+        sb.onClick.AddListener(() =>
+        {
+            LundunHaptics.Light();
+            IsOpen = false;
+            menu.SetActive(false);
+            LundunGame.Play(story ? LundunGame.Mode.FreeRoam : LundunGame.Mode.Story, false);
+        });
+        sw.gameObject.AddComponent<LundunPressFX>();
+        TextMeshProUGUI st = Text(sw, story ? "SWITCH TO FREE ROAM" : "SWITCH TO STORY", 28, Color.white); Stretch(st.rectTransform); st.characterSpacing = 4f;
     }
 
     /// V3: who made what (the CC BY 4.0 models must be credited, with the licence and what was changed).
