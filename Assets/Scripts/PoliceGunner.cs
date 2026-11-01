@@ -1,3 +1,6 @@
+// W1: some tuning fields below are kept (so nothing in the prefabs/scene is lost) but the wanted level now drives
+// them through PoliceTiers. This hides the "assigned but never used" warnings for those.
+#pragma warning disable 0414
 using System.Collections;
 using UnityEngine;
 
@@ -63,6 +66,7 @@ public class PoliceGunner : MonoBehaviour
     bool CanShoot()
     {
         WantedSystem wanted = WantedSystem.Instance;
+        if (!ai.Armed) return false;                                   // W1: only armed response units shoot
         if (wanted.Stars < starsToShoot || !ai.enabled || !ai.CanSeeTarget) return false;
         if (ai.OfficersOut || VehicleSystem.Locked) return false;   // officers on foot do the shooting
         if (PlayerHealth.Instance == null || PlayerHealth.Instance.IsDead) return false;
@@ -83,36 +87,18 @@ public class PoliceGunner : MonoBehaviour
     {
         Transform target = WantedSystem.Instance.PlayerTarget;
         Vector3 from = transform.position + Vector3.up * 2f;     // leaning out above the roof
-        Vector3 aim = target.position + Vector3.up * 1.1f;
+        Vector3 aim = PoliceAim.Centre(target);
         float distance = Vector3.Distance(from, aim);
 
-        // Harder to hit at range and when you're moving fast; more stars = better aim
-        float chance = Mathf.Lerp(closeHitChance, farHitChance, distance / range);
+        // W1: accuracy and damage come from the wanted level; shooting from a moving car is a bit worse,
+        // and a fast-moving target is harder to hit
+        PoliceTiers.Tier tier = PoliceTiers.For(WantedSystem.Instance.Stars);
+        float chance = Mathf.Lerp(tier.hitChanceNear, tier.hitChanceFar, distance / range) * 0.85f;
         chance -= TargetSpeed(target) * 0.02f;
-        chance += (WantedSystem.Instance.Stars - starsToShoot) * 0.1f;
-        chance = Mathf.Clamp(chance, 0.05f, 0.9f);
+        chance = Mathf.Clamp(chance, 0.03f, 0.9f);
 
-        // A miss is aimed beside you, so you see/hear it whizz past
-        if (Random.value > chance)
-        {
-            Vector3 side = Vector3.Cross(Vector3.up, (aim - from).normalized);
-            aim += side * Random.Range(1.2f, 2.5f) * (Random.value < 0.5f ? -1f : 1f)
-                 + Vector3.up * Random.Range(-0.5f, 1f);
-        }
-
-        Vector3 dir = (aim - from).normalized;
-        Vector3 end = from + dir * range;
-
-        if (Physics.Raycast(from, dir, out RaycastHit hit, range, ~0, QueryTriggerInteraction.Ignore))
-        {
-            end = hit.point;
-            if (hit.transform == target || hit.transform.IsChildOf(target))
-            {
-                VehicleHealth playerCar = target.GetComponent<VehicleHealth>();
-                if (playerCar != null) playerCar.TakeDamage(damageToCar);
-                else PlayerHealth.Instance.TakeDamage(damageOnFoot);
-            }
-        }
+        // Hit or miss is rolled first; a hit lands unless a building is in the way (see PoliceAim)
+        Vector3 end = PoliceAim.Fire(transform, from, target, chance, range, tier.damage * 1.2f, damageToCar);
 
         if (gunshot != null)
         {

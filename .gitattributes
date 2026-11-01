@@ -9,3 +9,4 @@
 *.psd filter=lfs diff=lfs merge=lfs -text
 *.tga filter=lfs diff=lfs merge=lfs -text
 *.exr filter=lfs diff=lfs merge=lfs -text
+Assets/World/Expansions/**/*.asset filter=lfs diff=lfs merge=lfs -text

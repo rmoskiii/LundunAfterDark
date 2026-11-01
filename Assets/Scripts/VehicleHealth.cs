@@ -22,14 +22,23 @@ public class VehicleHealth : MonoBehaviour
     [SerializeField] private AudioClip explosionSound;
 
     public float Current { get; private set; }
+    public float Max => maxHealth;
     public bool IsBurning { get; private set; }
     public bool IsWrecked { get; private set; }
+    /// V4a: crash sparks and bits use the same particle materials as the fire and smoke.
+    public Material FireMaterial => fireMaterial;
+    public Material SmokeMaterial => smokeMaterial;
 
     private Rigidbody rb;
     private CarController car;
     private ParticleSystem smoke;
     private ParticleSystem fire;
     private float fuse;
+
+    // what the wreck switched off / darkened, so Repair() can undo it (R7: the Kestrel comes home)
+    private readonly List<MonoBehaviour> wreckDisabled = new List<MonoBehaviour>();
+    private readonly List<Light> wreckLights = new List<Light>();
+    private readonly List<KeyValuePair<Material, Color>> wreckColours = new List<KeyValuePair<Material, Color>>();
 
     void Awake()
     {
@@ -41,6 +50,9 @@ public class VehicleHealth : MonoBehaviour
     void OnCollisionEnter(Collision collision)
     {
         float impact = collision.relativeVelocity.magnitude;
+        // V4b: street furniture that breaks barely hurts the car (a cone at 60 mph is nothing; a lamp post is something)
+        float keep;
+        if (LundunSmash.Instance != null && LundunSmash.Instance.WouldBreak(collision.collider, impact, out keep)) impact *= Mathf.Clamp01((1f - keep) * 2.5f);
         if (impact > crashDamageSpeed)
             TakeDamage((impact - crashDamageSpeed) * crashDamageMultiplier);
     }
@@ -78,15 +90,15 @@ public class VehicleHealth : MonoBehaviour
 
         // Switch off driving, AI, sirens, lights: it's a wreck now
         foreach (MonoBehaviour mb in GetComponentsInChildren<MonoBehaviour>())
-            if (mb != this) mb.enabled = false;
+            if (mb != this && mb.enabled) { mb.enabled = false; wreckDisabled.Add(mb); }
         foreach (AudioSource a in GetComponentsInChildren<AudioSource>()) a.Stop();
-        foreach (Light l in GetComponentsInChildren<Light>()) l.enabled = false;
+        foreach (Light l in GetComponentsInChildren<Light>()) if (l.enabled) { l.enabled = false; wreckLights.Add(l); }
 
         // Burnt look
         foreach (Renderer r in GetComponentsInChildren<Renderer>())
         {
             if (r is ParticleSystemRenderer) continue;
-            foreach (Material m in r.materials) m.color = m.color * 0.12f;
+            foreach (Material m in r.materials) { wreckColours.Add(new KeyValuePair<Material, Color>(m, m.color)); m.color = m.color * 0.12f; }
         }
 
         // Pop the wreck into the air
@@ -141,6 +153,24 @@ public class VehicleHealth : MonoBehaviour
             CrimeSystem.Report(CrimeType.DestroyPoliceCar, centre);
             Destroy(gameObject, 30f);
         }
+    }
+
+    /// Good as new: undoes the wreck (or just the damage), puts out fire and smoke.
+    public void Repair()
+    {
+        foreach (MonoBehaviour mb in wreckDisabled) if (mb != null) mb.enabled = true;
+        foreach (Light l in wreckLights) if (l != null) l.enabled = true;
+        foreach (KeyValuePair<Material, Color> kv in wreckColours) if (kv.Key != null) kv.Key.color = kv.Value;
+        wreckDisabled.Clear(); wreckLights.Clear(); wreckColours.Clear();
+        if (smoke != null) { Destroy(smoke.gameObject); smoke = null; }
+        if (fire != null) { Destroy(fire.gameObject); fire = null; }
+        IsWrecked = false;
+        IsBurning = false;
+        Current = maxHealth;
+        fuse = fuseTime;
+        if (rb != null) { rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }
+        LundunCarDamage dmg = GetComponent<LundunCarDamage>();            // V4a: dents, glass, lamps
+        if (dmg != null) dmg.Repair();
     }
 
     float Falloff(Vector3 point, Vector3 centre)

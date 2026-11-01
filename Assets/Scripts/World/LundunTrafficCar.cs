@@ -1,0 +1,414 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+/// A traffic or parked car. Drives a real physics car (CarController) along the road network,
+/// on the left, turning at junctions, slowing for corners and braking for whatever's in front.
+/// Carjack it (enter while a driver is inside) and the driver gets pulled out: they run, fight or shoot.
+/// Ram it hard and a hot-headed driver gets out to have a go.
+/// Spawned and recycled by LundunPopulation.
+/// R3: each driver has a personality (careful, normal or reckless: LundunDriver) that sets their speed, following gap,
+/// how they take junctions and how they watch for people; throttle and brakes are eased in and out.
+[RequireComponent(typeof(CarController))]
+public class LundunTrafficCar : MonoBehaviour
+{
+    public enum Mode { Driving, Parked, Abandoned }
+    public enum Temper { Flee, Fight, Gun }
+
+    public Mode CurrentMode { get; private set; }
+    public bool HasDriver { get; private set; }
+    public Temper DriverTemper { get; private set; }
+
+    [Header("Driving")]
+    [SerializeField] private float lookAhead = 7f;
+    [SerializeField] private float steerAngleForFull = 25f;
+    [SerializeField] private float cornerSpeed = 5f;
+#pragma warning disable 0414
+    [Tooltip("Kept for the prefabs; R3: how far they look ahead now comes from the driver's personality (LundunDriver)")]
+    [SerializeField] private float brakeLookBase = 4f;
+#pragma warning restore 0414
+
+    [Header("Bus (only used when IsBus)")]
+    [SerializeField] private bool isBus = false;
+    [SerializeField] private float stopEvery = 260f;            // metres between bus stops
+    [SerializeField] private float stopFor = 6f;                // seconds at each stop
+
+    [Header("Ramming")]
+    [SerializeField] private float angryImpact = 4f;           // m/s relative speed that sets a driver off
+
+    // the old high street's Kenney tiles are narrower: hug the middle there so we miss the Belisha beacons
+    static Rect narrowStreet = new Rect(800f, 154f, 120f, 72f);
+
+    private CarController car;
+    private LundunRoadGraph graph;
+    private int fromNode = -1, toNode = -1, nextNode = -1;
+    private float cruise = 9f, panicUntil;
+    private readonly List<int> scratch = new List<int>();
+    private System.Random rng;
+    private static int seedCounter;
+    private List<int> route;            // fixed loop of nodes (buses); null = wander at random
+    private int routeIndex;
+    private float sinceStop, stopUntil, ignoreStopsUntil;
+    private LundunCarLamps lamps;          // V4a: indicators
+    private bool pullingOut;
+
+    public bool IsBus { get { return isBus; } }
+
+    // ------------------------------------------------------------------ L5: passengers (LundunBusPassengers)
+    /// Every bus in the game.
+    public static readonly List<LundunTrafficCar> Buses = new List<LundunTrafficCar>();
+    /// Stopped at a bus stop right now.
+    public bool AtStop { get { return isBus && CurrentMode == Mode.Driving && HasDriver && Time.time < stopUntil; } }
+    /// When it stopped at the current (or last) stop.
+    public float StoppedAt { get; private set; }
+    /// Stay at the stop until this time (people still getting on and off), then indicate and pull out.
+    public void HoldAtStop(float until)
+    {
+        if (!isBus) return;
+        stopUntil = until;
+        ignoreStopsUntil = Mathf.Max(ignoreStopsUntil, until + 8f);
+    }
+
+    // R3: the driver
+    public LundunDriver.Style Style { get; private set; }
+    private LundunDriver.Profile profile = LundunDriver.For(LundunDriver.Style.Normal);
+    private readonly LundunDriver.Senses senses = new LundunDriver.Senses();
+    private bool toJunction;
+    private bool dareRed;                  // L4: this time, a reckless driver runs the red
+    private float nose = 2.2f, pivotBack;  // fix: the vehicle's length (stop lines, look-ahead) and where a bus turns about
+    private float wedgedFor, backUpUntil, lastSteer;
+
+    void RollStyle()
+    {
+        float hour = LundunClock.Instance != null ? LundunClock.Instance.Hour : 22f;
+        Style = isBus ? LundunDriver.Style.Careful : LundunDriver.Roll(rng, hour);    // bus drivers are always careful
+        profile = LundunDriver.For(Style);
+        car.ProportionalBrake = true;
+    }
+
+    void Awake()
+    {
+        car = GetComponent<CarController>();
+        lamps = GetComponent<LundunCarLamps>();
+        rng = new System.Random(++seedCounter * 7919 + System.Environment.TickCount);
+        // how far its nose is ahead of its middle (a bus is twice a car's length), and buses turn about their back axle
+        LundunCarShape shape = GetComponent<LundunCarShape>();
+        if (shape != null && shape.Nose.z > 0.5f) nose = shape.Nose.z;
+        else { BoxCollider bc = GetComponent<BoxCollider>(); if (bc != null && bc.size.z > 1f) nose = bc.center.z + bc.size.z * 0.5f; }
+        if (isBus) { pivotBack = nose * 0.55f; car.TurnPivotBack = pivotBack; }
+    }
+
+    void OnEnable()
+    {
+        if (isBus && !Buses.Contains(this)) Buses.Add(this);              // L5
+        VehicleSystem.Entering += OnEntering;
+        PlayerCombat.GunshotFired += OnGunshot;
+    }
+
+    void OnDisable()
+    {
+        Buses.Remove(this);
+        VehicleSystem.Entering -= OnEntering;
+        PlayerCombat.GunshotFired -= OnGunshot;
+    }
+
+    // ------------------------------------------------------------------ set-up (called by LundunPopulation)
+    public void BeginDriving(LundunRoadGraph g, int from, int to, float speed)
+    {
+        graph = g; fromNode = from; toNode = to; cruise = speed; route = null;
+        PickNext();
+        CurrentMode = Mode.Driving;
+        HasDriver = true;
+        DriverTemper = RollTemper();
+        RollStyle();
+        toJunction = IsJunction(toNode);
+    }
+
+    /// Follow a fixed loop of nodes, starting on the hop route[index] → route[index+1]. Buses stop every stopEvery metres.
+    public void BeginRoute(LundunRoadGraph g, List<int> loop, int index, float speed)
+    {
+        graph = g; route = loop; routeIndex = index; cruise = speed;
+        fromNode = route[routeIndex % route.Count];
+        toNode = route[(routeIndex + 1) % route.Count];
+        nextNode = route[(routeIndex + 2) % route.Count];
+        sinceStop = 0f; stopUntil = 0f;
+        CurrentMode = Mode.Driving;
+        HasDriver = true;
+        DriverTemper = RollTemper();
+        RollStyle();
+        toJunction = IsJunction(toNode);
+    }
+
+    public void BeginParked()
+    {
+        graph = null;
+        CurrentMode = Mode.Parked;
+        HasDriver = false;
+        car.ProportionalBrake = false;
+        car.SetTouchInput(0f, 0f);
+    }
+
+    Temper RollTemper()
+    {
+        float hour = LundunClock.Instance != null ? LundunClock.Instance.Hour : 22f;
+        float gun = (hour < 5f || hour > 22f) ? 0.12f : 0.08f;   // more armed nutters after midnight
+        double r = rng.NextDouble();
+        if (r < gun) return Temper.Gun;
+        if (r < gun + 0.32f) return Temper.Fight;
+        return Temper.Flee;
+    }
+
+    /// R3: a reckless driver is more likely to get out and have a go after a crash.
+    Temper CrashTemper()
+    {
+        if (Style != LundunDriver.Style.Reckless || DriverTemper != Temper.Flee) return DriverTemper;
+        return rng.NextDouble() < 0.5 ? Temper.Fight : Temper.Flee;
+    }
+
+    /// R3: a node where roads meet (three or more ways), not just a bend.
+    bool IsJunction(int node)
+    {
+        if (graph == null || node < 0) return false;
+        graph.NextNodes(node, -1, scratch);
+        return scratch.Count >= 3;
+    }
+
+    // ------------------------------------------------------------------ driving
+    void Update()
+    {
+        if (car.IsDriven) { CurrentMode = Mode.Abandoned; return; }      // James has it now
+        if (CurrentMode != Mode.Driving || graph == null) return;
+
+        NavPoint a = graph.NodePosition(fromNode), b = graph.NodePosition(toNode);
+        Vector3 A = new Vector3((float)a.x, 0f, (float)a.z), B = new Vector3((float)b.x, 0f, (float)b.z);
+        Vector3 dir = B - A; float segLen = dir.magnitude; if (segLen < 0.1f) { Advance(); return; }
+        dir /= segLen;
+        double width; string cls;
+        graph.EdgeInfo(fromNode, toNode, out width, out cls);
+
+        // where are we along this stretch of road?
+        Vector3 pos = transform.position; pos.y = 0f;
+        float s = Vector3.Dot(pos - A, dir);
+        if (segLen - s < lookAhead * 0.6f) { Advance(); return; }
+
+        // aim at a point a little way ahead, in the left lane (spills onto the next road near the end)
+        float aimS = s + lookAhead;
+        Vector3 target;
+        if (aimS <= segLen) target = LanePoint(A, dir, aimS, width);
+        else
+        {
+            NavPoint c = graph.NodePosition(nextNode);
+            Vector3 C = new Vector3((float)c.x, 0f, (float)c.z), ndir = (C - B).normalized;
+            double nw; string ncls; graph.EdgeInfo(toNode, nextNode, out nw, out ncls);
+            target = LanePoint(B, ndir, aimS - segLen, nw);
+        }
+
+        Vector3 local = transform.InverseTransformPoint(new Vector3(target.x, transform.position.y, target.z));
+        local.z += pivotBack;                                       // a bus steers from its back axle, so it doesn't cut corners
+        float angle = Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg;
+        float steer = Mathf.Clamp(angle / steerAngleForFull, -1f, 1f);
+
+        // how fast: road speed (by the driver's personality), slower into sharp turns and junctions, stop for things in front
+        float want = cruise * (isBus ? 1f : profile.speed) * (Time.time < panicUntil ? 1.4f : 1f);
+        float toEnd = segLen - s;
+        float speed = car.Speed;
+        // V4a: indicate a turn at the next junction (not for a gentle bend)
+        if (lamps != null && toEnd < 38f && nextNode >= 0 && toJunction)
+        {
+            NavPoint c = graph.NodePosition(nextNode);
+            Vector3 ndir = new Vector3((float)c.x, 0f, (float)c.z) - B;
+            float signed = Vector3.SignedAngle(dir, ndir, Vector3.up);
+            if (Mathf.Abs(signed) > 28f) lamps.Indicate(signed > 0f ? 1 : -1, 3f);
+        }
+        if (toEnd < 25f && nextNode >= 0)
+        {
+            NavPoint c = graph.NodePosition(nextNode);
+            Vector3 ndir = (new Vector3((float)c.x, 0f, (float)c.z) - B).normalized;
+            float turn = Vector3.Angle(dir, ndir);
+            float corner = Style == LundunDriver.Style.Reckless ? cornerSpeed * 1.4f : cornerSpeed;
+            if (turn > 30f) want = Mathf.Min(want, Mathf.Lerp(cruise, corner, Mathf.InverseLerp(30f, 90f, turn)));
+        }
+        // R3: junctions: ease down into them, and give way (careful / normal drivers)
+        if (toJunction && Time.time >= panicUntil)
+        {
+            if (profile.junctionSpeed > 0f && toEnd < profile.junctionFrom)
+                want = Mathf.Min(want, profile.junctionSpeed + Mathf.Sqrt(2f * profile.brake * Mathf.Max(0f, toEnd - 6f)));
+            if (toEnd < 30f && LundunDriver.GiveWay(transform, speed, B, toEnd, profile, senses))
+            {
+                float stopLine = (float)(width * 0.5) + 4f + Mathf.Max(0f, nose - 2.2f);   // short of the crossing road (fix: by its nose)
+                want = Mathf.Min(want, Mathf.Sqrt(2f * profile.brake * Mathf.Max(0f, toEnd - stopLine)));
+            }
+        }
+        // L4: traffic lights: stop at red and red+amber, and at amber if they can (reckless drivers run ambers, and now
+        // and then a red; a driver fleeing a gunshot ignores them)
+        LundunTrafficLights lights = LundunTrafficLights.Instance;
+        bool atLights = false;
+        if (lights != null && Time.time >= panicUntil)
+        {
+            float line = lights.StopAhead(fromNode, toNode, nextNode, toEnd, Mathf.Max(0f, speed), profile.brake, Style == LundunDriver.Style.Reckless, dareRed);
+            // fix: its nose stops a metre short of the line (a bus used to stop with half of it in the junction)
+            if (line >= 0f) { want = Mathf.Min(want, Mathf.Sqrt(2f * profile.brake * Mathf.Max(0f, line - nose - 1f))); atLights = true; }
+        }
+        if (isBus)
+        {
+            LundunDressing dressing = LundunDressing.Instance;
+            if (Time.time < stopUntil) { want = 0f; pullingOut = true; }
+            else if (pullingOut) { pullingOut = false; if (lamps != null) lamps.Indicate(1, 3f); }      // V4a: pulling out
+            else if (dressing != null && dressing.BusStopCount > 0)
+            {
+                // pull in at the real shelters (Lundun → 13): ease off, stop alongside, wait, move on
+                float ahead;
+                if (Time.time > ignoreStopsUntil && dressing.StopAhead(transform.position, transform.forward, out ahead))
+                {
+                    want = Mathf.Min(want, Mathf.Max(1.2f, ahead * 0.5f));
+                    if (lamps != null && ahead < 30f) lamps.Indicate(-1, 1f);                                 // V4a: pulling in
+                    if (ahead < 1.5f) { stopUntil = Time.time + stopFor; ignoreStopsUntil = stopUntil + 8f; want = 0f; StoppedAt = Time.time; }
+                }
+            }
+            else
+            {
+                sinceStop += Mathf.Max(0f, speed) * Time.deltaTime;
+                if (sinceStop > stopEvery && toEnd > 30f && s > 20f) { stopUntil = Time.time + stopFor; sinceStop = 0f; want = 0f; StoppedAt = Time.time; }
+            }
+        }
+        // R3: what's ahead (cars at a safe gap, people in the road or stepping out), eased throttle and brakes, the horn
+        float laneHalf = Mathf.Max(1.4f, (float)(width * 0.25));
+        bool emergency, blocked;
+        want = Mathf.Min(want, LundunDriver.Ahead(transform, speed, profile, laneHalf, senses, out emergency, out blocked, nose + 0.3f));
+        float throttle = LundunDriver.Pedal(speed, want, profile, emergency);
+        LundunDriver.Horn(transform, speed, blocked && !atLights, profile, senses);     // L4: nobody honks in a queue at a red light
+
+        // fix: wedged (on a kerb, against a railing, knocked across the lane) and going nowhere although nothing's in
+        // front: back up and try again; well out of line and nobody watching, put back in its lane
+        bool atStop = isBus && Time.time < stopUntil;
+        if (want > 1.5f && Mathf.Abs(speed) < 0.5f && !blocked && !atLights && !atStop) wedgedFor += Time.deltaTime; else wedgedFor = 0f;
+        if (Time.time < backUpUntil) { car.SetTouchInput(-0.7f, -lastSteer); return; }
+        if (wedgedFor > 3f)
+        {
+            wedgedFor = 0f;
+            Vector3 lane = LanePoint(A, dir, Mathf.Clamp(s, 0f, segLen), width);
+            Vector3 off = pos - lane; off.y = 0f;
+            bool outOfLine = off.magnitude > 2.5f || Vector3.Angle(transform.forward, dir) > 35f;
+            if (outOfLine && !Seen()) { BackInLane(lane, dir); return; }
+            backUpUntil = Time.time + 1.5f;
+            lastSteer = steer;
+            return;
+        }
+        car.SetTouchInput(throttle, steer);
+    }
+
+    bool Seen()
+    {
+        Camera cam = Camera.main;
+        return cam != null && LundunView.CanSee(cam, transform.position);
+    }
+
+    /// Put back in its lane, facing along the road, at rest (only when nobody can see it).
+    void BackInLane(Vector3 lane, Vector3 dir)
+    {
+        Rigidbody rb = GetComponent<Rigidbody>();
+        Vector3 at = new Vector3(lane.x, transform.position.y + 0.3f, lane.z);
+        Quaternion rot = Quaternion.LookRotation(dir, Vector3.up);
+        transform.SetPositionAndRotation(at, rot);
+        if (rb != null) { rb.position = at; rb.rotation = rot; rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }
+    }
+
+    Vector3 LanePoint(Vector3 start, Vector3 dir, float along, double width)
+    {
+        Vector3 centre = start + dir * along;
+        Vector3 left = new Vector3(-dir.z, 0f, dir.x);
+        // UK: keep left (buses hug the kerb; clear of the bays on 10 m streets; the old high street is narrower)
+        float offset = LundunDriver.LaneOffset(width, narrowStreet.Contains(new Vector2(centre.x, centre.z)), isBus);
+        return centre + left * offset;
+    }
+
+    void Advance()
+    {
+        fromNode = toNode; toNode = nextNode;
+        PickNext();
+        toJunction = IsJunction(toNode);
+        senses.waitedAtJunction = 0f;
+        dareRed = Style == LundunDriver.Style.Reckless && rng.NextDouble() < 0.1;          // L4: once in a while
+    }
+
+    void PickNext()
+    {
+        if (route != null)
+        {
+            routeIndex = (routeIndex + 1) % route.Count;
+            if (route[routeIndex % route.Count] != fromNode) routeIndex = route.IndexOf(fromNode) >= 0 ? route.IndexOf(fromNode) : routeIndex;
+            nextNode = route[(routeIndex + 2) % route.Count];
+            return;
+        }
+        graph.NextNodes(toNode, fromNode, scratch);
+        if (isBus && scratch.Count > 1) { nextNode = MainRoadOn(); return; }
+        nextNode = scratch.Count > 0 ? scratch[rng.Next(scratch.Count)] : fromNode;
+    }
+
+    /// Fix: a bus (not on a fixed loop) stays on the main roads, where the stops are: the arterial or Ring road that
+    /// carries straight on if there is one, else the straightest way that isn't a service lane.
+    int MainRoadOn()
+    {
+        NavPoint a = graph.NodePosition(fromNode), b = graph.NodePosition(toNode);
+        Vector3 dir = new Vector3((float)(b.x - a.x), 0f, (float)(b.z - a.z)).normalized;
+        int best = scratch[0]; float bestScore = float.MaxValue;
+        foreach (int o in scratch)
+        {
+            NavPoint c = graph.NodePosition(o);
+            Vector3 nd = new Vector3((float)(c.x - b.x), 0f, (float)(c.z - b.z)).normalized;
+            double w; string cls;
+            graph.EdgeInfo(toNode, o, out w, out cls);
+            float score = Vector3.Angle(dir, nd) + (cls == "arterial" || cls == "ring" || cls == "bridge" ? 0f : cls == "street" ? 60f : 400f);
+            if (score < bestScore) { bestScore = score; best = o; }
+        }
+        return best;
+    }
+
+    // ------------------------------------------------------------------ drivers
+    void OnEntering(CarController c)
+    {
+        if (c != car || !HasDriver) return;
+        // carjack: driver pulled out of the driver's side (UK: right), reacts by temper
+        Transform player = FindAnyObjectByType<VehicleSystem>() != null ? FindAnyObjectByType<VehicleSystem>().PlayerTarget : null;
+        EjectDriver(DriverTemper, player);
+        CurrentMode = Mode.Abandoned;
+    }
+
+    void OnCollisionEnter(Collision c)
+    {
+        if (!HasDriver || CurrentMode != Mode.Driving) return;
+        VehicleSystem vs = FindAnyObjectByType<VehicleSystem>();
+        if (vs == null || vs.CurrentCar == null) return;
+        if (!c.transform.IsChildOf(vs.CurrentCar.transform)) return;          // only James's car counts
+        if (c.relativeVelocity.magnitude < angryImpact) return;
+        Temper temper = CrashTemper();                                         // R3: reckless drivers are hot-headed
+        if (temper == Temper.Flee) { panicUntil = Time.time + 6f; return; }   // honks and speeds off
+        CurrentMode = Mode.Abandoned;
+        car.ProportionalBrake = false;
+        car.SetTouchInput(-1f, 0f);
+        EjectDriver(temper, vs.PlayerTarget);
+    }
+
+    void OnGunshot(Vector3 from)
+    {
+        if (CurrentMode != Mode.Driving) return;
+        if ((from - transform.position).sqrMagnitude < 40f * 40f) panicUntil = Time.time + 8f;   // floor it
+    }
+
+    void EjectDriver(Temper temper, Transform player)
+    {
+        HasDriver = false;
+        LundunPopulation pop = LundunPopulation.Instance;
+        if (pop == null) return;
+        Vector3 door = transform.position + transform.right * 1.6f;
+        GameObject driver = pop.SpawnPersonAt(door, transform.eulerAngles.y + 90f);
+        if (driver == null) return;
+        if (temper == Temper.Flee || player == null)
+        {
+            NPCBrain brain = driver.GetComponent<NPCBrain>();
+            if (brain != null && player != null) brain.Panic(player.position);
+            return;
+        }
+        LundunAngryDriver angry = driver.AddComponent<LundunAngryDriver>();
+        angry.Begin(temper == Temper.Gun);
+    }
+}

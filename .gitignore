@@ -111,3 +111,5 @@ InitTestScene*.unity*
 # Mac + Rider
 .DS_Store
 .idea/
+
+  __pycache__/

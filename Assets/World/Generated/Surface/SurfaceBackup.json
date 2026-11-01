@@ -1,0 +1,174 @@
+{
+    "mats": [
+        {
+            "path": "Assets/World/Materials/Road.mat",
+            "baseMapGuid": "",
+            "colour": {
+                "r": 0.15999993681907654,
+                "g": 0.15999993681907654,
+                "b": 0.1799999475479126,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Pavement.mat",
+            "baseMapGuid": "",
+            "colour": {
+                "r": 0.44999998807907104,
+                "g": 0.44999998807907104,
+                "b": 0.45999985933303833,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_CANARY_0.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.44999998807907104,
+                "g": 0.3999999761581421,
+                "b": 0.32999998331069946,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_CANARY_1.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.37999993562698364,
+                "g": 0.3999999761581421,
+                "b": 0.41999995708465576,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_CANARY_2.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.5,
+                "g": 0.35999998450279236,
+                "b": 0.2799999713897705,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_CANARY_PEN_0.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.5499999523162842,
+                "g": 0.6200000047683716,
+                "b": 0.699999988079071,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_CANARY_PEN_1.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.44999998807907104,
+                "g": 0.5199999809265137,
+                "b": 0.6000000238418579,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_CANARY_PEN_2.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.6200000047683716,
+                "g": 0.6599999666213989,
+                "b": 0.699999988079071,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_GILMOR_0.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.5499999523162842,
+                "g": 0.5299999713897705,
+                "b": 0.5,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_GILMOR_1.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.5,
+                "g": 0.4599999189376831,
+                "b": 0.41999995708465576,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_GILMOR_2.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.6000000238418579,
+                "g": 0.5799999833106995,
+                "b": 0.5399999618530273,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_KNIGHT_0.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.7799999713897705,
+                "g": 0.75,
+                "b": 0.6800000071525574,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_KNIGHT_1.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.6599999666213989,
+                "g": 0.6599999666213989,
+                "b": 0.6800000071525574,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_KNIGHT_2.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.7200000286102295,
+                "g": 0.6800000071525574,
+                "b": 0.6000000238418579,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_PECKAM_0.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.5499999523162842,
+                "g": 0.35999998450279236,
+                "b": 0.2799999713897705,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_PECKAM_1.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.6200000047683716,
+                "g": 0.44999998807907104,
+                "b": 0.32999998331069946,
+                "a": 1.0
+            }
+        },
+        {
+            "path": "Assets/World/Materials/Bld_PECKAM_2.mat",
+            "baseMapGuid": "1843394e249ed4c6d92448f0f27ef5b7",
+            "colour": {
+                "r": 0.47999995946884155,
+                "g": 0.31999996304512024,
+                "b": 0.2699999511241913,
+                "a": 1.0
+            }
+        }
+    ]
+}

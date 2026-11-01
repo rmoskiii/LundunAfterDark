@@ -72,6 +72,7 @@ public class BustedSystem : MonoBehaviour
     IEnumerator BustedSequence()
     {
         busted = true;
+        Vector3 arrestedAt = vehicleSystem.PlayerTarget.position;
         arrestMeter.gameObject.SetActive(false);
         vehicleSystem.LockControls(true);
 
@@ -102,12 +103,21 @@ public class BustedSystem : MonoBehaviour
         // Reset everything while the screen is black
         Time.timeScale = 1f;
         bigText.SetActive(false);
-        WantedSystem.Instance.ClearWanted();
-        PoliceAI.ClearAll();                                    // no cops waiting outside the station
-        vehicleSystem.RespawnPlayer(policeStation.position, policeStation.rotation);
+        // Each step on its own, so one problem can never leave you stuck on a black screen
+        string releasedAt = null;
+        try { WantedSystem.Instance.ClearWanted(); } catch (System.Exception e) { Debug.LogException(e); }
+        try { PoliceAI.ClearAll(); } catch (System.Exception e) { Debug.LogException(e); }   // no cops waiting outside the station
+        try
+        {
+            // the nearest police station to where you were arrested
+            releasedAt = LundunPlaces.RespawnSpot("police", "SP_BUSTED", policeStation, arrestedAt, out Vector3 releaseAt, out Quaternion releaseRot);
+            vehicleSystem.RespawnPlayer(releaseAt, releaseRot);
+        }
+        catch (System.Exception e) { Debug.LogException(e); }
         vehicleSystem.LockControls(false);
         progress = 0f;
         yield return new WaitForSecondsRealtime(0.5f);
+        if (releasedAt != null && LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(releasedAt);
 
         // Fade back in
         for (float t = 1f; t > 0f; t -= Time.unscaledDeltaTime)

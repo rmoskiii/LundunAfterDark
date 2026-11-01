@@ -1,0 +1,20 @@
+Validating LundunWorld.json  (schema 1.1)
+
+PASS  V1   Required top-level fields present
+PASS  V2   IDs unique, well formed; every road has a known class and ≥ 2 points
+PASS  V3   Every referenced ID exists (road↔junction↔bridge)
+PASS  V4   Junction membership agrees in both directions
+PASS  V5   Every junction lies on each road it lists (≤ 0.1 m), and lists every road it lies on  (worst 0.044 m)
+PASS  V6   Arms = legs counted from geometry (through road = 2, road ending here = 1); 2–4 arms  (arms: 2-arm × 1, 3-arm × 42, 4-arm × 15)
+PASS  V7   Junctions in order along each road; both road ends are junctions; ≥ 25 m apart
+PASS  V8   Declared lengths match polylines (≤ 0.5 m); widths match class or a declared override
+PASS  V9   Bridges: ends = road ends = stated junctions; one clean water crossing; spans measured bank-to-bank
+PASS  V10  Only bridges enter the river; roads never cross without a junction  (closest ordinary road edge to a wall: 9.3 m)
+PASS  V11  Road network is one connected piece
+PASS  V12  Districts: no water, no overlaps. Parks: clear of roads, pavements and water
+PASS  V13  POIs off the carriageway (landmarks excepted); spawns on/next to roads; police spawns clear of junctions
+PASS  V14  Only the replaced road passes through the existing street footprint
+PASS  V15  Summary counts match the arrays and are unambiguous  (roadEntries=30, ordinaryRoads=25, bridgeRoads=5, bridgeDetails=5, junctions=58, connectedPieces=1)
+PASS  V16  Field meanings are declared in the file (schema ≥ 1.1)
+
+16/16 rules pass

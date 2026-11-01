@@ -33,6 +33,7 @@ public class WastedSystem : MonoBehaviour
     IEnumerator WastedSequence()
     {
         bool onFoot = !vehicleSystem.IsDriving;
+        Vector3 diedAt = vehicleSystem.PlayerTarget.position;
         Transform body = playerHealth.Body;
         Animator anim = body.GetComponentInChildren<Animator>();
 
@@ -67,12 +68,21 @@ public class WastedSystem : MonoBehaviour
         if (greyscaleVolume != null) greyscaleVolume.weight = 0f;
         if (anim != null) anim.speed = 1f;
 
-        WantedSystem.Instance.ClearWanted();
-        PoliceAI.ClearAll();                               // fresh start outside the hospital
-        vehicleSystem.RespawnPlayer(hospital.position, hospital.rotation);
+        // Each step on its own, so one problem can never leave you stuck on a black screen
+        string wokeAt = null;
+        try { WantedSystem.Instance.ClearWanted(); } catch (System.Exception e) { Debug.LogException(e); }
+        try { PoliceAI.ClearAll(); } catch (System.Exception e) { Debug.LogException(e); }   // fresh start outside the hospital
+        try
+        {
+            // the nearest hospital to where you died
+            wokeAt = LundunPlaces.RespawnSpot("hospital", "SP_WASTED", hospital, diedAt, out Vector3 wakeAt, out Quaternion wakeRot);
+            vehicleSystem.RespawnPlayer(wakeAt, wakeRot);
+        }
+        catch (System.Exception e) { Debug.LogException(e); }
         playerHealth.ResetHealth();
         vehicleSystem.LockControls(false);
         yield return new WaitForSecondsRealtime(0.5f);
+        if (wokeAt != null && LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(wokeAt);
 
         for (float t = 1f; t > 0f; t -= Time.unscaledDeltaTime)
         {

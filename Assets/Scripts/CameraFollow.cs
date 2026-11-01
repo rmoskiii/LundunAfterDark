@@ -18,12 +18,56 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private float vehicleHeight = 1.6f;
     [SerializeField] private float vehicleFollowSpeed = 3f;   // how fast it swings back behind the car
     [SerializeField] private float lookIdleTime = 1f;          // seconds after you stop dragging before it swings back
+    [Header("V1: speed")]
+    [Tooltip("At full speed the camera pulls back this much further (m), rises a little, and widens by Speed Fov degrees")]
+    [SerializeField] private float speedPullBack = 2.2f;
+    [SerializeField] private float speedRise = 0.35f;
+    [SerializeField] private float speedFov = 9f;
+    [Tooltip("The speed (m/s) that counts as full speed for that (28 = about 63 mph)")]
+    [SerializeField] private float speedForFull = 28f;
 
     [Header("Look")]
     [SerializeField] private float mouseSensitivity = 0.15f;
     [SerializeField] private float touchSensitivity = 0.2f;
     [SerializeField] private float minPitch = -20f;
     [SerializeField] private float maxPitch = 60f;
+
+    [Header("Turning response (A1)")]
+    [Tooltip("Slow drags turn a little less (precise); quick flicks turn more")]
+    [SerializeField] private bool lookAcceleration = true;
+    [SerializeField] private float slowDragGain = 0.85f;
+    [SerializeField] private float fastDragGain = 1.5f;
+    [Tooltip("Drag speed (screen heights per second) where slow ends and fast begins")]
+    [SerializeField] private Vector2 dragSpeedRange = new Vector2(0.4f, 2.5f);
+
+    [Header("Recoil recovery (A1)")]
+    [Tooltip("How quickly the aim settles back after the kick (per second)")]
+    [SerializeField] private float recoilRecovery = 7f;
+    [Tooltip("Pause after a shot before it starts settling")]
+    [SerializeField] private float recoilRecoveryDelay = 0.06f;
+
+    [Header("Aiming in (A2: the AIM button)")]
+    [SerializeField] private float aimDistance = 1.7f;
+    [SerializeField] private float aimHeight = 0.58f;
+    [SerializeField] private float aimShoulder = 0.72f;
+    [SerializeField] private float aimFov = 40f;
+
+    [Header("Framing (G3)")]
+    [Tooltip("Just walking about: pull back a little to show more of the street")]
+    [SerializeField] private float exploreDistanceScale = 1.12f;
+    [SerializeField] private float exploreExtraHeight = 0.12f;
+    [Tooltip("Gun up (fired recently): a little closer, more over the shoulder")]
+    [SerializeField] private float combatDistanceScale = 0.9f;
+    [SerializeField] private float combatExtraShoulder = 0.1f;
+
+    [Header("Walls (G3)")]
+    [Tooltip("Keep the camera out of buildings: it slides in when something big is behind you")]
+    [SerializeField] private bool cameraCollision = true;
+    [SerializeField] private float collisionRadius = 0.22f;
+    [Tooltip("Ignore things smaller than this (lamp posts, bollards) so the camera doesn't jump")]
+    [SerializeField] private float ignoreSmallerThan = 3f;
+    [SerializeField] private LayerMask collisionLayers = 1;      // Default = buildings and the world
+    private float collideDistance = -1f;
 
     [Header("Field of view")]
     [SerializeField] private float normalFov = 60f;
@@ -38,6 +82,8 @@ public class CameraFollow : MonoBehaviour
     private PlayerController player;
     private bool mouseLookActive;
     private bool vehicleMode;
+    private Rigidbody targetBody;        // V1: the car being followed (for its speed)
+    private float speedNow;
     private float yaw;
     private float pitch = 10f;
     private float shake;
@@ -45,6 +91,10 @@ public class CameraFollow : MonoBehaviour
     private float currentDistance;
     private float currentHeight;
     private float currentShoulder;
+    private Vector2 recoilDebt;            // (yaw, pitch) kick that hasn't settled back yet
+    private float lastRecoilTime = -99f;
+    private float dragGain = 1f;
+    private LundunAimAssist assist;
 
     public float Yaw => yaw;
     public float Pitch => pitch;
@@ -61,6 +111,9 @@ public class CameraFollow : MonoBehaviour
         currentHeight = height;
         currentShoulder = shoulderOffset;
         SetTarget(target, false);
+
+        assist = GetComponent<LundunAimAssist>();
+        if (assist == null) assist = gameObject.AddComponent<LundunAimAssist>();
     }
 
     // Called by VehicleSystem when getting in or out
@@ -74,7 +127,14 @@ public class CameraFollow : MonoBehaviour
         player = target.GetComponent<PlayerController>();
     }
 
-    public void AddRecoil(float up, float sideways) { pitch -= up; yaw += sideways; }
+    bool Big(Collider c) { return c != null && c.bounds.size.magnitude >= ignoreSmallerThan; }
+
+    public void AddRecoil(float up, float sideways)
+    {
+        pitch -= up; yaw += sideways;
+        recoilDebt += new Vector2(sideways, -up);
+        lastRecoilTime = Time.time;
+    }
     public void AddShake(float amount) { shake = Mathf.Max(shake, amount); }
     public void Nudge(float yawDelta, float pitchDelta) { yaw += yawDelta; pitch += pitchDelta; }
 
@@ -84,12 +144,51 @@ public class CameraFollow : MonoBehaviour
 
         Vector2 look = Vector2.zero;
         if (mouseLookActive) look += lookAction.ReadValue<Vector2>() * mouseSensitivity;
-        if (touchLook != null) look += touchLook.ConsumeDelta() * touchSensitivity;
+        if (touchLook != null)
+        {
+            Vector2 drag = touchLook.ConsumeDelta();
+            if (lookAcceleration && !vehicleMode)
+            {
+                float dt = Mathf.Max(Time.unscaledDeltaTime, 0.001f);
+                float speed = drag.magnitude / Mathf.Max(1f, Screen.height) / dt;            // screen heights per second
+                float want = Mathf.Lerp(slowDragGain, fastDragGain, Mathf.InverseLerp(dragSpeedRange.x, dragSpeedRange.y, speed));
+                dragGain = drag.sqrMagnitude > 0f ? Mathf.Lerp(dragGain, want, 0.5f) : 1f;   // eased, so it never jumps mid-drag
+                drag *= dragGain;
+            }
+            look += drag * touchSensitivity * LundunSettings.LookSpeed;      // A3: LOOK SPEED setting
+        }
 
         if (look.sqrMagnitude > 0.0001f) lastLookTime = Time.time;
 
+        // A2: aimed in = calmer look speed
+        float aimIn = vehicleMode ? 0f : LundunAim.Eased;
+        if (aimIn > 0f) look *= Mathf.Lerp(1f, LundunAim.Sensitivity, aimIn);
+
+        // aim assist: a little stickier while the crosshair is on someone
+        if (!vehicleMode && assist != null) look *= assist.LookScale;
+
         yaw += look.x;
         pitch -= look.y;
+
+        if (!vehicleMode)
+        {
+            // pulling down against the kick counts toward settling it, so you never over-correct
+            if (recoilDebt.y < 0f && look.y < 0f) recoilDebt.y = Mathf.Min(0f, recoilDebt.y - look.y);
+            if (Time.time - lastRecoilTime > recoilRecoveryDelay && recoilDebt.sqrMagnitude > 0.000001f)
+            {
+                Vector2 back = recoilDebt * (1f - Mathf.Exp(-recoilRecovery * Time.deltaTime));
+                yaw -= back.x; pitch -= back.y;
+                recoilDebt -= back;
+            }
+
+            // aim assist: gently keep up with a moving threat while you're aiming or firing
+            if (assist != null)
+            {
+                Vector2 follow = assist.FollowStep(yaw, pitch);
+                yaw += follow.x; pitch += follow.y;
+            }
+        }
+        else recoilDebt = Vector2.zero;
 
         // In a car: if you're not looking around, swing back behind the car
         if (vehicleMode && Time.time - lastLookTime > lookIdleTime)
@@ -102,16 +201,53 @@ public class CameraFollow : MonoBehaviour
 
         // Ease between on-foot and in-car framing
         float step = 5f * Time.deltaTime;
-        currentDistance = Mathf.Lerp(currentDistance, vehicleMode ? vehicleDistance : distance, step);
-        currentHeight = Mathf.Lerp(currentHeight, vehicleMode ? vehicleHeight : height, step);
+        // V1: faster = further back, a touch higher, wider
+        float fast = 0f;
+        if (vehicleMode && target != null)
+        {
+            if (targetBody == null || targetBody.transform != target) targetBody = target.GetComponent<Rigidbody>();
+            if (targetBody != null) fast = Mathf.Clamp01(targetBody.linearVelocity.magnitude / Mathf.Max(1f, speedForFull));
+        }
+        speedNow = Mathf.Lerp(speedNow, fast, 2f * Time.deltaTime);
+        currentDistance = Mathf.Lerp(currentDistance, vehicleMode ? vehicleDistance + speedPullBack * speedNow : distance, step);
+        currentHeight = Mathf.Lerp(currentHeight, vehicleMode ? vehicleHeight + speedRise * speedNow : height, step);
         currentShoulder = Mathf.Lerp(currentShoulder, vehicleMode ? 0f : shoulderOffset, step);
 
-        Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
-        Vector3 focusPoint = target.position
-                           + Vector3.up * currentHeight
-                           + rotation * Vector3.right * currentShoulder;
+        // A2: tighter over the shoulder while aimed in
+        float camDistance = Mathf.Lerp(currentDistance, aimDistance, aimIn);
+        float camHeight = Mathf.Lerp(currentHeight, aimHeight, aimIn);
+        float camShoulder = Mathf.Lerp(currentShoulder, aimShoulder, aimIn);
 
-        transform.position = focusPoint - rotation * Vector3.forward * currentDistance;
+        // G3: wider while just walking about, a touch closer while the gun's up
+        if (!vehicleMode)
+        {
+            float combat = LundunWeaponRig.Raise * (1f - aimIn);
+            float explore = (1f - aimIn) * (1f - combat);
+            camDistance *= Mathf.Lerp(1f, exploreDistanceScale, explore) * Mathf.Lerp(1f, combatDistanceScale, combat);
+            camHeight += exploreExtraHeight * explore;
+            camShoulder += combatExtraShoulder * combat;
+        }
+
+        Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
+        Vector3 pivot = target.position + Vector3.up * camHeight;
+        Vector3 focusPoint = pivot + rotation * Vector3.right * camShoulder;
+
+        // G3: never inside a wall. First the shoulder offset (standing against a wall), then the arm back.
+        float dist = camDistance;
+        if (cameraCollision)
+        {
+            if (Physics.Linecast(pivot, focusPoint, out RaycastHit side, collisionLayers, QueryTriggerInteraction.Ignore) && Big(side.collider))
+                focusPoint = side.point - (focusPoint - pivot).normalized * (collisionRadius + 0.05f);
+            float want = camDistance;
+            if (Physics.SphereCast(focusPoint, collisionRadius, -(rotation * Vector3.forward), out RaycastHit hit, camDistance, collisionLayers, QueryTriggerInteraction.Ignore)
+                && Big(hit.collider))
+                want = Mathf.Max(0.35f, hit.distance - 0.05f);
+            if (collideDistance < 0f || want < collideDistance) collideDistance = want;            // pull in at once
+            else collideDistance = Mathf.MoveTowards(collideDistance, want, 6f * Time.deltaTime);  // ease back out
+            dist = Mathf.Min(camDistance, collideDistance);
+        }
+
+        transform.position = focusPoint - rotation * Vector3.forward * dist;
         transform.rotation = rotation;
 
         if (shake > 0f)
@@ -122,6 +258,13 @@ public class CameraFollow : MonoBehaviour
         }
 
         float targetFov = (player != null && player.IsSprinting) ? sprintFov : normalFov;
-        cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFov, fovChangeSpeed * Time.deltaTime);
+        if (vehicleMode) targetFov = normalFov + speedFov * speedNow;               // V1
+        if (aimIn > 0f)
+        {
+            // the aim blend is already eased, so follow it closely
+            targetFov = Mathf.Lerp(targetFov, aimFov, aimIn);
+            cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFov, 20f * Time.deltaTime);
+        }
+        else cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFov, fovChangeSpeed * Time.deltaTime);
     }
 }

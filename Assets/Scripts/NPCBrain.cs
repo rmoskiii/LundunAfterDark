@@ -18,6 +18,11 @@ public class NPCBrain : MonoBehaviour
     [SerializeField] private float fleeDistance = 20f;
     [SerializeField] private float panicDuration = 8f;
 
+    [Header("Lundun: stay on pavements")]
+    [SerializeField] private int pavementArea = 4;        // NavMesh area the greybox gives pavements
+    [SerializeField] private int roadArea = 3;            // carriageways
+    [SerializeField] private float roadCost = 6f;         // walking along a road "costs" 6x: they cross, but don't stroll down it
+
     private NavMeshAgent agent;
     private Animator animator;
     private Health health;
@@ -30,23 +35,25 @@ public class NPCBrain : MonoBehaviour
     void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
+        agent.SetAreaCost(roadArea, roadCost);
         animator = GetComponentInChildren<Animator>();
         health = GetComponent<Health>();
         idleTimer = Random.Range(idleTimeRange.x, idleTimeRange.y);
+        health.Died += OnDied;          // always listen for death, even while switched off (fighting James, stumbling)
     }
+
+    void OnDestroy() { if (health != null) health.Died -= OnDied; }
 
     // Start listening when switched on, stop when switched off (like initState / dispose)
     void OnEnable()
     {
         health.Damaged += OnDamaged;
-        health.Died += OnDied;
         PlayerCombat.GunshotFired += OnGunshot;
     }
 
     void OnDisable()
     {
         health.Damaged -= OnDamaged;
-        health.Died -= OnDied;
         PlayerCombat.GunshotFired -= OnGunshot;
     }
 
@@ -57,15 +64,13 @@ public class NPCBrain : MonoBehaviour
         if (state == State.Wander) Wander();
         else Flee();
 
-        if (animator != null)
-        {
-            animator.SetFloat("Speed", agent.velocity.magnitude, 0.1f, Time.deltaTime);
-        }
+        LundunAnim.Float(animator, "Speed", agent.velocity.magnitude, 0.1f);
     }
 
     void Wander()
     {
         agent.speed = walkSpeed;
+        if (KerbWait()) return;
 
         if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.1f)
         {
@@ -95,8 +100,12 @@ public class NPCBrain : MonoBehaviour
         }
     }
 
+    /// Run away from a spot (e.g. a carjacked driver running from James).
+    public void Panic(Vector3 from) { if (state != State.Dead) StartPanic(from); }
+
     void StartPanic(Vector3 from)
     {
+        if (waitingForMan) { waitingForMan = false; if (agent.isOnNavMesh) agent.isStopped = false; }    // L4: run, lights or not
         threatPosition = from;
         state = State.Flee;
         panicTimer = panicDuration;
@@ -115,14 +124,53 @@ public class NPCBrain : MonoBehaviour
         agent.SetDestination(RandomPointNear(target, 5f));
     }
 
+    // ------------------------------------------------------------------ L4: the green man
+    private float nextKerbCheck, waitedForMan;
+    private bool waitingForMan;
+
+    /// At a junction with traffic lights, someone about to step off the pavement into the road waits at the kerb while
+    /// the red man shows, and goes on the green man (anyone already in the road carries on across). Never waits more
+    /// than 45 s. Away from the lights people still cross where they like, as Londoners do.
+    bool KerbWait()
+    {
+        if (Time.time >= nextKerbCheck)
+        {
+            nextKerbCheck = Time.time + 0.25f;
+            bool wait = false;
+            LundunTrafficLights lights = LundunTrafficLights.Instance;
+            if (lights != null && agent.isOnNavMesh && agent.hasPath && lights.RedManAt(transform.position))
+            {
+                Vector3 to = agent.steeringTarget - transform.position; to.y = 0f;
+                if (to.sqrMagnitude > 0.04f)
+                    wait = OnRoad(transform.position + to.normalized * 1.3f) && !OnRoad(transform.position);
+            }
+            if (wait && waitedForMan > 45f) { wait = false; nextKerbCheck = Time.time + 6f; }    // fed up: crosses anyway
+            if (wait) agent.isStopped = true;
+            else if (waitingForMan && agent.isOnNavMesh) { agent.isStopped = false; waitedForMan = 0f; }
+            waitingForMan = wait;
+        }
+        if (waitingForMan) waitedForMan += Time.deltaTime;
+        return waitingForMan;
+    }
+
+    bool OnRoad(Vector3 p)
+    {
+        return NavMesh.SamplePosition(p, out NavMeshHit hit, 0.6f, NavMesh.AllAreas) && (hit.mask & (1 << roadArea)) != 0;
+    }
+
     Vector3 RandomPointNear(Vector3 centre, float radius)
     {
-        for (int i = 0; i < 10; i++)
+        // pavements first, anywhere walkable second (e.g. the old high street, which has no pavement area)
+        for (int pass = 0; pass < 2; pass++)
         {
-            Vector3 candidate = centre + Random.insideUnitSphere * radius;
-            if (NavMesh.SamplePosition(candidate, out NavMeshHit hit, 2f, NavMesh.AllAreas))
+            int mask = pass == 0 ? 1 << pavementArea : NavMesh.AllAreas;
+            for (int i = 0; i < 8; i++)
             {
-                return hit.position;
+                Vector3 candidate = centre + Random.insideUnitSphere * radius;
+                if (NavMesh.SamplePosition(candidate, out NavMeshHit hit, 2f, mask))
+                {
+                    return hit.position;
+                }
             }
         }
         return transform.position;
@@ -140,12 +188,15 @@ public class NPCBrain : MonoBehaviour
 
     void OnDamaged(Vector3 hitPoint)
     {
-        if (state == State.Dead) return;
+        if (state == State.Dead || health.IsDead) return;
         StartPanic(threatPosition);
+        // flinch on the spot for a moment, then run (the reaction clip moves them a little)
+        LundunStagger.Play(gameObject, "Hit", 0.8f, true);
     }
 
-        void OnDied()
+    void OnDied()
     {
+        if (state == State.Dead) return;
         state = State.Dead;
 
         agent.isStopped = true;
