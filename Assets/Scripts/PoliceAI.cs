@@ -697,6 +697,13 @@ public class PoliceAI : MonoBehaviour
             if (toEnd < 30f && LundunDriver.GiveWay(transform, speed, B, toEnd, patrolDriver, pSenses))
                 want = Mathf.Min(want, Mathf.Sqrt(2f * patrolDriver.brake * Mathf.Max(0f, toEnd - ((float)(width * 0.5) + 4f))));
         }
+        // L4: patrols stop at the lights like everyone else (with the lights and siren on, they don't have to)
+        LundunTrafficLights lights = LundunTrafficLights.Instance;
+        if (lights != null)
+        {
+            float line = lights.StopAhead(pFrom, pTo, pNext, toEnd, Mathf.Max(0f, speed), patrolDriver.brake, false, false);
+            if (line >= 0f) want = Mathf.Min(want, Mathf.Sqrt(2f * patrolDriver.brake * Mathf.Max(0f, line - 0.5f)));
+        }
         bool emergency, blocked;
         want = Mathf.Min(want, LundunDriver.Ahead(transform, speed, patrolDriver, Mathf.Max(1.4f, (float)(width * 0.25)), pSenses, out emergency, out blocked));
         car.SetTouchInput(LundunDriver.Pedal(speed, want, patrolDriver, emergency), steer);

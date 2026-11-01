@@ -70,6 +70,7 @@ public class NPCBrain : MonoBehaviour
     void Wander()
     {
         agent.speed = walkSpeed;
+        if (KerbWait()) return;
 
         if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.1f)
         {
@@ -104,6 +105,7 @@ public class NPCBrain : MonoBehaviour
 
     void StartPanic(Vector3 from)
     {
+        if (waitingForMan) { waitingForMan = false; if (agent.isOnNavMesh) agent.isStopped = false; }    // L4: run, lights or not
         threatPosition = from;
         state = State.Flee;
         panicTimer = panicDuration;
@@ -120,6 +122,40 @@ public class NPCBrain : MonoBehaviour
 
         Vector3 target = transform.position + away.normalized * fleeDistance;
         agent.SetDestination(RandomPointNear(target, 5f));
+    }
+
+    // ------------------------------------------------------------------ L4: the green man
+    private float nextKerbCheck, waitedForMan;
+    private bool waitingForMan;
+
+    /// At a junction with traffic lights, someone about to step off the pavement into the road waits at the kerb while
+    /// the red man shows, and goes on the green man (anyone already in the road carries on across). Never waits more
+    /// than 45 s. Away from the lights people still cross where they like, as Londoners do.
+    bool KerbWait()
+    {
+        if (Time.time >= nextKerbCheck)
+        {
+            nextKerbCheck = Time.time + 0.25f;
+            bool wait = false;
+            LundunTrafficLights lights = LundunTrafficLights.Instance;
+            if (lights != null && agent.isOnNavMesh && agent.hasPath && lights.RedManAt(transform.position))
+            {
+                Vector3 to = agent.steeringTarget - transform.position; to.y = 0f;
+                if (to.sqrMagnitude > 0.04f)
+                    wait = OnRoad(transform.position + to.normalized * 1.3f) && !OnRoad(transform.position);
+            }
+            if (wait && waitedForMan > 45f) { wait = false; nextKerbCheck = Time.time + 6f; }    // fed up: crosses anyway
+            if (wait) agent.isStopped = true;
+            else if (waitingForMan && agent.isOnNavMesh) { agent.isStopped = false; waitedForMan = 0f; }
+            waitingForMan = wait;
+        }
+        if (waitingForMan) waitedForMan += Time.deltaTime;
+        return waitingForMan;
+    }
+
+    bool OnRoad(Vector3 p)
+    {
+        return NavMesh.SamplePosition(p, out NavMeshHit hit, 0.6f, NavMesh.AllAreas) && (hit.mask & (1 << roadArea)) != 0;
     }
 
     Vector3 RandomPointNear(Vector3 centre, float radius)

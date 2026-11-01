@@ -18,7 +18,8 @@ public class LundunSmash : MonoBehaviour
     {
         Bin, WheelieBin, Cone, Barrier, Sign, Trolley, CycleStand, Bench, Railing, Sofa, Fridge, Mattress, Tyres,
         Bollard, Lamp, Belisha, PostBox, Cabinet, Planter, Fence,
-        PhoneBox, BusShelter, EstateBins
+        PhoneBox, BusShelter, EstateBins,
+        TrafficLight                                    // L4 (added last, so saved lists keep their meaning)
     }
 
     [System.Serializable]
@@ -64,6 +65,7 @@ public class LundunSmash : MonoBehaviour
             case Kind.Lamp: return new Feel(6f, 0.74f, 160f, false);
             case Kind.Belisha: return new Feel(5.5f, 0.78f, 60f, false);
             case Kind.PostBox: return new Feel(9f, 0.65f, 140f, false);
+            case Kind.TrafficLight: return new Feel(5.5f, 0.78f, 70f, false);
             case Kind.Cabinet: return new Feel(6f, 0.8f, 70f, true);
             case Kind.Planter: return new Feel(7f, 0.74f, 130f, true);
             case Kind.PhoneBox: return new Feel(13f, 0.55f, 320f, true);
@@ -83,6 +85,7 @@ public class LundunSmash : MonoBehaviour
         public Vector3 pole;                   // lamps: where the column stands (the head hangs over the road)
         public Transform loose;                // a hand-placed lamp post that falls over itself
         public Vector3 loosePos; public Quaternion looseRot;
+        public System.Action<bool> knocked;    // L4: told when it's knocked down (true) and put back (false)
     }
     class Saved { public Target t; public int[] idx; public Vector3[] was; }
     class Target
@@ -102,6 +105,18 @@ public class LundunSmash : MonoBehaviour
     private Transform cam;
 
     public void SetData(Prop[] list, Renderer[] meshesIn) { props = list; targets = meshesIn; }
+
+    /// L4: something built while the game runs that comes loose whole when a car hits it hard enough (the traffic
+    /// lights): its own colliders, what kind of thing it is (how hard it is to knock down), its size, and who to tell
+    /// when it's knocked down (true) or put back (false).
+    public void AddLoose(Transform thing, Kind kind, Vector3 size, System.Action<bool> knocked)
+    {
+        if (thing == null) return;
+        State s = new State { prop = new Prop { kind = kind, at = thing.position, yaw = thing.eulerAngles.y, size = size } };
+        s.loose = thing; s.loosePos = thing.position; s.looseRot = thing.rotation; s.knocked = knocked;
+        foreach (Collider c in thing.GetComponentsInChildren<Collider>()) if (!byCollider.ContainsKey(c)) { byCollider[c] = s; s.colliders.Add(c); }
+        states.Add(s);
+    }
 
     void Awake() { Instance = this; }
     void OnDestroy() { if (Instance == this) Instance = null; foreach (Target t in meshes) if (t.copy != null) Destroy(t.copy); }
@@ -271,6 +286,7 @@ public class LundunSmash : MonoBehaviour
             LundunLampLights lights = FindAnyObjectByType<LundunLampLights>();
             if (lights != null) lights.Knock(s.lampIndex, true);
         }
+        if (s.knocked != null) s.knocked(true);
         GameObject piece;
         if (s.loose != null) piece = Loosen(s);
         else piece = Cut(s);
@@ -483,6 +499,7 @@ public class LundunSmash : MonoBehaviour
             LundunLampLights lights = FindAnyObjectByType<LundunLampLights>();
             if (lights != null) lights.Knock(s.lampIndex, false);
         }
+        if (s.knocked != null) s.knocked(false);
         s.broken = false;
     }
 }

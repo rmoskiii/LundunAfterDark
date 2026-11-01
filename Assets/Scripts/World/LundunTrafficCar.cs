@@ -58,6 +58,7 @@ public class LundunTrafficCar : MonoBehaviour
     private LundunDriver.Profile profile = LundunDriver.For(LundunDriver.Style.Normal);
     private readonly LundunDriver.Senses senses = new LundunDriver.Senses();
     private bool toJunction;
+    private bool dareRed;                  // L4: this time, a reckless driver runs the red
 
     void RollStyle()
     {
@@ -212,6 +213,15 @@ public class LundunTrafficCar : MonoBehaviour
                 want = Mathf.Min(want, Mathf.Sqrt(2f * profile.brake * Mathf.Max(0f, toEnd - stopLine)));
             }
         }
+        // L4: traffic lights: stop at red and red+amber, and at amber if they can (reckless drivers run ambers, and now
+        // and then a red; a driver fleeing a gunshot ignores them)
+        LundunTrafficLights lights = LundunTrafficLights.Instance;
+        bool atLights = false;
+        if (lights != null && Time.time >= panicUntil)
+        {
+            float line = lights.StopAhead(fromNode, toNode, nextNode, toEnd, Mathf.Max(0f, speed), profile.brake, Style == LundunDriver.Style.Reckless, dareRed);
+            if (line >= 0f) { want = Mathf.Min(want, Mathf.Sqrt(2f * profile.brake * Mathf.Max(0f, line - 0.5f))); atLights = true; }
+        }
         if (isBus)
         {
             LundunDressing dressing = LundunDressing.Instance;
@@ -239,7 +249,7 @@ public class LundunTrafficCar : MonoBehaviour
         bool emergency, blocked;
         want = Mathf.Min(want, LundunDriver.Ahead(transform, speed, profile, laneHalf, senses, out emergency, out blocked));
         float throttle = LundunDriver.Pedal(speed, want, profile, emergency);
-        LundunDriver.Horn(transform, speed, blocked, profile, senses);
+        LundunDriver.Horn(transform, speed, blocked && !atLights, profile, senses);     // L4: nobody honks in a queue at a red light
         car.SetTouchInput(throttle, steer);
     }
 
@@ -258,6 +268,7 @@ public class LundunTrafficCar : MonoBehaviour
         PickNext();
         toJunction = IsJunction(toNode);
         senses.waitedAtJunction = 0f;
+        dareRed = Style == LundunDriver.Style.Reckless && rng.NextDouble() < 0.1;          // L4: once in a while
     }
 
     void PickNext()

@@ -122,6 +122,7 @@ public class LundunPopulation : MonoBehaviour
     {
         vehicles = FindAnyObjectByType<VehicleSystem>();
         if (gangs && GetComponent<LundunGangs>() == null) gameObject.AddComponent<LundunGangs>();     // R4a
+        if (GetComponent<LundunTrafficLights>() == null) gameObject.AddComponent<LundunTrafficLights>();   // L4
         if (showStats) MakeStats();
     }
 
