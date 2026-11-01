@@ -34,6 +34,12 @@ public class LundunBikes : MonoBehaviour
     public Transform[] Markers { get { return markers; } }
     public bool Riding { get { return bike != null && bike.Ridden; } }
 
+    /// Cyclists: the hire bike's parts (cyclists ride Lundun Cycles too).
+    public bool Parts(out Mesh frame, out Mesh wheel, out Material mat) { frame = frameMesh; wheel = wheelMesh; mat = material; return frameMesh != null && wheelMesh != null; }
+    /// Cyclists: the docks (where they stand, and the way out to the pavement).
+    public int DockCount { get { return dockCentre != null ? dockCentre.Length : 0; } }
+    public Vector3 DockAt(int i) { return dockCentre[i] + dockOut[i] * 1.6f; }
+
     public void Init(Vector4[] docks, Vector4[] docksOut, Mesh frame, Mesh wheel, Material mat)
     {
         frameMesh = frame; wheelMesh = wheel; material = mat;

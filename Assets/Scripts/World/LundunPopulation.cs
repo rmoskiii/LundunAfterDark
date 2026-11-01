@@ -125,6 +125,7 @@ public class LundunPopulation : MonoBehaviour
         if (GetComponent<LundunTrafficLights>() == null) gameObject.AddComponent<LundunTrafficLights>();   // L4
         if (GetComponent<LundunBusPassengers>() == null) gameObject.AddComponent<LundunBusPassengers>();   // L5
         if (GetComponent<LundunHomeless>() == null) gameObject.AddComponent<LundunHomeless>();             // L6
+        if (GetComponent<LundunCyclists>() == null) gameObject.AddComponent<LundunCyclists>();             // cyclists on hire bikes
         if (showStats) MakeStats();
     }
 
@@ -146,6 +147,7 @@ public class LundunPopulation : MonoBehaviour
         target = Mathf.Max(0, target - LundunGangs.ActiveMembers);              // R4a: gang members share the budget
         target = Mathf.Max(0, target - LundunBusPassengers.Active);             // L5: so do people at the bus stops
         target = Mathf.Max(0, target - LundunHomeless.Active);                  // L6: and people sleeping rough
+        target = Mathf.Max(0, target - LundunCyclists.Active);                  // and cyclists
         TickPedestrians(player, target);
         int movingTarget = Mathf.RoundToInt(MovingCarBudget * Scale * TimeOfDayFactor);
         int parkedTarget = Mathf.RoundToInt(ParkedCarBudget * Scale);

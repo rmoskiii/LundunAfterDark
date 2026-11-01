@@ -37,6 +37,17 @@ public class LundunBike : MonoBehaviour
     [SerializeField] private float leanForward = 18f;
 
     public bool Ridden { get { return rider != null; } }
+    /// Cyclists: an NPC rides this one (LundunCyclist steers it with SetInput instead of the joystick) and a crash is
+    /// reported here instead of throwing James off.
+    public System.Action<float> OnCrash;
+    public bool Wrecked { get; private set; }
+    public Transform Rider { get { return rider; } }
+    private bool ai;
+    private Vector2 aiInput;
+    private Collider[] riderColliders = new Collider[0];
+
+    /// Ridden by an NPC: their pedals and steering (x = steer −1..1, y = pedal 0..1 / brake −1).
+    public void SetInput(Vector2 input) { ai = true; aiInput = input; }
     public float Speed { get { return speed; } }
     public bool Crashed { get; private set; }
 
@@ -91,6 +102,10 @@ public class LundunBike : MonoBehaviour
         if (jc != null) jc.enabled = false;
         PlayerController pc = james.GetComponent<PlayerController>();
         if (pc != null) pc.enabled = false;
+        // cyclists: their own body mustn't hold the bike up
+        riderColliders = james.GetComponentsInChildren<Collider>();
+        if (cc == null) cc = GetComponent<CharacterController>();
+        foreach (Collider c in riderColliders) if (c != null && c != jc && c.enabled) Physics.IgnoreCollision(cc, c, true);
         james.SetParent(body, false);
         james.localPosition = seatOffset + Vector3.up * riderFeet;     // seatOffset is where his FEET go
         james.localRotation = Quaternion.identity;
@@ -139,7 +154,9 @@ public class LundunBike : MonoBehaviour
     void Update()
     {
         float dt = Time.deltaTime;
-        Vector2 input = rider != null && move != null && !VehicleSystem.Locked ? move.ReadValue<Vector2>() : Vector2.zero;
+        if (Wrecked) return;                                         // flying or lying loose: physics has it
+        Vector2 input = ai ? (rider != null ? aiInput : Vector2.zero)
+                      : rider != null && move != null && !VehicleSystem.Locked ? move.ReadValue<Vector2>() : Vector2.zero;
 
         if (!Crashed)
         {
@@ -187,9 +204,42 @@ public class LundunBike : MonoBehaviour
 
     void Crash(float impact)
     {
+        if (OnCrash != null) { OnCrash(impact); return; }           // a cyclist: they deal with it
         LundunBikes mgr = LundunBikes.Instance;
         if (mgr != null) mgr.ThrownOff(this, impact);
         else Dismount(true);
+    }
+
+    /// Cyclists: the rider's gone (thrown off) and the bike is knocked away on its own: a loose physics object, flying
+    /// with 'push' (the car's speed), spinning, then lying in the road.
+    public Transform ThrowRider()
+    {
+        Transform r = rider;
+        if (r == null) return null;
+        rider = null; bHips = null;
+        r.SetParent(null, true);
+        foreach (Collider c in riderColliders) if (c != null && cc != null) Physics.IgnoreCollision(cc, c, false);
+        riderColliders = new Collider[0];
+        return r;
+    }
+
+    public void Wreck(Vector3 push)
+    {
+        if (Wrecked) return;
+        Wrecked = true;
+        speed = 0f;
+        Vector3 at = transform.position;
+        if (cc != null) cc.enabled = false;
+        BoxCollider box = gameObject.AddComponent<BoxCollider>();
+        box.center = new Vector3(0f, 0.55f, 0f); box.size = new Vector3(0.45f, 1.0f, 1.65f);
+        gameObject.layer = 0;                                        // lying in the road, it's just a thing
+        Rigidbody rb = gameObject.AddComponent<Rigidbody>();
+        rb.mass = 16f;
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        Vector3 side = Vector3.Cross(Vector3.up, push.sqrMagnitude > 0.01f ? push.normalized : transform.forward) * Random.Range(-2f, 2f);
+        rb.linearVelocity = push * Random.Range(0.8f, 1.05f) + Vector3.up * Random.Range(2.5f, 4.5f) * Mathf.Clamp01(push.magnitude / 6f + 0.3f) + side;
+        rb.angularVelocity = new Vector3(Random.Range(-8f, 8f), Random.Range(-6f, 6f), Random.Range(-8f, 8f)) * Mathf.Clamp01(push.magnitude / 8f + 0.25f);
+        transform.position = at;
     }
 
     // ------------------------------------------------------------------ the rider's pose (after the Animator has run)
