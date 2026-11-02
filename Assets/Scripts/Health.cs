@@ -30,6 +30,8 @@ public class Health : MonoBehaviour
     public float Current => currentHealth;
     public float Max => maxHealth;
     public bool DiedFromPhysics { get; private set; }
+    /// S2: the story's people (Kemi, Marcus...) can be knocked about but never killed: hits still flash and fire Damaged.
+    public bool Invulnerable { get; set; }
     /// R2: the killing blow was a gunshot (never launches the body; a strong one knocks it back instead).
     public bool KilledByGunfire { get; private set; }
 
@@ -57,7 +59,7 @@ public class Health : MonoBehaviour
     {
         if (IsDead) return;
 
-        currentHealth -= amount;
+        if (!Invulnerable) currentHealth -= amount;
 
         if (rend != null) StartCoroutine(Flash());
         Damaged?.Invoke(hitPoint);

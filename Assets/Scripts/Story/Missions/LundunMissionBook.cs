@@ -23,6 +23,7 @@ public static class LundunMissionBook
 }
 
 /// S1: a test of the mission system: drive to the Gilmore Estate, deal with two men, get the parcel back, take it home.
+/// S2: Kemi waits for James at his door, comes with him (in the car too), keeps back in the fight and goes in at the end.
 /// Uses every part: a conversation, a checkpoint, the GPS route, a fight, a pick-up, a medal and the pay. It doesn't
 /// count as one of the 12, and can be played again. Replaced by mission 01 in S3.
 public class TestGilmoreRun : LundunMission
@@ -64,32 +65,48 @@ public class TestGilmoreRun : LundunMission
         }
     }
 
+    /// Kemi waits beside the start marker, facing out from the door.
+    public override Vector3 GiverFacing
+    {
+        get
+        {
+            LundunPlaces places = LundunPlaces.Instance;
+            return places != null && places.Home != null ? Quaternion.Euler(0f, places.Home.doorYaw, 0f) * Vector3.forward : Vector3.forward;
+        }
+    }
+
     public override void Build(LundunMissionRun run)
     {
         run.Zone(Courtyard, 45f);                                    // nobody else's corner here while it's on
 
+        run.Add(new LundunJoin("KEMI"));                             // S2: she's waiting at the door, and comes along
         run.Add(new LundunTalk("",
-            new LundunLine("KEMI", "James. You up? Uncle needs a parcel brought back from Gilmore."),
+            new LundunLine("KEMI", "James! Finally. Uncle needs a parcel brought back from Gilmore."),
             new LundunLine("JAMES", "Now? It's dark out, Kem."),
-            new LundunLine("KEMI", "Ten minutes, cuz. The courtyard on the estate. Someone's holding it for us."),
+            new LundunLine("KEMI", "Which is why I'm coming with you. Get the car."),
             new LundunLine("JAMES", "Fine. Ten minutes.")));
 
-        run.Add(new LundunGoTo(Courtyard, 12f, "Go to the courtyard on the Gilmore Estate"));
+        run.Add(new LundunGoTo(Courtyard, 12f, "Take Kemi to the courtyard on the Gilmore Estate"));
 
         run.Add(new LundunTalk("",
-            new LundunLine("JAMES", "Kemi said someone'd be waiting with a parcel."),
-            new LundunLine("JAMES", "...That's not who I was expecting."))).Checkpoint(LundunCheckpoint.Major);
+            new LundunLine("KEMI", "This is it. He said he'd be by the benches."),
+            new LundunLine("JAMES", "...That's not who I was expecting."),
+            new LundunLine("KEMI", "James. James, they've seen us."))).Checkpoint(LundunCheckpoint.Major);
 
         run.Add(new LundunFight(Courtyard + new Vector3(4f, 0f, 3f), 2, false, "Deal with the two men"));
 
         run.Add(new LundunCollect(Courtyard + new Vector3(3f, 0f, 1.5f), "parcel", "Pick up the parcel"));
 
         run.Add(new LundunTalk("",
-            new LundunLine("JAMES", "Got it. Bit of trouble, Kem."),
-            new LundunLine("KEMI", "You alright? Just bring it home."))).Checkpoint(LundunCheckpoint.Minor);
+            new LundunLine("KEMI", "You good? Let's go before anyone else turns up."),
+            new LundunLine("JAMES", "Got it. Car. Now."))).Checkpoint(LundunCheckpoint.Minor);
 
         run.Add(new LundunEscape("Lose the police"));
-        run.Add(new LundunGoTo(Home, 6f, "Take the parcel home"));
+        run.Add(new LundunGoTo(Home, 6f, "Take Kemi and the parcel home"));
+        run.Add(new LundunTalk("",
+            new LundunLine("KEMI", "Uncle owes you one. I'll tell him you were brave."),
+            new LundunLine("JAMES", "Tell him I was quick.")));
+        run.Add(new LundunLeave("KEMI", () => Home));                // in through the front door
     }
 
     public override int Medal(LundunMissionRun run)

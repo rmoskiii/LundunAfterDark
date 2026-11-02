@@ -86,6 +86,11 @@ public class LundunMissions : MonoBehaviour
         m.subUntil = Time.time + seconds + 0.3f;
     }
 
+    /// S2: someone's colour (their name on screen and their name tag).
+    public static Color ColourOf(string who) { Color c; return who != null && Colours.TryGetValue(who, out c) ? c : Accent; }
+    /// S2: a line is on screen right now (the crew don't talk over it).
+    public static bool Talking { get { return Instance != null && Instance.subBox != null && Instance.subBox.gameObject.activeSelf; } }
+
     public static void Toast(string s) { if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(s); }
 
     /// Enemies show as red dots on the minimap while they're a threat.
@@ -121,9 +126,24 @@ public class LundunMissions : MonoBehaviour
         LundunMinimap mm = FindAnyObjectByType<LundunMinimap>();
         Color c; if (!Colours.TryGetValue(m.Giver, out c)) c = MarkerYellow;
         if (mm != null) mm.Track(t, c, m.Giver.Substring(0, 1) == "U" ? "F" : m.Giver.Substring(0, 1), 26f, false);
+        GiverWaits(m, t);
     }
 
-    void ShowStarts(bool on) { foreach (var kv in starts) if (kv.Value != null) kv.Value.gameObject.SetActive(on); }
+    /// S2: the mission's giver stands just beside its start marker, facing the way it faces (out from the door).
+    static void GiverWaits(LundunMission m, Transform marker)
+    {
+        if (marker == null || !LundunCast.Has(m.Giver)) return;
+        Vector3 f = m.GiverFacing; f.y = 0f; f = f.sqrMagnitude > 0.01f ? f.normalized : Vector3.forward;
+        Vector3 side = Vector3.Cross(Vector3.up, f);
+        LundunCrew.Wait(m.Giver, marker.position + side * 1.6f + f * 0.4f, Quaternion.LookRotation(f).eulerAngles.y);
+    }
+
+    void ShowStarts(bool on)
+    {
+        foreach (var kv in starts) if (kv.Value != null) kv.Value.gameObject.SetActive(on);
+        if (!on) LundunCrew.ClearWaits();                                       // S2: givers not taken along wander off
+        else foreach (var kv in starts) GiverWaits(kv.Key, kv.Value);
+    }
 
     void Update()
     {
@@ -137,7 +157,7 @@ public class LundunMissions : MonoBehaviour
             { Destroy(g); leftovers.RemoveAt(i); }
         }
 
-        if (run == null) { WatchStarts(); return; }
+        if (run == null) { LundunCrew.HangBack = false; WatchStarts(); return; }
         if (run.failed != null) { if (!failShown && !VehicleSystem.Locked && !Dead()) ShowFail(); return; }
 
         WantedSystem w = WantedSystem.Instance;
@@ -145,6 +165,7 @@ public class LundunMissions : MonoBehaviour
 
         LundunStep s = run.Current;
         if (s == null) return;
+        LundunCrew.HangBack = s is LundunFight;
         bool done = s.Tick(run);
         if (run.failed != null) { EndAttempt(); return; }
         Objective(s.objective);
@@ -206,6 +227,12 @@ public class LundunMissions : MonoBehaviour
         foreach (var z in run.zones) LundunMissionZones.Add(z.Key, z.Value);
         ShowStarts(false);
         objectiveBox.gameObject.SetActive(true);
+        // S2: who should be with James by this point (starting again from a checkpoint after they joined)
+        for (int i = 0; i < from && i < run.steps.Count; i++)
+        {
+            LundunJoin join = run.steps[i] as LundunJoin; if (join != null) join.Apply(run);
+            LundunLeave leave = run.steps[i] as LundunLeave; if (leave != null) leave.Apply(run);
+        }
         run.index = from - 1;
         Next();
     }
@@ -317,6 +344,10 @@ public class LundunMissions : MonoBehaviour
     void Clean(bool keepVisiblePeople)
     {
         Say(null, null, 0f);
+        LundunCrew.HangBack = false;
+        if (keepVisiblePeople) foreach (string who in run.crew) LundunCrew.Leave(who);       // passed / quit: they walk off
+        else LundunCrew.LeaveAll(true);                                                    // failed: gone (retry brings them back)
+        run.crew.Clear();
         LundunMissionZones.Clear();
         if (objectiveMarker != null) { LundunMinimap mm = FindAnyObjectByType<LundunMinimap>(); if (mm != null) mm.Untrack(objectiveMarker); Destroy(objectiveMarker.gameObject); objectiveMarker = null; }
         if (routeSet && LundunNavigation.Instance != null) { LundunNavigation.Instance.Clear(); routeSet = false; }

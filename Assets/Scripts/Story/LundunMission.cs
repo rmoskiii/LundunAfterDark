@@ -16,6 +16,8 @@ public abstract class LundunMission
     public abstract long Reward { get; }
     /// Where its marker stands (on the walkable ground).
     public abstract Vector3 StartAt { get; }
+    /// S2: the way the giver faces while waiting by the start marker (beside it).
+    public virtual Vector3 GiverFacing { get { return Vector3.forward; } }
     /// Counts as one of the 12 story missions (the S1 test mission doesn't).
     public virtual bool Story { get { return true; } }
     public virtual bool Available(LundunStoryData d) { return true; }
@@ -41,6 +43,7 @@ public class LundunMissionRun
     public bool wanted;                                   // the police got involved at some point
     public string failed;                                 // why it failed (null while it's going)
     public readonly List<GameObject> spawned = new List<GameObject>();
+    public readonly List<string> crew = new List<string>();     // S2: who's with James because of this mission (LundunJoin)
     public readonly List<KeyValuePair<Vector3, float>> zones = new List<KeyValuePair<Vector3, float>>();
 
     public LundunMissionRun(LundunMission m, LundunDifficulty d) { mission = m; difficulty = d; }

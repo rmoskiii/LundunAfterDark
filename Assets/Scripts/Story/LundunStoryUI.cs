@@ -28,7 +28,7 @@ public class LundunStoryUI : MonoBehaviour
     IEnumerator Start()
     {
         yield return null;                                  // the HUD (and its font) builds itself first
-        if (LundunGame.IsStory) { BuildMoney(); if (GetComponent<LundunMissions>() == null) gameObject.AddComponent<LundunMissions>(); }   // S1
+        if (LundunGame.IsStory) { BuildMoney(); if (GetComponent<LundunCrew>() == null) gameObject.AddComponent<LundunCrew>(); if (GetComponent<LundunMissions>() == null) gameObject.AddComponent<LundunMissions>(); }   // S1 missions, S2 the crew
         if (LundunGame.ShowStartMenu) OpenMenu();
     }
 

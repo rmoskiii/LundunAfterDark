@@ -12,7 +12,7 @@ public class CarBumper : MonoBehaviour
     void OnTriggerEnter(Collider other)
     {
         Health health = other.GetComponentInParent<Health>();
-        if (health == null) return;
+        if (health == null || health.Invulnerable) return;      // S2: the story's people step out of the way instead
 
         Vector3 velocity = carBody.linearVelocity;
         float speed = velocity.magnitude;
