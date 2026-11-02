@@ -269,6 +269,7 @@ namespace LundunGreybox
             a.Shutter("shutter"); a.ShopWindow("shopwin"); a.PubWindow("pubwin"); a.Pitch("pitch"); a.Mattress("mattress");
             FurnitureAtlas(a);              // L3 (appended)
             GritAtlas(a);                   // L4 (appended)
+            if (!ExpansionMode) VillaAtlas(a);      // James's home in Peckam (appended, city only)
             if (Brix) { MarketAtlas(a); RetailAtlas(a); }     // E3/E4: the market's and retail park's colours and signs (expansions only: the city's atlas stays as it was)
             if (Kingsmere) KingsmereAtlas(a);       // E8: flags, deckchair stripes, the arch's lettering, the clock
             return a;
