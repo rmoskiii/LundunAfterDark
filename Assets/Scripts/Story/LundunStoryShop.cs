@@ -79,6 +79,7 @@ public class LundunStoryShop : MonoBehaviour
         LundunStoryData d = LundunStory.Data;
         if (d != null && d.flags.Contains(SmashedFlag) && !MissionOpen) return false;
         if (MissionOpen) return true;
+        if (LundunMissions.StartWhere(Inside)) return true;                  // S4: a mission starts in here
         if (d == null || !d.flags.Contains(OpenedBy)) return false;
         float h = LundunClock.Instance != null ? LundunClock.Instance.Hour : 12f;
         return h >= 7f && h < 23f;

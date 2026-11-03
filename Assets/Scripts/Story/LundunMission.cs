@@ -196,6 +196,8 @@ public class LundunEscape : LundunStep
 public class LundunFight : LundunStep
 {
     readonly Vector3 at; readonly int count; readonly bool guns; readonly string look; readonly float engageWithin;
+    /// S4: how hard they hit (× the difficulty's): knives out = more.
+    public float harder = 1f;
     readonly List<Health> enemies = new List<Health>();
     readonly List<bool> beaten = new List<bool>();
     bool engaged;
@@ -233,7 +235,7 @@ public class LundunFight : LundunStep
         {
             engaged = true;
             foreach (Health h in enemies)
-                if (h != null && !h.IsDead) h.gameObject.AddComponent<LundunAngryDriver>().Begin(guns, 9999f, 150f, run.EnemyDamage);
+                if (h != null && !h.IsDead) { LundunAngryDriver ad = h.gameObject.AddComponent<LundunAngryDriver>(); ad.Foe = true; ad.Begin(guns, 9999f, 150f, run.EnemyDamage * harder); }
         }
         bool left = false;
         for (int i = 0; i < enemies.Count; i++)
@@ -253,7 +255,7 @@ public class LundunFight : LundunStep
             }
             // a fight is only over when they're dealt with; one wandered off calm (lost James): back at it
             if (engaged && h.GetComponent<LundunAngryDriver>() == null && !LundunStagger.Busy(h.gameObject))
-                h.gameObject.AddComponent<LundunAngryDriver>().Begin(guns, 9999f, 150f, run.EnemyDamage);
+                { LundunAngryDriver ad = h.gameObject.AddComponent<LundunAngryDriver>(); ad.Foe = true; ad.Begin(guns, 9999f, 150f, run.EnemyDamage * harder); }
             left = true;
         }
         if (!left) LundunMissions.Mark(enemies, false);

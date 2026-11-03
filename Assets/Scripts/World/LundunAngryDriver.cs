@@ -31,6 +31,14 @@ public class LundunAngryDriver : MonoBehaviour
 
     private float giveUpBeyond = 40f, damageScale = 1f;
 
+    /// S4: a mission's enemy: it may go for the people with James as well as James himself.
+    public bool Foe { get; set; }
+    /// S4: who a Foe goes for instead of James (null = James). Set by the crew (Story only).
+    public static System.Func<LundunAngryDriver, Transform> PickTarget;
+    private Transform ally;
+    private float nextPick;
+    public Transform Going { get { return ally; } }
+
     public void Begin(bool withGun) { Begin(withGun, 20f, 40f, 1f); }
 
     /// S1: a mission's enemy: keeps at it for 'seconds', gives up only beyond 'range' metres, hits 'damage' × as hard.
@@ -59,6 +67,9 @@ public class LundunAngryDriver : MonoBehaviour
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.IsDead) { CalmDown(); return; }
 
         Transform target = vehicles.PlayerTarget;
+        if (Foe && PickTarget != null && Time.time >= nextPick) { nextPick = Time.time + 1.5f; ally = PickTarget(this); }
+        if (ally != null && !ally.gameObject.activeInHierarchy) ally = null;
+        if (ally != null) target = ally;                                    // S4: someone with James
         Vector3 to = target.position - transform.position; to.y = 0f;
         float d = to.magnitude;
         if (d > giveUpBeyond) { CalmDown(); return; }
@@ -81,7 +92,7 @@ public class LundunAngryDriver : MonoBehaviour
                 nextHit = Time.time + Random.Range(0.8f, 1.3f);
                 Vector3 from = transform.position + Vector3.up * 1.4f + transform.forward * 0.4f;
                 float chance = Mathf.Lerp(0.6f, 0.3f, d / ShootMax);
-                Vector3 end = PoliceAim.Fire(transform, from, target, chance, ShootMax * 1.5f, ShotDamage * damageScale, ShotToCar);
+                Vector3 end = ally != null ? ShootAlly(from, chance) : PoliceAim.Fire(transform, from, target, chance, ShootMax * 1.5f, ShotDamage * damageScale, ShotToCar);
                 ShowTracer(gunProp != null ? gunProp.transform.position : from, end);
                 recoil = 1f;                               // kick the gun up (no shooting clip needed)
             }
@@ -90,14 +101,19 @@ public class LundunAngryDriver : MonoBehaviour
         {
             agent.isStopped = false;
             agent.SetDestination(target.position);
-            float reach = vehicles.IsDriving ? 3f : PunchRange;
+            float reach = vehicles.IsDriving && ally == null ? 3f : PunchRange;
             if (d <= reach && Time.time >= nextHit)
             {
                 nextHit = Time.time + 1.1f;
                 Face(to);
                 bool big = ++swings % 3 == 0;               // two jabs, then a big one
                 LundunAnim.Trigger(animator, "Punch");
-                if (vehicles.IsDriving)
+                if (ally != null)                                           // S4: hitting someone with James
+                {
+                    Health ah = ally.GetComponent<Health>();
+                    if (ah != null) ah.TakeDamage((big ? BigPunchDamage : PunchDamage) * damageScale, ally.position + Vector3.up * 1.4f, to.normalized * 2f);
+                }
+                else if (vehicles.IsDriving)
                 {
                     VehicleHealth vh = target.GetComponent<VehicleHealth>();
                     if (vh != null) vh.TakeDamage(CarKickDamage * damageScale);
@@ -109,7 +125,7 @@ public class LundunAngryDriver : MonoBehaviour
                 }
             }
             // you drove off fast: give up
-            if (vehicles.IsDriving && vehicles.PlayerSpeed > 8f && d > 12f && giveUpBeyond <= 40f) { CalmDown(); return; }
+            if (ally == null && vehicles.IsDriving && vehicles.PlayerSpeed > 8f && d > 12f && giveUpBeyond <= 40f) { CalmDown(); return; }
         }
 
         if (animator != null) animator.SetFloat("Speed", agent.velocity.magnitude, 0.1f, Time.deltaTime);
@@ -119,6 +135,20 @@ public class LundunAngryDriver : MonoBehaviour
             recoil = Mathf.MoveTowards(recoil, 0f, Time.deltaTime * 8f);
             gunProp.transform.localRotation = gunRest * Quaternion.Euler(-25f * recoil, 0f, 0f);
         }
+    }
+
+    /// S4: a shot at someone with James: hits now and then, otherwise flies past.
+    Vector3 ShootAlly(Vector3 from, float chance)
+    {
+        Vector3 aim = ally.position + Vector3.up * 1.3f;
+        if (Random.value < chance && !Physics.Linecast(from, aim, LayerMask.GetMask("Default"), QueryTriggerInteraction.Ignore))
+        {
+            Health ah = ally.GetComponent<Health>();
+            if (ah != null) ah.TakeDamage(ShotDamage * 1.6f * damageScale, aim, (aim - from).normalized * 2f, true);
+            return aim;
+        }
+        Vector3 side = Vector3.Cross(Vector3.up, (aim - from).normalized);
+        return aim + side * Random.Range(1f, 2f) * (Random.value < 0.5f ? -1f : 1f);
     }
 
     void Face(Vector3 to)

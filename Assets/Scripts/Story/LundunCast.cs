@@ -10,6 +10,8 @@ public class LundunLook
 
     public readonly string who, model;           // model: part of the people prefab's name ("Casual_2" = Ped_Casual_2)
     public float height = 1f, width = 1f;
+    /// S4: fights beside James in a mission (others keep back), how hard they punch, and how much they can take.
+    public bool fighter; public float punch = 10f, health = 100f;
     public readonly List<Part> parts = new List<Part>();
 
     public LundunLook(string who, string model) { this.who = who; this.model = model; }
@@ -21,6 +23,7 @@ public class LundunLook
     /// Not worn (e.g. a builder's hard hat).
     public LundunLook Hide(string match) { parts.Add(new Part { match = match.ToLowerInvariant(), hide = true }); return this; }
     public LundunLook Build(float h, float w) { height = h; width = w; return this; }
+    public LundunLook Fighter(float punchDamage, float toughness) { fighter = true; punch = punchDamage; health = toughness; return this; }
 
     static Color Hex(string h) { Color c; return ColorUtility.TryParseHtmlString("#" + h.TrimStart('#'), out c) ? c : Color.white; }
 }
@@ -37,10 +40,10 @@ public static class LundunCast
             if (looks != null) return looks;
             looks = new Dictionary<string, LundunLook>();
             // James's older brother: James's light-brown skin, a maroon hoodie, grey joggers. Tall and broad.
-            Add(new LundunLook("MARCUS", "Street_1").Build(1.04f, 1.12f)
+            Add(new LundunLook("MARCUS", "Street_1").Build(1.04f, 1.12f).Fighter(16f, 160f)            // the ex-boxer
                 .Tint("Body", "d4c1b4").Paint("Hoody", "7a2230").Paint("Pants", "45484d"));
             // James's best friend: dark brown skin, a green tee, grey shorts. Tall and slim.
-            Add(new LundunLook("TAYO", "Street_3").Build(1.02f, 0.95f)
+            Add(new LundunLook("TAYO", "Street_3").Build(1.02f, 0.95f).Fighter(9f, 100f)
                 .Tint("Body", "9a7d6a").Paint("Shirt", "1f7a4d").Tint("Shorts", "8a8f96").Tint("Hair", "1a1410"));
             // James's cousin: brown skin, dark hair, a purple co-ord. A little shorter than James.
             Add(new LundunLook("KEMI", "Casual_2").Build(0.97f, 1f)

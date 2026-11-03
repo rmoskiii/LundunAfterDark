@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// Every story mission, in order. S3: 01 One Last Favour, 02 Easy Money, 03 No Way Home (they replace S1's test
-/// mission). Each opens once the one before is passed.
+/// mission). S4: 04 Estate Business, 05 Uncle's Rules, 06 Passenger Problems. Each opens once the one before is passed.
 public static class LundunMissionBook
 {
     static List<LundunMission> all;
@@ -11,7 +11,11 @@ public static class LundunMissionBook
     {
         get
         {
-            if (all == null) all = new List<LundunMission> { new M01OneLastFavour(), new M02EasyMoney(), new M03NoWayHome() };
+            if (all == null) all = new List<LundunMission>
+            {
+                new M01OneLastFavour(), new M02EasyMoney(), new M03NoWayHome(),                // S3
+                new M04EstateBusiness(), new M05UnclesRules(), new M06PassengerProblems(),     // S4
+            };
             return all;
         }
     }
@@ -264,4 +268,180 @@ public class M03NoWayHome : LundunMission
         if (run.Elapsed < 480f) return 2;
         return 1;
     }
+}
+
+// ======================================================================================================================
+/// 04 Estate Business. Kingsley wants a word about Basketful: James drives Marcus to the Gilmore Estate. Kingsley on
+/// the phone: the shop pays Hollis for its peace, so that was Hollis's money. The Tower Block Kings come at them (knives
+/// out: they hit harder); Marcus fights beside James (keep him up: revive him if he drops), then gunmen as they leave:
+/// get out of the estate, and take Marcus home.
+public class M04EstateBusiness : LundunMission
+{
+    static readonly Vector3 Courtyard = new Vector3(330f, 0f, 380f);
+
+    public override string Id { get { return "m04_estate_business"; } }
+    public override string Title { get { return "Estate Business"; } }
+    public override string Teaser { get { return "Kingsley wants a word about Basketful. Marcus is coming with you."; } }
+    public override string Giver { get { return "MARCUS"; } }
+    public override long Reward { get { return 1500; } }
+    public override string MedalNote { get { return "under 7 minutes"; } }
+    public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m03_no_way_home") && !LundunMissionBook.Done(d, Id); }
+    public override Vector3 StartAt { get { return LundunStoryPlaces.Home + Quaternion.Euler(0f, LundunStoryPlaces.HomeYaw, 0f) * Vector3.forward * 3f; } }
+    public override Vector3 GiverFacing { get { return Quaternion.Euler(0f, LundunStoryPlaces.HomeYaw, 0f) * Vector3.forward; } }
+
+    public override void Build(LundunMissionRun run)
+    {
+        run.Zone(Courtyard, 60f);
+        run.Add(new LundunJoin("MARCUS"));
+        run.Add(new LundunTalk("",
+            new LundunLine("MARCUS", "Kingsley rang me. He wants a word. About Basketful."),
+            new LundunLine("JAMES", "How does Kingsley know about Basketful?"),
+            new LundunLine("MARCUS", "Tayo talks, bro. Everyone knows. Get the car, we're going to Gilmore."),
+            new LundunLine("JAMES", "And if it goes wrong?"),
+            new LundunLine("MARCUS", "Then you stay behind me.")));
+        run.Add(new LundunGoTo(Courtyard, 12f, "Drive Marcus to the Gilmore Estate"));
+        run.Add(new LundunTalk("",
+            new LundunLine("KINGSLEY", "(on speaker) James. Marcus. That shop your friend robbed pays Mr Hollis for its peace."),
+            new LundunLine("KINGSLEY", "So that was Hollis's money. And Hollis is my friend."),
+            new LundunLine("MARCUS", "Hollis? The scaffolding man?"),
+            new LundunLine("KINGSLEY", "My boys will explain it better than me."),
+            new LundunLine("TOWER BLOCK KING", "Knives out, lads."))).Checkpoint(LundunCheckpoint.Major);
+        run.Add(new LundunFight(Courtyard + new Vector3(4f, 0f, 3f), 4, false, "Fight off the Tower Block Kings. Keep Marcus up", "Street", 22f) { harder = 1.5f });
+        run.Add(new LundunTalk("", new LundunLine("MARCUS", "More of them coming! With guns! Car, now!")));
+        run.Add(new LundunAmbush(Courtyard, 3, 140f, "Get Marcus out of the estate")).Checkpoint(LundunCheckpoint.Minor);
+        run.Add(new LundunGoTo(LundunStoryPlaces.Home, 6f, "Take Marcus home"));
+        run.Add(new LundunTalk("",
+            new LundunLine("MARCUS", "Hollis. Uncle's been odd for months. You think he owes him?"),
+            new LundunLine("JAMES", "I think we should ask him."),
+            new LundunLine("MARCUS", "Not tonight. Get some sleep. And stay away from Tayo for a bit.")));
+        run.Add(new LundunLeave("MARCUS", () => LundunStoryPlaces.Home));
+    }
+
+    public override int Medal(LundunMissionRun run) { return run.Elapsed < 420f ? 3 : run.Elapsed < 600f ? 2 : 1; }
+}
+
+// ======================================================================================================================
+/// 05 Uncle's Rules. Uncle Femi tells James about the debt on a long drive to Tower Plaza, Canary Quay (the first
+/// A-to-Z drive, the story told in the car). Hollis wants Basketful put right: pay £1,000 of James's own money, or
+/// promise him a favour (the first choice: S5 makes later scenes remember it). Then Uncle Femi back to his shop.
+public class M05UnclesRules : LundunMission
+{
+    static readonly Vector3 TowerPlaza = new Vector3(1220f, 0f, 560f);
+
+    public override string Id { get { return "m05_uncles_rules"; } }
+    public override string Title { get { return "Uncle's Rules"; } }
+    public override string Teaser { get { return "Uncle Femi has something to tell you, and somewhere to be."; } }
+    public override string Giver { get { return "UNCLE FEMI"; } }
+    public override long Reward { get { return 400; } }
+    public override string MedalNote { get { return "under 9 minutes"; } }
+    public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m04_estate_business") && !LundunMissionBook.Done(d, Id); }
+    /// At his counter.
+    public override Vector3 StartAt { get { float y; return LundunStoryPlaces.Lagos(LundunShopLayout.AtCounter(LundunStoryPlaces.LagosWidth), out y); } }
+    public override Vector3 GiverFacing { get { float y; LundunStoryPlaces.Lagos(LundunShopLayout.AtCounter(LundunStoryPlaces.LagosWidth), out y); return Quaternion.Euler(0f, y + 180f, 0f) * Vector3.forward; } }
+
+    public override void Build(LundunMissionRun run)
+    {
+        run.Zone(TowerPlaza, 30f);
+        run.Add(new LundunDo(r => LundunStoryShop.MissionOpen = true));
+        run.Add(new LundunJoin("UNCLE FEMI"));
+        run.Add(new LundunTalk("",
+            new LundunLine("UNCLE FEMI", "James. I have something to tell you. Then you will drive me somewhere."),
+            new LundunLine("JAMES", "Where?"),
+            new LundunLine("UNCLE FEMI", "Canary Quay. Get the car. I will talk while you drive.")));
+        run.Add(new LundunWhen("Get in a car with Uncle Femi", r => LundunMissionRun.Driving()));
+        run.Add(new LundunDriveTalk(TowerPlaza, 14f, "Drive Uncle Femi to Tower Plaza, Canary Quay",
+            new LundunLine("UNCLE FEMI", "Eight years ago the shop was dying. The bank said no. Mr Hollis said yes."),
+            new LundunLine("JAMES", "Hollis. The scaffolding man? The one Kingsley talks about?"),
+            new LundunLine("UNCLE FEMI", "Nobody works for Hollis. They owe him. There is a difference, and it is worse."),
+            new LundunLine("UNCLE FEMI", "I have paid him every month since. Every month. And still I owe more than I borrowed."),
+            new LundunLine("JAMES", "Why didn't you tell anyone? Marcus? Mum?"),
+            new LundunLine("UNCLE FEMI", "Because I am the uncle. The uncle fixes things. He does not ask his nephews for help."),
+            new LundunLine("UNCLE FEMI", "Then you robbed a shop he takes money from. Now he wants to see me. And you."),
+            new LundunLine("JAMES", "I'm sorry, Uncle."),
+            new LundunLine("UNCLE FEMI", "Sorry is a word. Let us see what he wants.")));
+        run.Add(new LundunDo(r =>
+        {
+            Vector3 p = LundunMissionRun.Ground(TowerPlaza + new Vector3(4f, 0f, 2f));
+            LundunCrew.Stage("HOLLIS", p, 250f);
+        }));
+        run.Add(new LundunGoTo(TowerPlaza + new Vector3(4f, 0f, 2f), 3.5f, "Meet Hollis", false)).Checkpoint(LundunCheckpoint.Major);
+        run.Add(new LundunTalk("",
+            new LundunLine("HOLLIS", "Mr Adeyemi. And the famous nephew. Lovely evening for it."),
+            new LundunLine("HOLLIS", "Your friend took money from a shop I look after. Someone has to put that right."),
+            new LundunLine("JAMES", "I'll put it right."),
+            new LundunLine("HOLLIS", "Good lad. A thousand now and we're square. Or a favour, one evening, when I ask. Your choice, James.")));
+        run.Add(new LundunChoice("Hollis wants it put right", "PAY £1,000", 1000, "PROMISE A FAVOUR", "choice:m05"));
+        run.Add(new LundunTalkPick(() => LundunChoice.Chose("choice:m05", true)
+            ? new[] { new LundunLine("HOLLIS", "Sensible. Money's honest. Off you pop."),
+                      new LundunLine("UNCLE FEMI", "...That was your money, James."),
+                      new LundunLine("JAMES", "It was your shop.") }
+            : new[] { new LundunLine("HOLLIS", "Even better. I'll be in touch."),
+                      new LundunLine("UNCLE FEMI", "James. Do you know what you have just done?"),
+                      new LundunLine("JAMES", "Kept your money in your pocket."),
+                      new LundunLine("UNCLE FEMI", "No. You have given him you.") }));
+        run.Add(new LundunDriveTalk(LundunStoryPlaces.LagosDoor, 4f, "Take Uncle Femi back to LAGOS FOODS",
+            new LundunLine("UNCLE FEMI", "Not a word to Marcus."),
+            new LundunLine("JAMES", "Not a word.")));
+        run.Add(new LundunLeave("UNCLE FEMI", () => { float y; return LundunStoryPlaces.Lagos(LundunShopLayout.Inside(LundunStoryPlaces.LagosWidth), out y); }));
+    }
+
+    public override int Medal(LundunMissionRun run) { return run.Elapsed < 540f ? 3 : run.Elapsed < 780f ? 2 : 1; }
+}
+
+// ======================================================================================================================
+/// 06 Passenger Problems. James picks Marcus up after a night on the door at Knightsbury Circus; on the way home the
+/// Rye Lane Riders come after them in two cars. James drives, Marcus shoots out of the window: lose them, or let him take
+/// them out. Home, and Marcus hands over an SMG.
+public class M06PassengerProblems : LundunMission
+{
+    static readonly Vector3 Circus = new Vector3(560f, 0f, 945f);
+
+    public override string Id { get { return "m06_passenger_problems"; } }
+    public override string Title { get { return "Passenger Problems"; } }
+    public override string Teaser { get { return "Marcus has finished on the door in Knightsbury. He needs a lift home."; } }
+    public override string Giver { get { return "MARCUS"; } }
+    public override long Reward { get { return 2500; } }
+    public override string MedalNote { get { return "under 6 minutes"; } }
+    public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m05_uncles_rules") && !LundunMissionBook.Done(d, Id); }
+    public override Vector3 StartAt { get { return LundunMissionRun.Ground(Circus); } }
+    public override Vector3 GiverFacing { get { return Vector3.back; } }
+
+    public override void Build(LundunMissionRun run)
+    {
+        Vector3 start = LundunMissionRun.Ground(Circus);
+        run.Add(new LundunJoin("MARCUS"));
+        run.Add(new LundunDo(r => LundunCrew.Arm("MARCUS", true)));
+        run.Add(new LundunTalk("",
+            new LundunLine("MARCUS", "Long night on the door. Drive me home, yeah?"),
+            new LundunLine("MARCUS", "And after Gilmore I'm not taking chances. I brought this."),
+            new LundunLine("JAMES", "Marcus, is that a gun?"),
+            new LundunLine("MARCUS", "It's insurance. Drive.")));
+        run.Add(new LundunWhen("Get in a car with Marcus", r => LundunMissionRun.Driving()));
+        run.Add(new LundunWhen("Drive Marcus home", r =>
+        {
+            Transform j = LundunMissionRun.James();
+            return j != null && LundunMissionRun.Driving() && LundunMissionRun.FlatDistance(j.position, start) > 180f;
+        }).Mark(LundunStoryPlaces.Home, 6f, true));
+        run.Add(new LundunTalk("",
+            new LundunLine("MARCUS", "Two cars behind us. Rye Lane Riders."),
+            new LundunLine("JAMES", "What do they want with us?"),
+            new LundunLine("MARCUS", "Kingsley's lent them out. Just drive. I'll do the rest.")));
+        run.Add(new LundunChase(2, "Lose the Rye Lane Riders, or let Marcus take them out")).Checkpoint(LundunCheckpoint.Major);
+        run.Add(new LundunTalk("", new LundunLine("MARCUS", "That's them done. Breathe, bro. Breathe.")));
+        run.Add(new LundunEscape("Lose the police"));
+        run.Add(new LundunGoTo(LundunStoryPlaces.Home, 6f, "Take Marcus home"));
+        run.Add(new LundunTalk("",
+            new LundunLine("MARCUS", "Gilmore, Hollis, now the Riders. This is getting out of hand."),
+            new LundunLine("JAMES", "I know."),
+            new LundunLine("MARCUS", "Here. Take this. If they come again, I want you ready.")));
+        run.Add(new LundunDo(r =>
+        {
+            LundunWeapons w = LundunWeapons.Instance;
+            if (w != null) w.Give(LundunWeapons.Kind.Smg, 90);
+            LundunMissions.Toast("SMG UNLOCKED\nSwap weapons from the weapon panel");
+        }));
+        run.Add(new LundunLeave("MARCUS", () => LundunStoryPlaces.Home));
+    }
+
+    public override int Medal(LundunMissionRun run) { return run.Elapsed < 360f ? 3 : run.Elapsed < 540f ? 2 : 1; }
 }

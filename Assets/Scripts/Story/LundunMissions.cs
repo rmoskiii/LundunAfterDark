@@ -31,6 +31,7 @@ public class LundunMissions : MonoBehaviour
         { "JAMES", Color.white }, { "MARCUS", new Color(0.95f, 0.35f, 0.3f) }, { "TAYO", new Color(0.4f, 0.9f, 0.45f) },
         { "KEMI", new Color(0.78f, 0.5f, 1f) }, { "UNCLE FEMI", new Color(1f, 0.6f, 0.2f) }, { "LEAH", new Color(0.35f, 0.85f, 0.9f) },
         { "HOLLIS", new Color(0.75f, 0.78f, 0.82f) },
+        { "KINGSLEY", new Color(0.85f, 0.2f, 0.25f) }, { "TOWER BLOCK KING", new Color(0.8f, 0.35f, 0.3f) }, { "RYE LANE RIDER", new Color(0.95f, 0.5f, 0.2f) },
     };
 
     private LundunMissionRun run;
@@ -86,10 +87,22 @@ public class LundunMissions : MonoBehaviour
         m.subUntil = Time.time + seconds + 0.3f;
     }
 
+    /// S4: is any start marker on show at a place 'test' accepts (LAGOS FOODS opens for a mission that starts inside it)?
+    public static bool StartWhere(System.Func<Vector3, bool> test)
+    {
+        if (Instance == null || Running) return false;
+        foreach (var kv in Instance.starts) if (kv.Value != null && kv.Value.gameObject.activeSelf && test(kv.Value.position)) return true;
+        return false;
+    }
+
     /// S2: someone's colour (their name on screen and their name tag).
     public static Color ColourOf(string who) { Color c; return who != null && Colours.TryGetValue(who, out c) ? c : Accent; }
     /// S2: a line is on screen right now (the crew don't talk over it).
     public static bool Talking { get { return Instance != null && Instance.subBox != null && Instance.subBox.gameObject.activeSelf; } }
+
+    /// S4: fail the mission now for 'why' (Marcus went down and nobody got to him). Applied on the next frame.
+    public static void FailNow(string why) { if (Instance != null && Instance.run != null && Instance.pendingFail == null) Instance.pendingFail = why; }
+    private string pendingFail;
 
     public static void Toast(string s) { if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(s); }
 
@@ -157,7 +170,8 @@ public class LundunMissions : MonoBehaviour
             { Destroy(g); leftovers.RemoveAt(i); }
         }
 
-        if (run == null) { LundunCrew.HangBack = false; WatchStarts(); return; }
+        if (run == null) { LundunCrew.HangBack = false; pendingFail = null; WatchStarts(); return; }
+        if (pendingFail != null && run.failed == null) { run.Fail(pendingFail); pendingFail = null; EndAttempt(); return; }
         if (run.failed != null) { if (!failShown && !VehicleSystem.Locked && !Dead()) ShowFail(); return; }
 
         WantedSystem w = WantedSystem.Instance;
@@ -350,6 +364,8 @@ public class LundunMissions : MonoBehaviour
         run.crew.Clear();
         // S3: whatever the mission switched on
         LundunCrew.ClearStaged();
+        LundunCrew.DisarmAll();                                                 // S4: guns given for the mission
+        LundunChaseCar.Clear();                                                 // S4: enemy cars
         LundunStoryShop.MissionOpen = false;
         LundunRoadblocks.MissionFromStars = 0;
         LundunRobbery.MissionStore = null; LundunRobbery.MissionCash = 0;

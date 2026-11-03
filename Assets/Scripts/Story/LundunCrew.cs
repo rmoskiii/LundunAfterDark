@@ -14,7 +14,7 @@ using UnityEngine.AI;
 ///              car coming at them all get a reaction
 ///   leaving    they walk off (or in through a door) and are gone once out of sight
 /// They can't be killed: a hit makes them flinch, and they step out of the way of cars.
-public class LundunCrew : MonoBehaviour
+public partial class LundunCrew : MonoBehaviour
 {
     public static LundunCrew Instance { get; private set; }
     /// Set while a mission fight is on: the people with James keep well back.
@@ -31,6 +31,10 @@ public class LundunCrew : MonoBehaviour
         public Vector3 leaveTo; public bool inside;                   // leaving: where to, and whether it's in through a door
         public CarController car; public Vector3 carFrom; public int seat;
         public TextMeshPro tag; public Transform head; public bool dotted;
+        // S4: fighting (LundunCrewCombat)
+        public LundunLook look; public float hp, maxHp, nextAttack, downedAt; public bool downed, armed;
+        public Health foe; public GameObject gun; public Transform barBack, barFill; public LineRenderer tracer; public float tracerOff;
+        public System.Action<float> hurtBy;
         public System.Action<Vector3> hurt;
     }
     struct Spot { public Vector3 at; public float yaw; }
@@ -54,8 +58,8 @@ public class LundunCrew : MonoBehaviour
     private static int vehicleMask = -1;
     private static readonly Collider[] near = new Collider[12];
 
-    void Awake() { Instance = this; nextChat = Time.time + 25f; }
-    void OnDestroy() { if (Instance == this) Instance = null; HangBack = false; }
+    void Awake() { Instance = this; nextChat = Time.time + 25f; LundunAngryDriver.PickTarget = PickFor; }
+    void OnDestroy() { if (Instance == this) Instance = null; HangBack = false; LundunAngryDriver.PickTarget = null; }
     void OnEnable() { VehicleSystem.Entering += OnEntering; VehicleSystem.Respawned += OnRespawned; }
     void OnDisable() { VehicleSystem.Entering -= OnEntering; VehicleSystem.Respawned -= OnRespawned; }
 
@@ -205,7 +209,8 @@ public class LundunCrew : MonoBehaviour
             m.agent.avoidancePriority = 30;
         }
         if (m.anim != null && m.anim.isHuman && m.anim.avatar != null) m.head = m.anim.GetBoneTransform(HumanBodyBones.Head);
-        if (m.health != null) { Member mm = m; m.hurt = h => Hurt(mm); m.health.Damaged += m.hurt; }
+        if (m.health != null) { Member mm = m; m.hurt = h => Hurt(mm); m.health.Damaged += m.hurt; m.hurtBy = a => HurtBy(mm, a); m.health.Hurt += m.hurtBy; }
+        m.look = LundunCast.Look(who); m.maxHp = m.look != null ? m.look.health : 100f; m.hp = m.maxHp;
         m.tag = NameTag(who);
         members[who] = m;
         return m;
@@ -214,7 +219,9 @@ public class LundunCrew : MonoBehaviour
     void Despawn(Member m)
     {
         Dot(m, false);
+        CombatGone(m);
         if (m.health != null && m.hurt != null) m.health.Damaged -= m.hurt;
+        if (m.health != null && m.hurtBy != null) m.health.Hurt -= m.hurtBy;
         if (m.go != null)
         {
             foreach (Renderer r in m.go.GetComponentsInChildren<Renderer>(true)) foreach (Material mat in r.materials) if (mat != null) Destroy(mat);
@@ -300,6 +307,7 @@ public class LundunCrew : MonoBehaviour
             Tick(m, j, driving, scan);
         }
         Chatter(driving);
+        CombatUpdate(j);                                                    // S4: foes, the revive button
     }
 
     void Tick(Member m, Transform j, bool driving, bool scan)
@@ -318,6 +326,7 @@ public class LundunCrew : MonoBehaviour
                 if (Time.time - m.stateAt > 2f) SendOff(m, null);       // nobody asked them along
                 break;
             case State.Following:
+                if (m.downed) { DownedTick(m, j); break; }                      // S4: hurt badly: waiting for James
                 if (driving && vs.CurrentCar != null) { Board(m, vs.CurrentCar, false); break; }
                 if (!driving && !j.gameObject.activeInHierarchy)                 // S3: on the train (or the Tube) with him
                 {
@@ -330,6 +339,7 @@ public class LundunCrew : MonoBehaviour
                 Boarding(m);
                 break;
             case State.InCar:
+                if (m.car != null && driving && vs.CurrentCar == m.car) DriveBy(m);   // S4: shooting from the window
                 if (m.car == null) { if (!driving && j.gameObject.activeInHierarchy) GetOut(m); break; }   // S3: off the train with him
                 if (vs.CurrentCar != m.car) GetOut(m);   // the car's gone (wrecked, or James somehow left it)
                 break;
@@ -345,6 +355,7 @@ public class LundunCrew : MonoBehaviour
     /// Behind James (their own place in the group), at walking, jogging or running pace to keep up.
     void Follow(Member m, Transform j)
     {
+        if (Combat(m, j)) return;                                           // S4: a fight on: in it
         int slot = SlotOf(m);
         Vector3 fwd = j.forward; fwd.y = 0f; fwd = fwd.sqrMagnitude > 0.01f ? fwd.normalized : Vector3.forward;
         Vector3 right = Vector3.Cross(Vector3.up, fwd);
@@ -528,7 +539,12 @@ public class LundunCrew : MonoBehaviour
 
     void Hurt(Member m)
     {
-        if (m.go == null || !m.go.activeInHierarchy) return;
+        if (m.go == null || !m.go.activeInHierarchy || m.downed) return;
+        if (InMission && foes.Count > 0)                                    // S4: in a fight: a flinch now and then, no words for James
+        {
+            if (Random.value < 0.35f) LundunStagger.Play(m.go, "Hit", 0.45f, false);
+            return;
+        }
         LundunStagger.Play(m.go, "Hit", 0.6f, false);
         if (Time.time - m.lastOuch > 3f) { m.lastOuch = Time.time; LundunMissions.Say(m.who, Pick(Ouch), 2.2f); }
     }
@@ -651,6 +667,7 @@ public class LundunCrew : MonoBehaviour
     {
         Camera cam = Camera.main;
         if (cam == null) return;
+        Bars(cam);                                                          // S4: health bars
         foreach (Member m in members.Values)
         {
             if (m.tag == null) continue;

@@ -19,6 +19,8 @@ public class Health : MonoBehaviour
     [SerializeField] private float knockbackMax = 1.5f;
 
     public event Action<Vector3> Damaged;
+    /// S4: how much a hit did (before Invulnerable): the story's people keep their own health in missions.
+    public event Action<float> Hurt;
     public event Action Died;
 
     private float currentHealth;
@@ -60,6 +62,7 @@ public class Health : MonoBehaviour
         if (IsDead) return;
 
         if (!Invulnerable) currentHealth -= amount;
+        Hurt?.Invoke(amount);
 
         if (rend != null) StartCoroutine(Flash());
         Damaged?.Invoke(hitPoint);
