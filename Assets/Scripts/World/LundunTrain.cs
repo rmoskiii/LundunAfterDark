@@ -53,6 +53,60 @@ public class LundunTrain : MonoBehaviour
     private float nextCheck;
 
     public bool Riding { get { return riding; } }
+
+    // ------------------------------------------------------------------ S3: the story's train
+    public static LundunTrain Instance { get; private set; }
+    /// Story mode: James may board while wanted, and if the police didn't see him get on, they lose him when the train
+    /// pulls out. Free Roam keeps the doors shut to anyone wanted, as before.
+    public static bool StoryRules;
+    /// Fired as the train pulls out with James on board, and when he steps off (true = at Brixtun).
+    public static event System.Action Departed;
+    public static event System.Action<bool> Arrived;
+    private float holdUntil;
+    private bool holdAtBrixtun;
+    public bool AtBrixtun { get { return HasBrixtun && state == State.AtEnd; } }
+    public bool AtRyeLane { get { return state == State.AtStation; } }
+    public Vector3 BrixtunEntrance { get { return brixtunEntrance; } }
+    public Vector3 BrixtunPlatform { get { return brixtunSpot; } }
+    public Vector3 RyeLanePlatform { get { return platformSpot; } }
+
+    /// A mission needs the train waiting at a platform: if it isn't there and nobody can see it, it's put there (doors
+    /// open); either way it waits there, doors open, for up to 'seconds' or until James gets on (then leaves soon after).
+    public void HoldAt(bool brixtun, float seconds)
+    {
+        if (brixtun && !HasBrixtun) brixtun = false;
+        holdAtBrixtun = brixtun; holdUntil = Time.time + seconds;
+        bool there = brixtun ? AtBrixtun : AtRyeLane;
+        if (there || riding || CarsSeen()) return;
+        s = brixtun ? brixtunFront : stationFront; v = 0f;
+        state = brixtun ? State.AtEnd : State.AtStation;
+        waitUntil = Time.time + dwellAtStation; chimed = false; leftStation = false;
+        PlaceCars(true);
+    }
+
+    public void StopHolding() { holdUntil = 0f; }
+
+    bool CarsSeen()
+    {
+        Camera c = Camera.main;
+        if (c == null) return false;
+        foreach (Transform t in cars) if (t != null && LundunView.CanSee(c, t.position)) return true;
+        return false;
+    }
+
+    /// Pulling out: with Story rules, police who didn't see James board lose him.
+    void PullingOut()
+    {
+        if (!riding) return;
+        WantedSystem w = WantedSystem.Instance;
+        if (StoryRules && w != null && w.Stars > 0 && w.SinceSeen > 4f)
+        {
+            w.ClearWanted();
+            if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast("LOST THEM\nThe police didn't see you get on");
+            LundunHaptics.Medium();
+        }
+        Departed?.Invoke();
+    }
     /// L6: the line (at rail-head height), south end to the buffers.
     public Vector3[] Path { get { return path; } }
     public float Speed { get { return v; } }
@@ -77,6 +131,7 @@ public class LundunTrain : MonoBehaviour
 
     void Awake()
     {
+        Instance = this;
         GameObject mk = new GameObject("RyeLaneStation");
         mk.transform.SetParent(transform, false);
         mk.transform.position = entrance;
@@ -112,6 +167,8 @@ public class LundunTrain : MonoBehaviour
         PlaceCars(true);
     }
 
+    void OnDestroy() { if (Instance == this) Instance = null; }
+
     void Start()
     {
         vehicles = FindAnyObjectByType<VehicleSystem>();
@@ -140,12 +197,14 @@ public class LundunTrain : MonoBehaviour
             case State.AtStation:
                 v = 0f;
                 if (!chimed && Time.time > waitUntil - 4f) { chimed = true; Play(chime, 0.7f); }
-                if (Time.time >= waitUntil) { state = State.Outbound; leftStation = true; Play(horn, 1f); }
+                if (holdUntil > Time.time && !holdAtBrixtun && !riding) waitUntil = Mathf.Max(waitUntil, Time.time + 8f);   // S3: held for a mission
+                if (Time.time >= waitUntil) { state = State.Outbound; leftStation = true; Play(horn, 1f); PullingOut(); }
                 break;
             case State.AtEnd:
                 v = 0f;
                 if (HasBrixtun && !chimed && Time.time > waitUntil - 4f) { chimed = true; Play(chime, 0.7f); }
-                if (Time.time >= waitUntil) { state = State.Inbound; if (HasBrixtun) { leftStation = true; Play(horn, 1f); } }
+                if (HasBrixtun && holdUntil > Time.time && holdAtBrixtun && !riding) waitUntil = Mathf.Max(waitUntil, Time.time + 8f);   // S3
+                if (Time.time >= waitUntil) { state = State.Inbound; if (HasBrixtun) { leftStation = true; Play(horn, 1f); PullingOut(); } }
                 break;
             case State.Outbound:
                 if (Drive(EndFront, -1, dt))
@@ -269,7 +328,7 @@ public class LundunTrain : MonoBehaviour
         }
         else if (AtPlatform && Time.time < waitUntil - 4f && NearTrain())
         {
-            bool wanted = WantedSystem.Instance != null && WantedSystem.Instance.Stars > 0;
+            bool wanted = WantedSystem.Instance != null && WantedSystem.Instance.Stars > 0 && !StoryRules;     // S3: Story lets you on
             show = true;
             string where = !HasBrixtun ? "Rye Lane line, there and back" : state == State.AtStation ? "To Brixtun" : "To Rye Lane";
             text = wanted ? "DOORS CLOSED\n<size=70%>Police incident</size>" : "RIDE THE TRAIN\n<size=70%>" + where + "</size>";
@@ -304,6 +363,7 @@ public class LundunTrain : MonoBehaviour
     {
         if (riding || PlayerHealth.Instance == null || vehicles == null || cars.Length < 2) return;
         riding = true; leftStation = false;
+        if (holdUntil > Time.time) { holdUntil = 0f; waitUntil = Mathf.Min(waitUntil, Time.time + 6f); }      // S3: held for him: off we go
         playerGo = PlayerHealth.Instance.Body.gameObject;
         vehicles.LockControls(true);
         playerGo.SetActive(false);
@@ -329,6 +389,7 @@ public class LundunTrain : MonoBehaviour
         }
         if (vehicles != null) vehicles.LockControls(false);
         nextCheck = Time.time + 2f;
+        Arrived?.Invoke(HasBrixtun && state == State.AtEnd);                   // S3
     }
 
     // ------------------------------------------------------------------ UI (built in code)

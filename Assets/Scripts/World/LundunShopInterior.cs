@@ -41,6 +41,10 @@ public class LundunShopInterior : MonoBehaviour
 
     public static readonly List<LundunShopInterior> All = new List<LundunShopInterior>();
     public string StoreName { get { return storeName; } }
+    /// S3: the entrance doors (centres) and the outline (x, z).
+    public Vector3[] DoorCentres { get { return doorCentres; } }
+    public Vector3 Min { get { return footprintMin; } }
+    public Vector3 Max { get { return footprintMax; } }
     public bool DetailOn { get { return detail != null && detail.activeSelf; } }
     public int LiftCount { get { return liftAt.Length; } }
 

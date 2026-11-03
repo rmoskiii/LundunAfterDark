@@ -46,6 +46,8 @@ public static class LundunGame
     static void Attach()
     {
         if (UnityEngine.Object.FindAnyObjectByType<VehicleSystem>() == null) return;
+        // S3: LAGOS FOODS' shutters (in every mode: shut in Free Roam)
+        if (UnityEngine.Object.FindAnyObjectByType<LundunStoryShop>() == null) new GameObject("LundunStoryShop").AddComponent<LundunStoryShop>();
         // a test scene that isn't in the build (it can't be reloaded): always the plain game, no menu
         if (!CanSwitch) { Current = Mode.FreeRoam; return; }
         if (UnityEngine.Object.FindAnyObjectByType<LundunStoryUI>() != null) return;

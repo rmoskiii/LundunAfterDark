@@ -270,6 +270,7 @@ namespace LundunGreybox
             FurnitureAtlas(a);              // L3 (appended)
             GritAtlas(a);                   // L4 (appended)
             if (!ExpansionMode) VillaAtlas(a);      // James's home in Peckam (appended, city only)
+            if (!ExpansionMode) LagosAtlas(a);      // S3: LAGOS FOODS' inside (appended, city only)
             if (Brix) { MarketAtlas(a); RetailAtlas(a); }     // E3/E4: the market's and retail park's colours and signs (expansions only: the city's atlas stays as it was)
             if (Kingsmere) KingsmereAtlas(a);       // E8: flags, deckchair stripes, the arch's lettering, the clock
             return a;
@@ -898,8 +899,18 @@ namespace LundunGreybox
                     if (dist == "D_GILMOR" && gilShops >= 4) continue;
                     if (dist == "D_GILMOR") gilShops++;
                     string[] shop = list[drng.Next(list.Length)];
+                    shop = StoryShopName(list, shop, uc, b, u);                  // S3: one LAGOS FOODS, one FADEZ BARBERS (no random numbers)
                     bool shut = dist == "D_PECKAM" && drng.NextDouble() < 0.22;
+                    if (IsLagosUnit(b, u))                                       // S3: rolled as before, built by DressLagos
+                    {
+                        bool sink = keepSolid == null;
+                        if (sink) ShopSink(true);
+                        Shop(uc, n, t, unitW, shop, shut);
+                        if (sink) ShopSink(false);
+                        continue;
+                    }
                     Shop(uc, n, t, unitW, shop, shut);
+                    if (shop[0] == FadezName && V2.Dist(uc, FadezAnchor) < 4) FadezPlace(uc, n);
                 }
             }
             ShopSink(false);

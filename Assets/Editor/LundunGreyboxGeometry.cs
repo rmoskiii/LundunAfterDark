@@ -1031,6 +1031,7 @@ namespace LundunGreybox
 
             int cleared = ExpansionMode ? 0 : ClearPlots(R);                   // R7: room for hospitals, police stations, safehouses
             if (cleared > 0) R.log.Add("  " + cleared + " buildings cleared for hospitals / police stations / safehouses");
+            FindLagos(R);                                                        // S3: LAGOS FOODS' unit (built as a walk-in shop)
 
             // L1: the building kit (terraces, parades, estates, towers…) on exactly these plots. The plain boxes below
             // are kept as the fallback (Generator.UseBuildingKit = false).

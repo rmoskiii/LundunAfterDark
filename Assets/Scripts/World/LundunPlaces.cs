@@ -29,6 +29,8 @@ public class LundunPlaces : MonoBehaviour
 
     public Place[] Places { get { return places; } }
     public Place Home { get { return home; } }
+    /// S3: a place by its id (e.g. "LAGOS_FOODS"), or null.
+    public Place Get(string id) { return Find(id); }
     /// James's own car (the Kestrel).
     public Transform Kestrel { get { return kestrel; } }
 

@@ -23,6 +23,9 @@ public class LundunRoadblocks : MonoBehaviour
     private float next;
     private static readonly System.Random rng = new System.Random();
 
+    /// S3: while above 0, roadblocks come from this many stars (a mission closing the roads). Story missions only.
+    public static int MissionFromStars;
+
     void Start() { vehicles = FindAnyObjectByType<VehicleSystem>(); }
 
     void Update()
@@ -31,7 +34,8 @@ public class LundunRoadblocks : MonoBehaviour
         if (w == null || vehicles == null) return;
         Vector3 player = w.PlayerTarget.position;
         Tidy(player, w.Stars);
-        if (w.Stars < fromStars || !vehicles.IsDriving || VehicleSystem.Locked) return;
+        int from = MissionFromStars > 0 ? Mathf.Min(fromStars, MissionFromStars) : fromStars;
+        if (w.Stars < from || !vehicles.IsDriving || VehicleSystem.Locked) return;
         if (Time.time < next || blocks.Count >= maxAlive) return;
         if (vehicles.PlayerSpeed < minSpeed) return;
         next = Time.time + 2f;                                     // try again soon if there's no good spot

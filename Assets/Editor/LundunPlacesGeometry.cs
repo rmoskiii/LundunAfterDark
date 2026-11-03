@@ -130,6 +130,7 @@ namespace LundunGreybox
                 else Safehouse(s);
                 D.Count(s.kind == "hospital" ? "hospitals" : s.kind == "police" ? "police stations" : "safehouses");
             }
+            DressLagos();                           // S3: LAGOS FOODS, the walk-in shop on Rye Lane
             // Peckam Safehouse: a real house on Choumert Grove now (it used to be a door on the old high street, from the
             // spawn points). Only if its plot couldn't be fitted does the old spot stand in, so there's always a home.
             bool peckam = false;

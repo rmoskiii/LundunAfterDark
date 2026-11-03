@@ -72,6 +72,23 @@ public class LundunMarketCrowd : MonoBehaviour
         startWithin = start; stopBeyond = stop; perBudget = budget; fewest = least; maxTraders = traders;
     }
 
+    /// S3: where the staff stand (tills first) and which way they face.
+    public Vector3[] TraderSpots { get { return traderAt; } }
+    public Vector3[] TraderFacing { get { return traderFace; } }
+
+    /// S3: a hold-up: everyone within range runs, except the staff within keepRange of keep (the cashier stays put).
+    public void HoldUp(Vector3 from, float range, Vector3 keep, float keepRange)
+    {
+        if (!running) return;
+        lastTrouble = Time.time;
+        foreach (Person p in people)
+        {
+            if (p.go == null || !p.go.activeSelf || p.state == State.Released || p.state == State.Off) continue;
+            if (p.trader && (p.go.transform.position - keep).sqrMagnitude <= keepRange * keepRange) continue;
+            if ((p.go.transform.position - from).sqrMagnitude <= range * range) Release(p, from);
+        }
+    }
+
     public void SetData(Vector3[] n, int[] ea, int[] eb, Vector3[] s, Vector3[] look, int[] sn, int[] g, Vector3[] tAt, Vector3[] tFace)
     {
         nodes = n; edgeA = ea; edgeB = eb; spots = s; spotLook = look; spotNode = sn; gates = g; traderAt = tAt; traderFace = tFace;

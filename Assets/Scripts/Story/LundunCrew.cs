@@ -40,6 +40,8 @@ public class LundunCrew : MonoBehaviour
 
     private readonly Dictionary<string, Member> members = new Dictionary<string, Member>();
     private readonly Dictionary<string, Spot> waits = new Dictionary<string, Spot>();
+    private readonly Dictionary<string, Spot> residents = new Dictionary<string, Spot>();     // S3: Uncle Femi in his shop
+    private readonly Dictionary<string, Spot> staged = new Dictionary<string, Spot>();        // S3: placed by a mission
     private readonly List<string> scratch = new List<string>();
     private readonly List<Member> withJames = new List<Member>(), inCarNow = new List<Member>();
     private VehicleSystem vs;
@@ -65,7 +67,8 @@ public class LundunCrew : MonoBehaviour
         if (c == null || !LundunCast.Has(who)) return;
         c.waits[who] = new Spot { at = at, yaw = yaw };
         Member m;
-        if (c.members.TryGetValue(who, out m) && (m.state == State.Idle || m.state == State.Waiting)) { m.spot = at; m.spotYaw = yaw; c.Set(m, State.Waiting); }
+        if (c.members.TryGetValue(who, out m) && (m.state == State.Idle || m.state == State.Waiting || (m.state == State.Leaving && !m.inside)))
+        { m.spot = at; m.spotYaw = yaw; c.Set(m, State.Waiting); }        // S3: someone just leaving stays for the next one
     }
 
     /// Nobody waits by the start markers any more (a mission has started): givers it doesn't take along wander off.
@@ -75,6 +78,66 @@ public class LundunCrew : MonoBehaviour
         if (c == null) return;
         c.waits.Clear();
         foreach (Member m in c.members.Values) if (m.state == State.Waiting) c.Set(m, State.Idle);
+    }
+
+    /// S3: 'who' is usually found at 'at' (Uncle Femi behind his counter). They turn up there when nobody's looking.
+    public static void Resident(string who, Vector3 at, float yaw)
+    {
+        LundunCrew c = Instance;
+        if (c == null || !LundunCast.Has(who)) return;
+        Spot old;
+        if (c.residents.TryGetValue(who, out old) && (old.at - at).sqrMagnitude < 0.01f) return;
+        c.residents[who] = new Spot { at = at, yaw = yaw };
+        Member m;
+        if (c.members.TryGetValue(who, out m) && (m.state == State.Idle || m.state == State.Waiting) && !c.staged.ContainsKey(who)) { m.spot = at; m.spotYaw = yaw; c.Set(m, State.Waiting); }
+    }
+
+    /// S3: not there any more (the shop's shut): they go once nobody's looking.
+    public static void NotResident(string who)
+    {
+        LundunCrew c = Instance;
+        if (c == null || !c.residents.Remove(who)) return;
+        Member m;
+        if (c.members.TryGetValue(who, out m) && m.state == State.Waiting && !c.staged.ContainsKey(who) && !c.waits.ContainsKey(who)) c.Dismiss(m);
+    }
+
+    /// S3: a mission puts 'who' at 'at' facing yaw (the family in the shop). There at once if they weren't about;
+    /// someone already about (with James, or waiting) walks there.
+    public static void Stage(string who, Vector3 at, float yaw)
+    {
+        LundunCrew c = Instance;
+        if (c == null || !LundunCast.Has(who)) return;
+        c.staged[who] = new Spot { at = at, yaw = yaw };
+        Member m;
+        if (!c.members.TryGetValue(who, out m)) { m = c.Spawn(who, at, yaw); if (m == null) return; }
+        if (m.state == State.InCar) c.GetOut(m);
+        m.spot = at; m.spotYaw = yaw;
+        c.Set(m, State.Waiting);
+    }
+
+    /// S3: everyone a mission placed goes (once nobody's looking).
+    public static void ClearStaged()
+    {
+        LundunCrew c = Instance;
+        if (c == null) return;
+        c.scratch.Clear();
+        foreach (string w in c.staged.Keys) c.scratch.Add(w);
+        c.staged.Clear();
+        foreach (string w in c.scratch)
+        {
+            Member m;
+            if (!c.members.TryGetValue(w, out m) || m.state != State.Waiting) continue;
+            Spot r;
+            if (c.residents.TryGetValue(w, out r)) { m.spot = r.at; m.spotYaw = r.yaw; continue; }
+            c.Dismiss(m);
+        }
+    }
+
+    /// Gone the moment nobody's looking (they stay where they are till then).
+    void Dismiss(Member m)
+    {
+        m.inside = false; m.leaveTo = m.t.position;
+        Set(m, State.Leaving);
     }
 
     /// 'who' comes with James (the one waiting nearby if there is one, otherwise they turn up just behind him).
@@ -91,6 +154,7 @@ public class LundunCrew : MonoBehaviour
             m = c.Spawn(who, at, j.eulerAngles.y);
             if (m == null) return;
         }
+        c.staged.Remove(who);
         if (c.Driving() && c.vs.CurrentCar != null) c.Board(m, c.vs.CurrentCar, true);
         else c.Set(m, State.Following);
     }
@@ -215,6 +279,15 @@ public class LundunCrew : MonoBehaviour
             if (m != null) { m.spot = kv.Value.at; m.spotYaw = kv.Value.yaw; Set(m, State.Waiting); }
         }
 
+        foreach (var kv in residents)
+        {
+            if (members.ContainsKey(kv.Key)) continue;
+            float d = LundunMissionRun.FlatDistance(j.position, kv.Value.at);
+            if (d > 90f || (d < 35f && Seen(kv.Value.at))) continue;
+            Member m = Spawn(kv.Key, kv.Value.at, kv.Value.yaw);
+            if (m != null) { m.spot = kv.Value.at; m.spotYaw = kv.Value.yaw; Set(m, State.Waiting); }
+        }
+
         scratch.Clear();
         foreach (string w in members.Keys) scratch.Add(w);
         bool scan = Time.time >= nextScan;
@@ -236,7 +309,7 @@ public class LundunCrew : MonoBehaviour
         switch (m.state)
         {
             case State.Waiting:
-                if (!waits.ContainsKey(m.who)) { Set(m, State.Idle); break; }
+                if (!waits.ContainsKey(m.who) && !residents.ContainsKey(m.who) && !staged.ContainsKey(m.who)) { Set(m, State.Idle); break; }
                 if (LundunMissionRun.FlatDistance(j.position, m.t.position) > 140f && !Seen(m.t.position)) { Despawn(m); return; }
                 if (!busy) { if (LundunMissionRun.FlatDistance(m.t.position, m.spot) > 1.2f) Walk(m, m.spot, 1.6f); else Stand(m, j, 12f, m.spotYaw); }
                 break;
@@ -246,13 +319,19 @@ public class LundunCrew : MonoBehaviour
                 break;
             case State.Following:
                 if (driving && vs.CurrentCar != null) { Board(m, vs.CurrentCar, false); break; }
+                if (!driving && !j.gameObject.activeInHierarchy)                 // S3: on the train (or the Tube) with him
+                {
+                    if (LundunMissionRun.FlatDistance(m.t.position, j.position) < 40f) { m.car = null; m.seat = 0; IntoCar(m); }
+                    break;
+                }
                 if (!busy) Follow(m, j);
                 break;
             case State.Boarding:
                 Boarding(m);
                 break;
             case State.InCar:
-                if (vs.CurrentCar != m.car || m.car == null) GetOut(m);   // the car's gone (wrecked, or James somehow left it)
+                if (m.car == null) { if (!driving && j.gameObject.activeInHierarchy) GetOut(m); break; }   // S3: off the train with him
+                if (vs.CurrentCar != m.car) GetOut(m);   // the car's gone (wrecked, or James somehow left it)
                 break;
             case State.Leaving:
                 Leaving(m, j);
@@ -600,12 +679,11 @@ public class LundunCrew : MonoBehaviour
 }
 
 /// S2: a mission step: someone comes with James (they're with him from here on, getting in and out of cars with him).
-public class LundunJoin : LundunStep
+public class LundunJoin : LundunSetup
 {
     public readonly string who;
     public LundunJoin(string who) { this.who = who; }
-    public override bool Tick(LundunMissionRun run) { Apply(run); return true; }
-    public void Apply(LundunMissionRun run)
+    public override void Apply(LundunMissionRun run)
     {
         LundunCrew.Join(who);
         if (!run.crew.Contains(who)) run.crew.Add(who);
@@ -613,14 +691,13 @@ public class LundunJoin : LundunStep
 }
 
 /// S2: a mission step: someone goes (in through 'into' if given, a door, or off down the street).
-public class LundunLeave : LundunStep
+public class LundunLeave : LundunSetup
 {
     public readonly string who;
     readonly System.Func<Vector3> intoNow;
     public LundunLeave(string who) { this.who = who; }
     public LundunLeave(string who, System.Func<Vector3> door) { this.who = who; intoNow = door; }
-    public override bool Tick(LundunMissionRun run) { Apply(run); return true; }
-    public void Apply(LundunMissionRun run)
+    public override void Apply(LundunMissionRun run)
     {
         if (intoNow != null) LundunCrew.Leave(who, intoNow()); else LundunCrew.Leave(who);
         run.crew.Remove(who);

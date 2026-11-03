@@ -492,6 +492,31 @@ public class LundunPopulation : MonoBehaviour
         return go;
     }
 
+    /// S3: a car for a mission (Tayo's car, the swap car): one of the city's models in one of its colours (picked by
+    /// 'look'), parked at pos facing rot, not part of the traffic: the caller owns it. Null if there are no car models.
+    public GameObject NewCar(Transform parent, Vector3 pos, Quaternion rot, int look)
+    {
+        if (carPrefabs == null || carPrefabs.Length == 0) return null;
+        GameObject prefab = null;
+        for (int i = 0; i < carPrefabs.Length && prefab == null; i++) prefab = carPrefabs[(System.Math.Abs(look) + i) % carPrefabs.Length];
+        if (prefab == null) return null;
+        GameObject go = Instantiate(prefab, parent);
+        go.SetActive(false);
+        go.name = "MissionCar_" + prefab.name;
+        int ci = System.Math.Abs(look * 7 + 3) % paintColours.Length;
+        Repaint(go, paintColours[ci], ci);
+        LundunTrafficCar ai = go.GetComponent<LundunTrafficCar>();
+        if (ai != null) DestroyImmediate(ai);
+        Vector3 at = pos + Vector3.up * 0.6f;
+        go.transform.SetPositionAndRotation(at, rot);
+        go.SetActive(true);
+        Rigidbody rb = go.GetComponent<Rigidbody>();
+        if (rb != null) { rb.position = at; rb.rotation = rot; rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }
+        CarController cc = go.GetComponent<CarController>();
+        if (cc != null) cc.SetTouchInput(0f, 0f);
+        return go;
+    }
+
     /// R4a: the nearest ordinary pedestrian out walking (alive, not busy, not fighting), within 'within' metres. Null if none.
     public GameObject NearestPedestrian(Vector3 at, float within)
     {

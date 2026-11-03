@@ -230,8 +230,8 @@ public class LundunMissions : MonoBehaviour
         // S2: who should be with James by this point (starting again from a checkpoint after they joined)
         for (int i = 0; i < from && i < run.steps.Count; i++)
         {
-            LundunJoin join = run.steps[i] as LundunJoin; if (join != null) join.Apply(run);
-            LundunLeave leave = run.steps[i] as LundunLeave; if (leave != null) leave.Apply(run);
+            LundunSetup setup = run.steps[i] as LundunSetup;                    // S3: every set-up step (people, the shop, cars)
+            if (setup != null) setup.Apply(run);
         }
         run.index = from - 1;
         Next();
@@ -348,6 +348,12 @@ public class LundunMissions : MonoBehaviour
         if (keepVisiblePeople) foreach (string who in run.crew) LundunCrew.Leave(who);       // passed / quit: they walk off
         else LundunCrew.LeaveAll(true);                                                    // failed: gone (retry brings them back)
         run.crew.Clear();
+        // S3: whatever the mission switched on
+        LundunCrew.ClearStaged();
+        LundunStoryShop.MissionOpen = false;
+        LundunRoadblocks.MissionFromStars = 0;
+        LundunRobbery.MissionStore = null; LundunRobbery.MissionCash = 0;
+        if (LundunTrain.Instance != null) LundunTrain.Instance.StopHolding();
         LundunMissionZones.Clear();
         if (objectiveMarker != null) { LundunMinimap mm = FindAnyObjectByType<LundunMinimap>(); if (mm != null) mm.Untrack(objectiveMarker); Destroy(objectiveMarker.gameObject); objectiveMarker = null; }
         if (routeSet && LundunNavigation.Instance != null) { LundunNavigation.Instance.Clear(); routeSet = false; }
@@ -369,6 +375,27 @@ public class LundunMissions : MonoBehaviour
             else Destroy(g);
         }
         run.spawned.Clear();
+    }
+
+    /// S3: a car the mission made, now it's done with: James keeps it if he's in it; one in view goes once nobody's
+    /// looking; otherwise it goes now.
+    public static void LetGo(GameObject car)
+    {
+        if (car == null) return;
+        VehicleSystem vs = FindAnyObjectByType<VehicleSystem>();
+        if (vs != null && vs.CurrentCar != null && vs.CurrentCar.gameObject == car) return;
+        Camera cam = Camera.main;
+        if (Instance != null && cam != null && LundunView.CanSee(cam, car.transform.position)) { Instance.leftovers.Add(car); return; }
+        Destroy(car);
+    }
+
+    /// S3: start markers again, for whatever's available now (after a mission's passed).
+    void RefreshStarts()
+    {
+        LundunMinimap mm = FindAnyObjectByType<LundunMinimap>();
+        foreach (var kv in starts) if (kv.Value != null) { if (mm != null) mm.Untrack(kv.Value); Destroy(kv.Value.gameObject); }
+        starts.Clear();
+        foreach (LundunMission m in LundunMissionBook.All) MakeStart(m);
     }
 
     void ShowFail()
@@ -399,6 +426,7 @@ public class LundunMissions : MonoBehaviour
         if (run.failed == null) { LundunStep s = run.Current; if (s != null) s.End(run); Clean(true); }
         if (failPanel != null) failPanel.SetActive(false);
         if (Time.timeScale == 0f) Time.timeScale = timeScaleBefore;
+        run.mission.Tidy();                                                    // S3: its cars
         run = null;
         LundunStory.Data.currentMission = "";
         LundunStory.MarkDirty();
@@ -424,6 +452,7 @@ public class LundunMissions : MonoBehaviour
         d.currentMission = "";
         LundunWallet.Earn(pay, "Mission passed");
         LundunStory.Write();
+        m.Tidy();                                                              // S3: its cars
         run = null;
 
         passMoney.text = "+" + LundunWallet.Format(pay);
@@ -439,7 +468,7 @@ public class LundunMissions : MonoBehaviour
     {
         passPanel.SetActive(false);
         Time.timeScale = timeScaleBefore;
-        ShowStarts(true);
+        RefreshStarts();                                                       // S3: the next mission's marker
     }
 
     // ------------------------------------------------------------------ the glow (start markers and objectives)

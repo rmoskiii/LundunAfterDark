@@ -351,6 +351,22 @@ public class WantedSystem : MonoBehaviour
         Stars = Mathf.Max(Stars, stars);
     }
 
+    /// S3: a mission's story raises the level (the swap car was seen, the alarm went off): at least 'stars', police
+    /// know James is at 'at'. Never lowers it.
+    public void RaiseTo(int stars, Vector3 at, bool seen)
+    {
+        if (heatForStar.Length == 0 || stars <= Stars) return;
+        heat = Mathf.Max(heat, heatForStar[Mathf.Clamp(stars, 1, heatForStar.Length) - 1]);
+        LastKnownPosition = at;
+        if (seen) lastSighting = Time.time;
+        timeSinceSeen = 0f; escapeClock = 0f;
+        UpdateStars();
+        CrimeKnown?.Invoke(stars >= 3 ? CrimeType.KillOfficer : CrimeType.KillPedestrian, at);
+    }
+
+    /// S3: seconds since police last saw James (the train: board unseen and they lose you).
+    public float SinceSeen => Time.time - lastSighting;
+
     public void ClearWanted()
     {
         heat = 0f;

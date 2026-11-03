@@ -160,6 +160,7 @@ namespace LundunGreybox
                 KitPlan p = SpecialPlan(b) ?? PlanBuilding(b, kr, ref pubs);     // E1: an expansion's landmark buildings are planned by hand
                 kitPlans[b] = p;
                 string ck = "_" + (int)Math.Floor((b.c.x - ChunkOrigin) / ChunkSize) + "_" + (int)Math.Floor((b.c.z - ChunkOrigin) / ChunkSize);
+                if (b == lagosBld && LagosKit(chunks, ck, p, b)) { int lc; KitCounts.TryGetValue("Parade", out lc); KitCounts["Parade"] = lc + 1; continue; }   // S3
                 Kit k = new Kit { A = ChunkMesh(chunks, KitMatA + ck, KitMatA), B = ChunkMesh(chunks, KitMatB + ck, KitMatB), p = p, rnd = kr, h = b.h };
                 switch (p.type)
                 {

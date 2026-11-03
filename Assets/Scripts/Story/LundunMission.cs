@@ -18,6 +18,8 @@ public abstract class LundunMission
     public abstract Vector3 StartAt { get; }
     /// S2: the way the giver faces while waiting by the start marker (beside it).
     public virtual Vector3 GiverFacing { get { return Vector3.forward; } }
+    /// S3: the mission's over (passed or abandoned): let go of anything it kept between attempts (its cars).
+    public virtual void Tidy() { }
     /// Counts as one of the 12 story missions (the S1 test mission doesn't).
     public virtual bool Story { get { return true; } }
     public virtual bool Available(LundunStoryData d) { return true; }
