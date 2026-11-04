@@ -246,6 +246,7 @@ namespace LundunGreybox
                 for (double z = 0; z < D2 - 0.01; z += 1.8)
                     LFlat(x, Math.Min(x + 1.8, hw), z, Math.Min(z + 1.8, D2), fy + 0.005, "lf_floor", false);
             LFlat(-hw, hw, 0.02, D2, cy, "lf_ceiling", true);
+            LCol("ShopCeiling", -hw, hw, 0.2, D2, cy, cy + 0.3);                    // the camera stops here (not the floor above)
             LBox(-hw, hw, 0.02, 0.2, cy, gf - 0.05, "charcoal");                       // behind the fascia, from inside
             foreach (int s in new[] { -1, 1 })
             {

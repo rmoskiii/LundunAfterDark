@@ -67,6 +67,10 @@ public class CameraFollow : MonoBehaviour
     [Tooltip("Ignore things smaller than this (lamp posts, bollards) so the camera doesn't jump")]
     [SerializeField] private float ignoreSmallerThan = 3f;
     [SerializeField] private LayerMask collisionLayers = 1;      // Default = buildings and the world
+    [Header("Indoors (walk-in shops)")]
+    [SerializeField] private float indoorDistanceScale = 0.62f;  // closer inside a shop
+    [SerializeField] private float indoorHeightScale = 0.8f;     // and a little lower, under the ceiling
+    private float indoor;
     private float collideDistance = -1f;
 
     [Header("Field of view")]
@@ -227,6 +231,12 @@ public class CameraFollow : MonoBehaviour
             camHeight += exploreExtraHeight * explore;
             camShoulder += combatExtraShoulder * combat;
         }
+
+        // inside a walk-in shop (Basketful and the rest, LAGOS FOODS): closer and lower, easing in and out
+        bool inShop = !vehicleMode && (LundunShopInterior.At(target.position) != null ||
+                      (LundunStoryShop.Instance != null && LundunStoryShop.Instance.Ready && LundunStoryShop.Instance.Inside(target.position)));
+        indoor = Mathf.MoveTowards(indoor, inShop ? 1f : 0f, 2f * Time.deltaTime);
+        if (indoor > 0f) { camDistance *= Mathf.Lerp(1f, indoorDistanceScale, indoor); camHeight *= Mathf.Lerp(1f, indoorHeightScale, indoor); }
 
         Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
         Vector3 pivot = target.position + Vector3.up * camHeight;

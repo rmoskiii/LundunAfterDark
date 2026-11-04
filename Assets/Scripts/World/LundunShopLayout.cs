@@ -25,6 +25,6 @@ public static class LundunShopLayout
     public static double[] AtCounter(double W) { return new[] { W / 2 - 2.35, 3.2, 90.0 }; }         // a customer
     public static double[] ByFridge(double W) { return new[] { -W / 2 + 1.5, 6.0, 180.0 }; }         // facing the door
     public static double[] InAisle(double W) { return new[] { -W / 2 + 1.4, 3.6, 90.0 }; }
-    public static double[] Inside(double W) { return new[] { DoorX(W) - 0.3, 1.2, 0.0 }; }           // just in from the door
+    public static double[] Inside(double W) { return new[] { W / 2 - 3.1, 2.3, 30.0 }; }             // in, clear of the doorway
     public static double[] BackRoom(double W) { return new[] { 0.9, 8.6, 180.0 }; }
 }

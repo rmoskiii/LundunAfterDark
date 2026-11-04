@@ -15,6 +15,13 @@ public class LundunRouteLine : MaskableGraphic
     [SerializeField] private float mapHeight = 1500f;
 
     private readonly List<Vector2> uv = new List<Vector2>();
+
+    /// Set up from code (the minimap's own route line, Story only): the map picture's area, the line's width and colour.
+    public void Setup(float minX, float minZ, float w, float h, float lineWidth, Color colour)
+    {
+        mapMinX = minX; mapMinZ = minZ; mapWidth = w; mapHeight = h; width = lineWidth;
+        color = colour; raycastTarget = false; seenVersion = -1;
+    }
     private int seenVersion = -1;
 
     void Update()

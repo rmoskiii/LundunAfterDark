@@ -35,6 +35,7 @@ public partial class LundunCrew : MonoBehaviour
         public LundunLook look; public float hp, maxHp, nextAttack, downedAt; public bool downed, armed;
         public Health foe; public GameObject gun; public Transform barBack, barFill; public LineRenderer tracer; public float tracerOff;
         public System.Action<float> hurtBy;
+        public Collider[] colliders;                                    // James passes through these
         public System.Action<Vector3> hurt;
     }
     struct Spot { public Vector3 at; public float yaw; }
@@ -52,7 +53,9 @@ public partial class LundunCrew : MonoBehaviour
     private LundunMinimap minimap;
     private bool wasDriving;
     private CarController lastCar;
-    private float nextChat, nextScan, fastFor, lastPolice, lastFast;
+    private float nextChat, nextScan, fastFor, lastPolice, lastFast, nextPass;
+    private Transform jamesBody;
+    private Collider[] jamesColliders;
     private int lastStars;
     private string lastChatWho;
     private static int vehicleMask = -1;
@@ -234,7 +237,7 @@ public partial class LundunCrew : MonoBehaviour
     void Set(Member m, State s)
     {
         m.state = s; m.stateAt = Time.time; m.nextPath = 0f;
-        if (s != State.InCar && m.go != null && !m.go.activeSelf) m.go.SetActive(true);
+        if (s != State.InCar && m.go != null && !m.go.activeSelf) { m.go.SetActive(true); nextPass = 0f; }
         Dot(m, s == State.Following || s == State.Boarding);
     }
 
@@ -308,11 +311,30 @@ public partial class LundunCrew : MonoBehaviour
         }
         Chatter(driving);
         CombatUpdate(j);                                                    // S4: foes, the revive button
+        if (Time.time >= nextPass) { nextPass = Time.time + 0.5f; PassThrough(j); }
+    }
+
+    /// James walks straight through the story's people (they never block a doorway or a path). Pedestrians, police
+    /// and everyone else are as solid as ever. Unity forgets an "ignore" whenever a collider is switched off (getting in
+    /// and out of cars does that), so it's set again twice a second.
+    void PassThrough(Transform j)
+    {
+        if (j == null) return;
+        if (jamesBody != j) { jamesBody = j; jamesColliders = j.GetComponentsInChildren<Collider>(true); }
+        if (jamesColliders == null) return;
+        foreach (Member m in members.Values)
+        {
+            if (m.go == null || !m.go.activeInHierarchy) continue;
+            if (m.colliders == null) m.colliders = m.go.GetComponentsInChildren<Collider>(true);
+            foreach (Collider a in jamesColliders)
+                foreach (Collider b in m.colliders)
+                    if (a != null && b != null && a.enabled && b.enabled && a.gameObject.activeInHierarchy) Physics.IgnoreCollision(a, b, true);
+        }
     }
 
     void Tick(Member m, Transform j, bool driving, bool scan)
     {
-        if (m.colliderBack > 0f && Time.time >= m.colliderBack) { m.colliderBack = 0f; if (m.body != null) m.body.enabled = true; }
+        if (m.colliderBack > 0f && Time.time >= m.colliderBack) { m.colliderBack = 0f; if (m.body != null) m.body.enabled = true; nextPass = 0f; }
         bool busy = LundunStagger.Busy(m.go);
         switch (m.state)
         {
@@ -494,6 +516,7 @@ public partial class LundunCrew : MonoBehaviour
 
     void OnGotOut(CarController car)
     {
+        nextPass = 0f;                                                      // James's collider is back: let him through again
         foreach (Member m in members.Values)
             if (m.state == State.InCar && (m.car == car || m.car == null)) GetOut(m);
             else if (m.state == State.Boarding) Set(m, State.Following);

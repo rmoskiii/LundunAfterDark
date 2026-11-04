@@ -60,6 +60,15 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
     void Start()
     {
         vehicles = FindAnyObjectByType<VehicleSystem>();
+        // the GPS route on the minimap too (mission steps and your own waypoints), in Story only: Free Roam unchanged
+        if (LundunGame.IsStory && map != null)
+        {
+            GameObject g = new GameObject("MiniRoute", typeof(RectTransform));
+            RectTransform rt = (RectTransform)g.transform;
+            rt.SetParent(map.transform, false);
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero;
+            g.AddComponent<LundunRouteLine>().Setup(mapMinX, mapMinZ, mapWidth, mapHeight, 7f, new Color(0.72f, 0.36f, 1f, 1f));
+        }
         Canvas c = GetComponentInParent<Canvas>();
         rootCanvas = c != null ? c.rootCanvas : null;
         if (hudRoot != null) hudBasePos = hudRoot.anchoredPosition;
