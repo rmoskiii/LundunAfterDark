@@ -2,7 +2,8 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// Every story mission, in order. S3: 01 One Last Favour, 02 Easy Money, 03 No Way Home (they replace S1's test
-/// mission). S4: 04 Estate Business, 05 Uncle's Rules, 06 Passenger Problems. Each opens once the one before is passed.
+/// mission). S4: 04 Estate Business, 05 Uncle's Rules, 06 Passenger Problems. S5: 07 Home Turf, 08 Blood Is Thicker
+/// (LundunMissionBook5.cs). Each opens once the one before is passed.
 public static class LundunMissionBook
 {
     static List<LundunMission> all;
@@ -15,6 +16,7 @@ public static class LundunMissionBook
             {
                 new M01OneLastFavour(), new M02EasyMoney(), new M03NoWayHome(),                // S3
                 new M04EstateBusiness(), new M05UnclesRules(), new M06PassengerProblems(),     // S4
+                new M07HomeTurf(), new M08BloodIsThicker(),                                     // S5
             };
             return all;
         }

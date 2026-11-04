@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.AI;
+using System.Collections.Generic;
 
 /// Cyclists: someone riding a Lundun Cycles hire bike through town (on the bike's GameObject; LundunCyclists sends
 /// them out). They ride it the way James does (the same bike, the same pedalling and leaning), on the left by the kerb,
@@ -36,6 +37,13 @@ public class LundunCyclist : MonoBehaviour
     public Transform Person { get { return rider; } }
     public bool RiderUp { get; private set; }
 
+    // S5: a story rider (Tayo getting away): along a set route of road nodes, through red lights; Arrived at its end
+    private List<int> route;
+    private bool fleeing;
+    public bool Arrived { get; private set; }
+    /// S5: ride this route (road nodes, from the one after the start) instead of turning at random. flee = through reds.
+    public void Follow(List<int> nodes, bool flee) { route = nodes; fleeing = flee; Arrived = false; PickNext(); }
+
     public void Begin(LundunRoadGraph g, int from, int to, GameObject person, float speed)
     {
         bike = GetComponent<LundunBike>();
@@ -65,6 +73,7 @@ public class LundunCyclist : MonoBehaviour
         if (Crashed) { AfterCrash(); return; }
         if (bike == null || bike.Rider == null || graph == null) return;
         if (bodyMask == -1) bodyMask = LayerMask.GetMask("Vehicle", "NPC", "Player");
+        if (Arrived) { bike.SetInput(new Vector2(0f, bike.Speed > 0.3f ? -1f : 0f)); return; }      // S5: the end of the route
 
         NavPoint a = graph.NodePosition(fromNode), b = graph.NodePosition(toNode);
         Vector3 A = new Vector3((float)a.x, 0f, (float)a.z), B = new Vector3((float)b.x, 0f, (float)b.z);
@@ -80,7 +89,7 @@ public class LundunCyclist : MonoBehaviour
         // a few metres ahead, by the kerb on the left
         float aimS = s + 5f;
         Vector3 target;
-        if (aimS <= segLen) target = A + dir * aimS + new Vector3(-dir.z, 0f, dir.x) * Kerb(width);
+        if (aimS <= segLen || nextNode < 0) target = A + dir * aimS + new Vector3(-dir.z, 0f, dir.x) * Kerb(width);
         else
         {
             NavPoint c = graph.NodePosition(nextNode);
@@ -102,7 +111,8 @@ public class LundunCyclist : MonoBehaviour
             float turn = Vector3.Angle(dir, new Vector3((float)c.x, 0f, (float)c.z) - B);
             if (turn > 30f) want = Mathf.Min(want, 3.5f);
         }
-        LundunTrafficLights lights = LundunTrafficLights.Instance;
+        LundunTrafficLights lights = fleeing ? null : LundunTrafficLights.Instance;
+        if (route != null && toNode == route[route.Count - 1] && toEnd < 6f) { want = 0f; Arrived = true; }
         if (lights != null)
         {
             float line = lights.StopAhead(fromNode, toNode, nextNode, toEnd, Mathf.Max(0f, speed), 3f, false, false);
@@ -139,12 +149,19 @@ public class LundunCyclist : MonoBehaviour
 
     void Advance()
     {
+        if (route != null && toNode == route[route.Count - 1]) { Arrived = true; return; }
         fromNode = toNode; toNode = nextNode;
         PickNext();
     }
 
     void PickNext()
     {
+        if (route != null)
+        {
+            int i = route.IndexOf(toNode);
+            if (i >= 0 && i + 1 < route.Count) { nextNode = route[i + 1]; return; }
+            if (i == route.Count - 1) { nextNode = -1; return; }
+        }
         graph.NextNodes(toNode, fromNode, scratch);
         // not down the service lanes if there's a choice
         for (int i = scratch.Count - 1; i >= 0 && scratch.Count > 1; i--)

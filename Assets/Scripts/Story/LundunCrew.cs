@@ -608,6 +608,7 @@ public partial class LundunCrew : MonoBehaviour
         if (inCar.Count > 1 && who.who == lastChatWho) who = inCar.Find(x => x.who != lastChatWho);
         string[] pool;
         if (!Banter.TryGetValue(who.who, out pool)) return;
+        pool = LundunTrust.Banter(who.who, pool);                              // S5: what's happened, what they think
         lastChatWho = who.who;
         LundunMissions.Say(who.who, Pick(pool), 4f);
     }

@@ -195,12 +195,18 @@ public class LundunEscape : LundunStep
 /// every one of them is dead or has had enough (beaten down to under a third of their health, they give up and run).
 public class LundunFight : LundunStep
 {
-    readonly Vector3 at; readonly int count; readonly bool guns; readonly string look; readonly float engageWithin;
+    Vector3 at; readonly int count; readonly bool guns; readonly string look; readonly float engageWithin;
     /// S4: how hard they hit (× the difficulty's): knives out = more.
     public float harder = 1f;
     readonly List<Health> enemies = new List<Health>();
     readonly List<bool> beaten = new List<bool>();
     bool engaged;
+    readonly Func<List<Health>> already;
+    /// S5: a fight with people already there (a standoff that went wrong): they go for James at once.
+    public LundunFight(Func<List<Health>> group, string objectiveText)
+    {
+        already = group; objective = objectiveText; look = "Street"; engageWithin = 9999f; hasMarker = false;
+    }
     public LundunFight(Vector3 where, int people, bool withGuns, string objectiveText, string lookName = "Street", float startWithin = 18f)
     {
         at = where; count = people; guns = withGuns; objective = objectiveText; look = lookName; engageWithin = startWithin;
@@ -208,6 +214,15 @@ public class LundunFight : LundunStep
     }
     public override void Begin(LundunMissionRun run)
     {
+        enemies.Clear(); beaten.Clear(); engaged = false;
+        if (already != null)
+        {
+            List<Health> g = already();
+            if (g != null) foreach (Health h in g) if (h != null && !h.IsDead) { enemies.Add(h); beaten.Add(false); }
+            if (enemies.Count > 0) { Vector3 c = Vector3.zero; foreach (Health h in enemies) c += h.transform.position; at = c / enemies.Count; }
+            LundunMissions.Mark(enemies, true);
+            return;
+        }
         LundunPopulation pop = LundunPopulation.Instance;
         int n = count + run.ExtraEnemies;
         Vector3 centre = LundunMissionRun.Ground(at);

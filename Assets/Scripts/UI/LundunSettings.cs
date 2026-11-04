@@ -17,7 +17,7 @@ using UnityEngine.UI;
 ///   • AIM ASSIST  Off / Light / Standard / Strong          • FIRE  Manual / Auto (shoots by itself when the crosshair turns red)
 /// Added automatically by LundunHud. In the editor, Play never changes the project's render settings.
 [DefaultExecutionOrder(300)]
-public class LundunSettings : MonoBehaviour
+public partial class LundunSettings : MonoBehaviour
 {
     public static LundunSettings Instance { get; private set; }
     public bool IsOpen { get; private set; }
@@ -146,6 +146,7 @@ public class LundunSettings : MonoBehaviour
         if (switchLabel != null) switchLabel.text = LundunMissions.Running ? "QUIT MISSION" : LundunGame.IsStory ? "SWITCH TO FREE ROAM" : "SWITCH TO STORY";   // S1
         FitPanel();
         if (fpsNote != null) fpsNote.text = FpsNoteText();
+        if (crewTab != null && crewTab.activeSelf) RefreshCrew();                    // S5
         RefreshButtons();
     }
 
@@ -174,6 +175,7 @@ public class LundunSettings : MonoBehaviour
         if (displayTab != null) displayTab.SetActive(i == 0);
         if (controlsTab != null) controlsTab.SetActive(i == 1);
         if (creditsTab != null) creditsTab.SetActive(i == 2);
+        if (crewTab != null) { crewTab.SetActive(i == 3); if (i == 3) RefreshCrew(); }      // S5
         RefreshButtons();
     }
 
@@ -292,7 +294,8 @@ public class LundunSettings : MonoBehaviour
         Top(title.rectTransform, -26f, 64f);
 
         // A3: tabs, DISPLAY and CONTROLS; V3: CREDITS
-        Tabs(panel, new[] { "DISPLAY", "CONTROLS", "CREDITS" }, -104f);
+        if (LundunGame.IsStory) Tabs(panel, new[] { "DISPLAY", "CONTROLS", "CREW", "CREDITS" }, -104f, new[] { 0, 1, 3, 2 });   // S5: CREW
+        else Tabs(panel, new[] { "DISPLAY", "CONTROLS", "CREDITS" }, -104f);
         displayTab = Rect("DisplayTab", panel).gameObject; Stretch((RectTransform)displayTab.transform);
         controlsTab = Rect("ControlsTab", panel).gameObject; Stretch((RectTransform)controlsTab.transform);
         RectTransform dt = (RectTransform)displayTab.transform, ct = (RectTransform)controlsTab.transform;
@@ -333,6 +336,7 @@ public class LundunSettings : MonoBehaviour
         crr.anchorMin = crr.anchorMax = new Vector2(0f, 1f); crr.pivot = new Vector2(0f, 1f);
         crr.anchoredPosition = new Vector2(56f, -196f); crr.sizeDelta = new Vector2(888f, 470f);
         creditsTab.SetActive(false);
+        if (LundunGame.IsStory) BuildCrew(panel);                                     // S5: the crew's trust
 
         RectTransform resume = Rect("Resume", panel);
         resume.anchorMin = resume.anchorMax = new Vector2(0.5f, 0f); resume.pivot = new Vector2(0.5f, 0f);
@@ -382,13 +386,14 @@ public class LundunSettings : MonoBehaviour
         "<color=#9AA3B5>James's car: repainted, no badges, called the Kestrel in the game.</color>\n\n" +
         "<color=#9AA3B5>CC BY 4.0: creativecommons.org/licenses/by/4.0</color>";
 
-    void Tabs(RectTransform panel, string[] names, float y)
+    void Tabs(RectTransform panel, string[] names, float y, int[] ids = null)
     {
         List<Image> list = new List<Image>();
-        float w = 260f, gap = 12f, x0 = -(names.Length * w + (names.Length - 1) * gap) * 0.5f;
+        float w = names.Length > 3 ? 214f : 260f, gap = 12f, x0 = -(names.Length * w + (names.Length - 1) * gap) * 0.5f;
+        Image[] byId = new Image[names.Length];
         for (int i = 0; i < names.Length; i++)
         {
-            int idx = i;
+            int idx = ids != null ? ids[i] : i;
             RectTransform o = Rect("Tab_" + names[i], panel);
             o.anchorMin = o.anchorMax = new Vector2(0.5f, 1f); o.pivot = new Vector2(0f, 1f);
             o.anchoredPosition = new Vector2(x0 + i * (w + gap), y); o.sizeDelta = new Vector2(w, 60f);
@@ -398,8 +403,9 @@ public class LundunSettings : MonoBehaviour
             bt.onClick.AddListener(() => { SetTab(idx); LundunHaptics.Light(); });
             o.gameObject.AddComponent<LundunPressFX>();
             TextMeshProUGUI t = Text(o, names[i], 24, Color.white); Stretch(t.rectTransform); t.characterSpacing = 8f;
-            list.Add(img);
+            if (idx >= 0 && idx < byId.Length) byId[idx] = img; else list.Add(img);
         }
+        foreach (Image im in byId) if (im != null) list.Add(im);             // marked by tab number (S5: CREW is 3)
         groups["tab"] = list;
     }
 

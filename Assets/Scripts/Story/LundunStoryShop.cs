@@ -8,6 +8,9 @@ using UnityEngine.AI;
 ///               open 7am to 11pm by the game clock with Uncle Femi behind the counter (shut if it's been smashed up)
 /// The shutters roll up and down; the door's shutter blocks the doorway (and carves the NavMesh) while it's down.
 /// Never shuts on James while he's inside. Missions place people with Spot() (LundunShopLayout's positions).
+/// S5: smashed up (mission 08, "lagos:smashed", until mission 10 puts it right): shutters down, broken glass on the
+/// pavement and the floor, a cracked window, shelves knocked over, stock everywhere, and no Uncle Femi (he's staying
+/// at James's: he waits by the front door). A mission can still open it (to show the damage).
 public class LundunStoryShop : MonoBehaviour
 {
     public const string Id = "LAGOS_FOODS";
@@ -77,9 +80,9 @@ public class LundunStoryShop : MonoBehaviour
     {
         if (!LundunGame.IsStory) return false;
         LundunStoryData d = LundunStory.Data;
-        if (d != null && d.flags.Contains(SmashedFlag) && !MissionOpen) return false;
         if (MissionOpen) return true;
-        if (LundunMissions.StartWhere(Inside)) return true;                  // S4: a mission starts in here
+        if (LundunMissions.StartWhere(Inside)) return true;                  // S4: a mission starts in here (S5: a replay too)
+        if (Smashed) return false;
         if (d == null || !d.flags.Contains(OpenedBy)) return false;
         float h = LundunClock.Instance != null ? LundunClock.Instance.Hour : 12f;
         return h >= 7f && h < 23f;
@@ -97,7 +100,16 @@ public class LundunStoryShop : MonoBehaviour
             want = w;
             // the hangout: Uncle Femi behind his counter while it's open and no mission is on
             bool femi = want && LundunGame.IsStory && !MissionOpen && !LundunMissions.Running;
-            if (femi) LundunCrew.Resident("UNCLE FEMI", SpotPos(LundunShopLayout.Behind(W)), SpotYaw(LundunShopLayout.Behind(W)));
+            bool smashed = Smashed;
+            if (smashed != debrisShown) ShowDebris(smashed);
+            if (femi && !smashed) LundunCrew.Resident("UNCLE FEMI", SpotPos(LundunShopLayout.Behind(W)), SpotYaw(LundunShopLayout.Behind(W)));
+            else if (smashed && LundunGame.IsStory && !LundunMissions.Running && !LundunMissions.StartWhere(Inside))   // (not while a replay waits in here)
+            {
+                // S5: staying at James's while the shop's smashed: by the front door, out of the doorway
+                float hy = LundunStoryPlaces.HomeYaw;
+                Vector3 f = Quaternion.Euler(0f, hy, 0f) * Vector3.forward, side = Vector3.Cross(Vector3.up, f);
+                LundunCrew.Resident("UNCLE FEMI", LundunMissionRun.Ground(LundunStoryPlaces.Home + f * 2.2f - side * 2.2f), hy);
+            }
             else LundunCrew.NotResident("UNCLE FEMI");
         }
         float target = want ? 1f : 0f;
@@ -106,6 +118,154 @@ public class LundunStoryShop : MonoBehaviour
             shown = Mathf.MoveTowards(shown, target, Time.deltaTime / 1.6f);
             Roll();
         }
+    }
+
+    // ------------------------------------------------------------------ S5: smashed up
+    public static bool Smashed { get { LundunStoryData d = LundunGame.IsStory ? LundunStory.Data : null; return d != null && d.flags.Contains(SmashedFlag); } }
+    private GameObject debris;
+    private bool debrisShown;
+    private static Material glassMat, crackMat, shelfMat;
+    private static readonly Color[] Stock = { new Color(0.85f, 0.2f, 0.15f), new Color(0.95f, 0.75f, 0.2f), new Color(0.3f, 0.6f, 0.25f), new Color(0.9f, 0.9f, 0.85f), new Color(0.55f, 0.35f, 0.2f) };
+
+    /// Mission 08 smashes it (and mission 10 puts it right): the mess appears or goes.
+    public void Refresh() { nextCheck = 0f; }
+
+    void ShowDebris(bool on)
+    {
+        debrisShown = on;
+        if (!on) { if (debris != null) Destroy(debris); debris = null; return; }
+        if (debris != null) return;
+        debris = new GameObject("LagosSmashed");
+        debris.transform.SetParent(transform, false);
+        System.Random r = new System.Random(808);
+        float y = (float)LundunShopLayout.FloorY;
+        Quaternion inward = Quaternion.LookRotation(-outward);
+        // the window: cracked from a brick (a crazed sheet just inside the glass)
+        double wx0 = LundunShopLayout.WindowX0(W), wx1 = LundunShopLayout.WindowX1(W);
+        Vector3 wc = Point((wx0 + wx1) / 2, 0.06); wc.y = (float)((LundunShopLayout.WindowY0 + LundunShopLayout.WindowY1) / 2);
+        Piece(PrimitiveType.Quad, CrackMaterial(), wc, Quaternion.LookRotation(outward), new Vector3((float)(wx1 - wx0), (float)(LundunShopLayout.WindowY1 - LundunShopLayout.WindowY0), 1f));
+        // broken glass: on the pavement outside the window and the door, and just inside
+        for (int i = 0; i < 46; i++)
+        {
+            bool outside = i < 28;
+            double x = wx0 + r.NextDouble() * (LundunShopLayout.DoorX(W) + 0.6 - wx0);
+            double z = outside ? -0.3 - r.NextDouble() * 1.8 : 0.2 + r.NextDouble() * 2.2;
+            Vector3 p = Point(x, z); p.y = (outside ? 0.16f : y) + 0.012f;
+            float sz = 0.05f + (float)r.NextDouble() * 0.14f;
+            Piece(PrimitiveType.Quad, GlassMaterial(), p, Quaternion.Euler(90f, (float)r.NextDouble() * 360f, 0f), new Vector3(sz, sz * (0.4f + (float)r.NextDouble()), 1f));
+        }
+        // shelves knocked over in the aisle, stock all over the floor
+        for (int k = 0; k < 2; k++)
+        {
+            double x = -W / 2 + 1.0 + k * 1.6, z = 4.2 + k * 1.1;
+            Vector3 p = Point(x, z); p.y = y + 0.22f;
+            Quaternion q = inward * Quaternion.Euler(0f, 8f + k * 20f, 84f - k * 10f);
+            Piece(PrimitiveType.Cube, ShelfMaterial(), p, q, new Vector3(1.9f, 0.42f, 0.5f));
+        }
+        for (int i = 0; i < 34; i++)
+        {
+            double x = -W / 2 + 0.5 + r.NextDouble() * (W - 2.6), z = 1.6 + r.NextDouble() * 5.2;
+            Vector3 p = Point(x, z); p.y = y + 0.07f;
+            float a = 0.1f + (float)r.NextDouble() * 0.12f;
+            GameObject g = Piece(PrimitiveType.Cube, null, p, Quaternion.Euler((float)r.NextDouble() * 40f, (float)r.NextDouble() * 360f, (float)r.NextDouble() * 40f), new Vector3(a, a * 1.3f, a * 0.8f));
+            Renderer rr = g.GetComponent<Renderer>();
+            Color c = Stock[r.Next(Stock.Length)];
+            rr.material = PlainMaterial(c);
+        }
+    }
+
+    GameObject Piece(PrimitiveType t, Material m, Vector3 at, Quaternion rot, Vector3 size)
+    {
+        GameObject g = GameObject.CreatePrimitive(t);
+        Collider c = g.GetComponent<Collider>(); if (c != null) Destroy(c);           // mess underfoot, nothing to trip on
+        g.transform.SetParent(debris.transform, false);
+        g.transform.SetPositionAndRotation(at, rot);
+        g.transform.localScale = size;
+        Renderer r = g.GetComponent<Renderer>();
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        if (m != null) r.sharedMaterial = m;
+        return g;
+    }
+
+    static Material PlainMaterial(Color c)
+    {
+        Shader s = Shader.Find("Universal Render Pipeline/Lit");
+        Material m = new Material(s != null ? s : Shader.Find("Standard"));
+        if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+        m.color = c;
+        return m;
+    }
+
+    static Material GlassMaterial()
+    {
+        if (glassMat != null) return glassMat;
+        glassMat = PlainMaterial(new Color(0.78f, 0.88f, 0.92f));
+        glassMat.name = "LagosBrokenGlass";
+        if (glassMat.HasProperty("_Smoothness")) glassMat.SetFloat("_Smoothness", 0.95f);
+        if (glassMat.HasProperty("_Metallic")) glassMat.SetFloat("_Metallic", 0.4f);
+        return glassMat;
+    }
+
+    static Material ShelfMaterial()
+    {
+        if (shelfMat != null) return shelfMat;
+        shelfMat = PlainMaterial(new Color(0.62f, 0.64f, 0.66f));
+        shelfMat.name = "LagosKnockedShelf";
+        return shelfMat;
+    }
+
+    /// A crazed pane: white cracks spreading from where it was hit, on clear (drawn once, here).
+    static Material CrackMaterial()
+    {
+        if (crackMat != null) return crackMat;
+        const int N = 256;
+        Texture2D t = new Texture2D(N, N, TextureFormat.RGBA32, false);
+        Color clear = new Color(1f, 1f, 1f, 0f);
+        Color[] px = new Color[N * N];
+        for (int i = 0; i < px.Length; i++) px[i] = clear;
+        System.Random r = new System.Random(1308);
+        Vector2 hit = new Vector2(N * 0.38f, N * 0.46f);
+        for (int k = 0; k < 15; k++)
+        {
+            float a = (float)(k * Mathf.PI * 2f / 15f + r.NextDouble() * 0.3);
+            Vector2 p = hit;
+            float len = 50f + (float)r.NextDouble() * 120f;
+            for (float d = 0; d < len; d += 0.5f)
+            {
+                a += (float)(r.NextDouble() - 0.5) * 0.06f;
+                p += new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 0.5f;
+                int x = (int)p.x, y = (int)p.y;
+                if (x < 0 || y < 0 || x >= N || y >= N) break;
+                px[y * N + x] = new Color(1f, 1f, 1f, 0.85f);
+            }
+        }
+        for (int ring = 1; ring <= 3; ring++)                                    // the rings round the hole
+            for (int k = 0; k < 220; k++)
+            {
+                float a = k / 220f * Mathf.PI * 2f, rad = ring * 13f + (float)r.NextDouble() * 3f;
+                int x = (int)(hit.x + Mathf.Cos(a) * rad), y = (int)(hit.y + Mathf.Sin(a) * rad);
+                if (x >= 0 && y >= 0 && x < N && y < N && r.NextDouble() < 0.7) px[y * N + x] = new Color(1f, 1f, 1f, 0.7f);
+            }
+        for (int y = -5; y <= 5; y++) for (int x = -5; x <= 5; x++)              // the hole
+            if (x * x + y * y <= 25) px[((int)hit.y + y) * N + (int)hit.x + x] = new Color(0.05f, 0.05f, 0.06f, 0.9f);
+        t.SetPixels(px);
+        t.wrapMode = TextureWrapMode.Clamp; t.filterMode = FilterMode.Bilinear;
+        t.Apply(false, false);
+        Shader s = Shader.Find("Universal Render Pipeline/Unlit");
+        crackMat = new Material(s != null ? s : Shader.Find("Unlit/Transparent")) { name = "LagosCrackedWindow" };
+        if (crackMat.HasProperty("_BaseMap")) crackMat.SetTexture("_BaseMap", t);
+        crackMat.mainTexture = t;
+        if (crackMat.HasProperty("_Surface"))
+        {
+            crackMat.SetFloat("_Surface", 1f); crackMat.SetFloat("_Blend", 0f);
+            crackMat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            crackMat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            crackMat.SetFloat("_ZWrite", 0f);
+            crackMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            crackMat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        }
+        if (crackMat.HasProperty("_Cull")) crackMat.SetFloat("_Cull", 0f);
+        return crackMat;
     }
 
     // ------------------------------------------------------------------ the shutters

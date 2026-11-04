@@ -32,6 +32,7 @@ public class LundunMissions : MonoBehaviour
         { "KEMI", new Color(0.78f, 0.5f, 1f) }, { "UNCLE FEMI", new Color(1f, 0.6f, 0.2f) }, { "LEAH", new Color(0.35f, 0.85f, 0.9f) },
         { "HOLLIS", new Color(0.75f, 0.78f, 0.82f) },
         { "KINGSLEY", new Color(0.85f, 0.2f, 0.25f) }, { "TOWER BLOCK KING", new Color(0.8f, 0.35f, 0.3f) }, { "RYE LANE RIDER", new Color(0.95f, 0.5f, 0.2f) },
+        { "ELECTRIC YOUTH", new Color(0.95f, 0.82f, 0.1f) },                                                    // S5
     };
 
     private LundunMissionRun run;
@@ -70,6 +71,7 @@ public class LundunMissions : MonoBehaviour
         yield return null;                                       // the HUD and minimap first
         yield return null;
         BuildUI();
+        LundunTrust.Recalc(false);                               // S5: trust from the choices made (and the defaults)
         foreach (LundunMission m in LundunMissionBook.All) MakeStart(m);
     }
 
@@ -133,7 +135,7 @@ public class LundunMissions : MonoBehaviour
     // ------------------------------------------------------------------ start markers and the card
     void MakeStart(LundunMission m)
     {
-        if (!m.Available(LundunStory.Data)) return;
+        if (!m.Available(LundunStory.Data) && !replaying.Contains(m.Id)) return;
         Transform t = Glow("Start_" + m.Id, LundunMissionRun.Ground(m.StartAt), 1.3f, 2.4f);
         starts[m] = t;
         LundunMinimap mm = FindAnyObjectByType<LundunMinimap>();
@@ -179,7 +181,7 @@ public class LundunMissions : MonoBehaviour
 
         LundunStep s = run.Current;
         if (s == null) return;
-        LundunCrew.HangBack = s is LundunFight;
+        LundunCrew.HangBack = s is LundunFight || (s is LundunIf && ((LundunIf)s).Inner is LundunFight);     // S5: a fight that might not happen
         bool done = s.Tick(run);
         if (run.failed != null) { EndAttempt(); return; }
         Objective(s.objective);
@@ -367,6 +369,7 @@ public class LundunMissions : MonoBehaviour
         LundunCrew.DisarmAll();                                                 // S4: guns given for the mission
         LundunChaseCar.Clear();                                                 // S4: enemy cars
         LundunStoryShop.MissionOpen = false;
+        LundunTube.ForcedTo = null;                                             // S5: following someone down the Tube
         LundunRoadblocks.MissionFromStars = 0;
         LundunRobbery.MissionStore = null; LundunRobbery.MissionCash = 0;
         if (LundunTrain.Instance != null) LundunTrain.Instance.StopHolding();
@@ -403,6 +406,20 @@ public class LundunMissions : MonoBehaviour
         Camera cam = Camera.main;
         if (Instance != null && cam != null && LundunView.CanSee(cam, car.transform.position)) { Instance.leftovers.Add(car); return; }
         Destroy(car);
+    }
+
+    /// S5: missions played again (from the pause menu's CREW page): their start markers come back until passed.
+    private static readonly HashSet<string> replaying = new HashSet<string>();
+    public static bool Replaying(string id) { return replaying.Contains(id); }
+
+    /// S5: play a passed mission again (its start marker comes back, its giver waits there). The choice in it is made
+    /// again, and trust follows the new choice. False if a mission's on or it hasn't been passed.
+    public static bool Replay(string id)
+    {
+        if (Instance == null || Running || !LundunMissionBook.Done(LundunStory.Data, id)) return false;
+        replaying.Add(id);
+        Instance.RefreshStarts();
+        return true;
     }
 
     /// S3: start markers again, for whatever's available now (after a mission's passed).
@@ -466,6 +483,8 @@ public class LundunMissions : MonoBehaviour
         foreach (string s in d.medals) if (s.StartsWith(medalKey)) { int v; if (int.TryParse(s.Substring(medalKey.Length), out v)) best = Mathf.Max(best, v); }
         if (medal > best) { d.medals.RemoveAll(s => s.StartsWith(medalKey)); d.medals.Add(medalKey + medal); }
         d.currentMission = "";
+        replaying.Remove(m.Id);                                                // S5
+        LundunTrust.Recalc(false);
         LundunWallet.Earn(pay, "Mission passed");
         LundunStory.Write();
         m.Tidy();                                                              // S3: its cars

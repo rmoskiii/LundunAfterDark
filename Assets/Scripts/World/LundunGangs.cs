@@ -414,6 +414,13 @@ public class LundunGangs : MonoBehaviour
         return g;
     }
 
+    /// S5: dress someone a mission made in a gang's colours (a mission's Electric Youth). False if there's no such gang.
+    public bool Wear(GameObject go, string gangName)
+    {
+        foreach (Gang g in gangs) if (g.name == gangName) { Dress(go, g); return true; }
+        return false;
+    }
+
     /// The gang's colour: a cap on the head and a light tint on their clothes.
     void Dress(GameObject go, Gang gang)
     {

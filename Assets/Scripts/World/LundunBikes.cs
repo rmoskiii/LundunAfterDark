@@ -135,6 +135,20 @@ public class LundunBikes : MonoBehaviour
         if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast("Lundun Cycles\nJoystick up to pedal");
     }
 
+    /// S5: a hire bike left standing for James (a mission: "a bike's been left for you"). RIDE when he's beside it.
+    public LundunBike LeaveBike(Vector3 at, Quaternion facing)
+    {
+        if (frameMesh == null || Riding) return null;
+        if (bike != null) Destroy(bike.gameObject);
+        GameObject g = new GameObject("LundunCycle");
+        g.transform.SetPositionAndRotation(at, facing);
+        g.AddComponent<CharacterController>();
+        bike = g.AddComponent<LundunBike>();
+        bike.Build(frameMesh, wheelMesh, material);
+        nextCheck = 0f;
+        return bike;
+    }
+
     void Ride()
     {
         if (bike == null) return;

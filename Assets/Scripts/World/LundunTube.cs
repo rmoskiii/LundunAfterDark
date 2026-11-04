@@ -34,6 +34,17 @@ public class LundunTube : MonoBehaviour
     public Transform[] Markers { get { return markers; } }
     public string[] Names { get { return names; } }
 
+    // S5: a mission following someone down the Tube: the button goes straight to their stop (Free Roam never sets it)
+    public static string ForcedTo;
+    public static string ForcedLabel = "FOLLOW";
+    /// S5: James came up at this station (its name), each time he rides.
+    public static event System.Action<string> Arrived;
+    public bool Travelling { get { return travelling; } }
+    public int Find(string stationName) { if (names != null) for (int i = 0; i < names.Length; i++) if (names[i] == stationName) return i; return -1; }
+    /// The top of a station's steps, and the way out onto the street.
+    public Vector3 Top(int i) { return tops[i]; }
+    public Vector3 Out(int i) { return facing[i] * Vector3.forward; }
+
     public void Init(string[] stationNames, Vector3[] openEnds)
     {
         names = stationNames;
@@ -61,7 +72,7 @@ public class LundunTube : MonoBehaviour
     }
 
     void Awake() { Instance = this; }
-    void OnDestroy() { if (Instance == this) Instance = null; }
+    void OnDestroy() { if (Instance == this) Instance = null; ForcedTo = null; }
 
     /// E1: another station (an expansion area's), after Init. outDir = the way out onto the street.
     public void AddStation(string stationName, Vector3 top, Vector3 outDir)
@@ -112,6 +123,13 @@ public class LundunTube : MonoBehaviour
         if (show)
         {
             bool wanted = WantedSystem.Instance != null && WantedSystem.Instance.Stars > 0;
+            int forced = ForcedTo != null ? Find(ForcedTo) : -1;
+            if (forced >= 0 && forced != here)
+            {
+                promptText.text = ForcedLabel + "\n<size=70%>to " + names[forced] + "</size>";
+                promptButton.interactable = true;
+                return;
+            }
             promptText.text = wanted ? "STATION CLOSED\n<size=70%>Police incident</size>" : "TAKE THE TUBE\n<size=70%>" + names[here] + "</size>";
             promptButton.interactable = !wanted;
         }
@@ -121,6 +139,13 @@ public class LundunTube : MonoBehaviour
     void OpenPanel()
     {
         if (here < 0) return;
+        int forced = ForcedTo != null ? Find(ForcedTo) : -1;
+        if (forced >= 0 && forced != here)
+        {
+            int minutes = Mathf.RoundToInt(3f + Vector3.Distance(tops[here], tops[forced]) / 1000f * minutesPerKm);
+            StartCoroutine(Ride(here, forced, minutes));
+            return;
+        }
         panel.SetActive(true);
         promptGo.SetActive(false);
         panelTitle.text = "LUNDUN UNDERGROUND\n<size=60%>from " + names[here] + "</size>";
@@ -165,6 +190,7 @@ public class LundunTube : MonoBehaviour
         SetBlack(0f);
         travelling = false;
         nextCheck = Time.time + 1.5f;      // don't pop the button straight back up
+        if (Arrived != null) Arrived(names[to]);
     }
 
     void SetBlack(float a)
