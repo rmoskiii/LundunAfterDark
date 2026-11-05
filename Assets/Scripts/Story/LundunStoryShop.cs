@@ -102,7 +102,7 @@ public class LundunStoryShop : MonoBehaviour
             bool femi = want && LundunGame.IsStory && !MissionOpen && !LundunMissions.Running;
             bool smashed = Smashed;
             if (smashed != debrisShown) ShowDebris(smashed);
-            if (femi && !smashed) LundunCrew.Resident("UNCLE FEMI", SpotPos(LundunShopLayout.Behind(W)), SpotYaw(LundunShopLayout.Behind(W)));
+            if (femi && !smashed) LundunCrew.Resident("UNCLE FEMI", SpotPos(LundunShopLayout.Behind(W)), SpotYaw(LundunShopLayout.Behind(W)), true);   // there, not "when nobody's looking" (fix: he never turned up)
             else if (smashed && LundunGame.IsStory && !LundunMissions.Running && !LundunMissions.StartWhere(Inside))   // (not while a replay waits in here)
             {
                 // S5: staying at James's while the shop's smashed: by the front door, out of the doorway

@@ -73,6 +73,9 @@ public class LundunMissions : MonoBehaviour
         BuildUI();
         LundunTrust.Recalc(false);                               // S5: trust from the choices made (and the defaults)
         foreach (LundunMission m in LundunMissionBook.All) MakeStart(m);
+        LundunMission n = NextUp();                              // fix: say where the story picks up
+        if (n != null && LundunStory.Data != null && LundunStory.Data.missionsDone > 0)
+            Toast("NEXT: " + n.Title.ToUpperInvariant() + "\n" + LundunTrust.Pretty(n.Giver) + " is waiting. Look for their letter on the map");
     }
 
     // ------------------------------------------------------------------ for steps and other systems
@@ -495,15 +498,79 @@ public class LundunMissions : MonoBehaviour
         passMedal.color = medal == 3 ? new Color(1f, 0.82f, 0.25f) : medal == 2 ? new Color(0.8f, 0.84f, 0.9f) : new Color(0.85f, 0.55f, 0.3f);
         timeScaleBefore = Time.timeScale > 0f ? Time.timeScale : 1f;
         Time.timeScale = 0f;
+        ShowNextButtons();
         passPanel.SetActive(true);
         LundunHaptics.Medium();
     }
 
-    void ClosePass()
+    // ------------------------------------------------------------------ fix: on to the next mission
+    private RectTransform nextButton, roamButton, fade;
+    private TextMeshProUGUI roamLabel;
+    private Image fadeImage;
+
+    /// The next mission in the story's order that can be played now (null: none left).
+    public static LundunMission NextUp()
+    {
+        LundunStoryData d = LundunStory.Data;
+        if (d == null) return null;
+        foreach (LundunMission m in LundunMissionBook.All) if (m.Available(d)) return m;
+        return null;
+    }
+
+    void ShowNextButtons()
+    {
+        bool any = NextUp() != null;
+        nextButton.gameObject.SetActive(any);
+        roamButton.anchoredPosition = any ? new Vector2(220f, -150f) : new Vector2(0f, -150f);
+        if (roamLabel != null) roamLabel.text = any ? "FREE ROAM" : "CONTINUE";
+    }
+
+    void ClosePass(bool next)
     {
         passPanel.SetActive(false);
         Time.timeScale = timeScaleBefore;
         RefreshStarts();                                                       // S3: the next mission's marker
+        LundunMission n = NextUp();
+        if (n == null) return;
+        if (next) { StartCoroutine(GoTo(n)); return; }
+        // free roam: the GPS route to it, and a reminder of who's waiting where
+        LundunNavigation nav = LundunNavigation.Instance;
+        if (nav != null) nav.SetDestination(LundunMissionRun.Ground(n.StartAt), n.Title);
+        Toast("NEXT: " + n.Title.ToUpperInvariant() + "\n" + LundunTrust.Pretty(n.Giver) + " is waiting. Follow the purple route");
+    }
+
+    /// Fade out, put James beside the next mission's start (out of any car), fade in: its card opens.
+    System.Collections.IEnumerator GoTo(LundunMission m)
+    {
+        fade.gameObject.SetActive(true);
+        fadeImage.raycastTarget = true;
+        for (float t = 0f; t < 1f; t += Time.unscaledDeltaTime / 0.45f) { fadeImage.color = new Color(0f, 0f, 0f, t); yield return null; }
+        fadeImage.color = Color.black;
+        try { if (WantedSystem.Instance != null) WantedSystem.Instance.ClearWanted(); } catch (System.Exception e) { Debug.LogException(e); }
+        VehicleSystem vs = FindAnyObjectByType<VehicleSystem>();
+        if (vs != null && vs.IsDriving) vs.ExitCar();
+        yield return null;
+        Vector3 start = LundunMissionRun.Ground(m.StartAt);
+        Vector3 f = m.GiverFacing; f.y = 0f; f = f.sqrMagnitude > 0.01f ? f.normalized : Vector3.forward;
+        Vector3 stand = start + f * 2.2f;                                       // just in front, facing the marker and the giver
+        UnityEngine.AI.NavMeshHit hit;
+        if (UnityEngine.AI.NavMesh.SamplePosition(stand + Vector3.up, out hit, 3f, UnityEngine.AI.NavMesh.AllAreas)) stand = hit.position;
+        PlayerHealth ph = PlayerHealth.Instance;
+        if (ph != null && ph.Body != null)
+        {
+            CharacterController cc = ph.Body.GetComponent<CharacterController>();
+            if (cc != null) cc.enabled = false;
+            ph.Body.SetPositionAndRotation(stand + Vector3.up * 0.1f, Quaternion.LookRotation(-f));
+            if (cc != null) cc.enabled = true;
+        }
+        declined = null;
+        LundunCrew.ShowUpNow();                                                 // the giver's there when the screen comes back
+        float until = Time.unscaledTime + 0.6f;
+        while (Time.unscaledTime < until) yield return null;
+        for (float t = 1f; t > 0f; t -= Time.unscaledDeltaTime / 0.45f) { fadeImage.color = new Color(0f, 0f, 0f, t); yield return null; }
+        fadeImage.color = new Color(0f, 0f, 0f, 0f);
+        fadeImage.raycastTarget = false;
+        fade.gameObject.SetActive(false);
     }
 
     // ------------------------------------------------------------------ the glow (start markers and objectives)
@@ -574,8 +641,16 @@ public class LundunMissions : MonoBehaviour
         passMedal = Label((RectTransform)passPanel.transform.GetChild(0), "", 34f, Color.white);
         Place(passMedal.rectTransform, new Vector2(0f, -50f), new Vector2(800f, 50f));
         passMedal.characterSpacing = 12f;
-        Button((RectTransform)passPanel.transform.GetChild(0), "CONTINUE", new Vector2(0f, -150f), new Vector2(420f, 96f), Accent, ClosePass);
+        // fix: what's next. NEXT MISSION takes James straight to the next one's start (in order); FREE ROAM leaves him
+        // where he is with the GPS route to it. With nothing left: just CONTINUE.
+        nextButton = Button((RectTransform)passPanel.transform.GetChild(0), "NEXT MISSION", new Vector2(-220f, -150f), new Vector2(400f, 96f), Accent, () => ClosePass(true));
+        roamButton = Button((RectTransform)passPanel.transform.GetChild(0), "FREE ROAM", new Vector2(220f, -150f), new Vector2(400f, 96f), new Color(1f, 1f, 1f, 0.12f), () => ClosePass(false));
+        roamLabel = roamButton.GetComponentInChildren<TextMeshProUGUI>();
         passPanel.SetActive(false);
+
+        fade = Rect("Fade", root); Stretch(fade);
+        fadeImage = fade.gameObject.AddComponent<Image>(); fadeImage.color = new Color(0f, 0f, 0f, 0f); fadeImage.raycastTarget = false;
+        fade.gameObject.SetActive(false);
     }
 
     GameObject Overlay(RectTransform root, string title, Color titleColour, out TextMeshProUGUI note)

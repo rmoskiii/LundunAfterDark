@@ -38,7 +38,13 @@ public partial class LundunCrew : MonoBehaviour
         public Collider[] colliders;                                    // James passes through these
         public System.Action<Vector3> hurt;
     }
-    struct Spot { public Vector3 at; public float yaw; }
+    struct Spot { public Vector3 at; public float yaw; public bool instant; }
+
+    /// Fix: someone who must simply be there (Uncle Femi behind his counter) turns up at once, even in view; and for
+    /// a moment after ShowUpNow() (the screen's faded out: NEXT MISSION) everyone waiting turns up at once too.
+    private static float popUntil = -1f;
+    public static void ShowUpNow() { popUntil = Time.unscaledTime + 1.5f; }
+    static bool Popping { get { return Time.unscaledTime < popUntil; } }
 
     static readonly Vector2[] Slots = { new Vector2(-1.2f, -1.7f), new Vector2(1.2f, -1.8f), new Vector2(0f, -2.8f), new Vector2(-1.8f, -3.2f) };
     static readonly string[] Seats = { "front", "back left", "back right" };
@@ -88,13 +94,13 @@ public partial class LundunCrew : MonoBehaviour
     }
 
     /// S3: 'who' is usually found at 'at' (Uncle Femi behind his counter). They turn up there when nobody's looking.
-    public static void Resident(string who, Vector3 at, float yaw)
+    public static void Resident(string who, Vector3 at, float yaw, bool instant = false)
     {
         LundunCrew c = Instance;
         if (c == null || !LundunCast.Has(who)) return;
         Spot old;
         if (c.residents.TryGetValue(who, out old) && (old.at - at).sqrMagnitude < 0.01f) return;
-        c.residents[who] = new Spot { at = at, yaw = yaw };
+        c.residents[who] = new Spot { at = at, yaw = yaw, instant = instant };
         Member m;
         if (c.members.TryGetValue(who, out m) && (m.state == State.Idle || m.state == State.Waiting) && !c.staged.ContainsKey(who)) { m.spot = at; m.spotYaw = yaw; c.Set(m, State.Waiting); }
     }
@@ -284,7 +290,7 @@ public partial class LundunCrew : MonoBehaviour
             if (members.ContainsKey(kv.Key)) continue;
             float d = LundunMissionRun.FlatDistance(j.position, kv.Value.at);
             if (d > 90f) continue;
-            if (d < 35f && Seen(kv.Value.at)) continue;
+            if (d < 35f && !Popping && Seen(kv.Value.at)) continue;
             Member m = Spawn(kv.Key, kv.Value.at, kv.Value.yaw);
             if (m != null) { m.spot = kv.Value.at; m.spotYaw = kv.Value.yaw; Set(m, State.Waiting); }
         }
@@ -293,7 +299,7 @@ public partial class LundunCrew : MonoBehaviour
         {
             if (members.ContainsKey(kv.Key)) continue;
             float d = LundunMissionRun.FlatDistance(j.position, kv.Value.at);
-            if (d > 90f || (d < 35f && Seen(kv.Value.at))) continue;
+            if (d > 90f || (!kv.Value.instant && !Popping && d < 35f && Seen(kv.Value.at))) continue;
             Member m = Spawn(kv.Key, kv.Value.at, kv.Value.yaw);
             if (m != null) { m.spot = kv.Value.at; m.spotYaw = kv.Value.yaw; Set(m, State.Waiting); }
         }
