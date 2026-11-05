@@ -21,7 +21,6 @@ public class LundunPubs : MonoBehaviour
     public static bool InsidePub { get; private set; }
 
     public const long PintPrice = 5;
-    const float FrontWidth = 6f;
     const float InteriorY = 300f;                 // the bar room sits this high above the pub you went into
     const int MaxPubs = 80;
 
@@ -41,8 +40,10 @@ public class LundunPubs : MonoBehaviour
     public class Pub
     {
         public string name;
-        public Vector3 at, outward, along;         // the front's middle (on the pavement), out to the street, along it
-        public int paint;
+        public Vector3 at, outward, along;         // the door (on the pavement), out to the street, along the front
+        public Vector3 corner;                     // the building's corner, on the ground: the pub's own origin
+        public Quaternion rot;
+        public int paint, brick;
         public GameObject go;
         public Vector3 Door { get { return at + outward * 0.9f; } }
         public readonly List<GameObject> outside = new List<GameObject>();
@@ -51,9 +52,6 @@ public class LundunPubs : MonoBehaviour
     private readonly List<Pub> pubs = new List<Pub>();
     public IList<Pub> All { get { return pubs; } }
 
-    // shared looks
-    private static Mesh frontMesh;
-    private static Material[][] frontMats;
     private GameObject interior;
     private Pub inPub;
     private Vector3 interiorOrigin;
@@ -113,34 +111,69 @@ public class LundunPubs : MonoBehaviour
         Debug.Log("[Lundun] Pubs: " + pubs.Count + " on the corners.");
     }
 
+    /// A ray from the junction hit a building (facade A). Find that building's corner, check the other street's
+    /// facade (B) runs on from it, both at least a pub's depth long and flat: the corner pub goes there.
     bool TryCorner(Vector3 centre, Vector3 dir, int mask, int h, out Pub pub)
     {
         pub = null;
         RaycastHit hit;
         if (!Physics.Raycast(centre + Vector3.up * 1.6f, dir, out hit, 32f, mask, QueryTriggerInteraction.Ignore)) return false;
-        if (hit.distance < 5f || !IsBuilding(hit.collider)) return false;
-        Vector3 n = hit.normal; n.y = 0f;
-        if (n.sqrMagnitude < 0.5f) return false;
-        n.Normalize();
-        Vector3 t = Vector3.Cross(Vector3.up, n);
-        if (Vector3.Dot(t, hit.point - centre) < 0f) t = -t;                       // away from the corner
-        Vector3 c = hit.point + t * (FrontWidth * 0.5f + 0.6f);
-        // a flat, unbroken front across its width (and nothing standing right in front of it)
-        Vector3 at = Vector3.zero;
-        foreach (float s in new[] { 0f, -FrontWidth * 0.48f, FrontWidth * 0.48f })
+        if (hit.distance < 4f || !IsBuilding(hit.collider)) return false;
+        Vector3 nA = hit.normal; nA.y = 0f;
+        if (nA.sqrMagnitude < 0.5f) return false;
+        nA.Normalize();
+        Vector3 t = Vector3.Cross(Vector3.up, nA);
+        if (Vector3.Dot(t, centre - hit.point) < 0f) t = -t;                       // t: along A, towards the junction (the corner)
+        float y = centre.y + 1.5f;
+        // walk along A towards the corner until the wall stops, then narrow it down
+        float last = -1f, first = -1f;
+        for (float s = 0f; s <= 30f; s += 0.5f)
         {
-            Vector3 from = c + t * s + n * 2.2f; from.y = centre.y + 1.5f;
-            RaycastHit fh;
-            if (!Physics.Raycast(from, -n, out fh, 3.2f, mask, QueryTriggerInteraction.Ignore)) return false;
-            if (!IsBuilding(fh.collider) || Vector3.Dot(fh.normal, n) < 0.9f || fh.distance < 1.4f) return false;
-            if (s == 0f) at = fh.point;
+            if (FacadeAt(hit.point + t * s, nA, y, mask)) last = s; else { first = s; break; }
         }
-        at.y = LundunPlaces.Ground(at + n * 1.2f).y;
-        if (Reserved(at)) return false;
-        pub = new Pub { name = Names[h % Names.Length], at = at, outward = n, along = t, paint = (h / 7) % Paints.Length };
+        if (last < 0f || first < 0f) return false;
+        for (int i = 0; i < 6; i++)
+        {
+            float mid = (last + first) * 0.5f;
+            if (FacadeAt(hit.point + t * mid, nA, y, mask)) last = mid; else first = mid;
+        }
+        Vector3 corner = hit.point + t * last;
+        Vector3 nB = t;                                                             // the other street's side faces the junction
+        // the pub's own frame: Z out of one face, X along it away from the corner (the other face looks along -X)
+        Vector3 Z, X;
+        if (Vector3.Dot(Vector3.Cross(Vector3.up, nA), -nB) > 0f) { Z = nA; X = -nB; }
+        else { Z = nB; X = -nA; }
+        Quaternion rot = Quaternion.LookRotation(Z);
+        // both faces there, flat, all the way along (corner to the far end of the pub)
+        foreach (float u in new[] { 0.6f, 3.5f, Depth - 0.4f })
+        {
+            if (!FaceCheck(corner + X * u + Z * 1.6f, -Z, y, mask)) return false;
+            if (!FaceCheck(corner - Z * u - X * 1.6f, X, y, mask)) return false;
+        }
+        Vector3 door = corner + X * DoorU;
+        Vector3 ground = LundunPlaces.Ground(corner + Z * 1.2f - X * 1.2f);
+        corner.y = ground.y; door.y = ground.y;
+        if (Reserved(corner) || Reserved(corner + X * Depth - Z * Depth)) return false;
+        pub = new Pub { name = Names[h % Names.Length], corner = corner, rot = rot, at = door, outward = Z, along = X,
+                        paint = (h / 7) % Paints.Length, brick = (h / 11) % Bricks.Length };
         // the same name twice nearby reads oddly: shift along the list
-        foreach (Pub o in pubs) if (o.name == pub.name && (o.at - at).sqrMagnitude < 600f * 600f) pub.name = Names[(h / 3 + pubs.Count) % Names.Length];
+        foreach (Pub o in pubs) if (o.name == pub.name && (o.at - door).sqrMagnitude < 600f * 600f) pub.name = Names[(h / 3 + pubs.Count) % Names.Length];
         return true;
+    }
+
+    static bool FacadeAt(Vector3 p, Vector3 n, float y, int mask)
+    {
+        Vector3 from = p + n * 1.5f; from.y = y;
+        RaycastHit fh;
+        return Physics.Raycast(from, -n, out fh, 2.6f, mask, QueryTriggerInteraction.Ignore) && IsBuilding(fh.collider) && Vector3.Dot(fh.normal, n) > 0.9f;
+    }
+
+    static bool FaceCheck(Vector3 from, Vector3 dir, float y, int mask)
+    {
+        from.y = y;
+        RaycastHit fh;
+        if (!Physics.Raycast(from, dir, out fh, 2.6f, mask, QueryTriggerInteraction.Ignore)) return false;
+        return IsBuilding(fh.collider) && Vector3.Dot(fh.normal, -dir) > 0.9f && fh.distance > 0.9f && fh.distance < 2.3f;
     }
 
     static bool IsBuilding(Collider c)
@@ -503,22 +536,34 @@ public class LundunPubs : MonoBehaviour
 
     static bool Seen(Vector3 p) { Camera c = Camera.main; return c != null && LundunView.CanSee(c, p + Vector3.up); }
 
-    // ------------------------------------------------------------------ the pub front
+    // ------------------------------------------------------------------ the pub: its own corner building
+    // Built round the corner of the building that's there (a skin just proud of it, Depth along both streets):
+    //   ground floor  painted, glazed pub front wrapping both streets: pilasters, big windows with glazing bars,
+    //                 the door (on the X face, by the corner), the fascia with the name in gold on both faces, a
+    //                 cornice with greenery spilling over it, lanterns, a hanging sign at the far end
+    //   above         two storeys of brick with white sash windows, stone sills and lintels, string courses, a
+    //                 tall painted sign on the corner, a stone parapet and a chimney stack with pots
+    // Local frame: the corner at the origin, X along one street (the face looks +Z), the other face looks -X.
+    const float Depth = 7f, DoorU = 1.05f, GroundTop = 4.2f, Top = 10.2f, Proud = 0.15f;
+
     void Build(Pub pub)
     {
-        if (frontMesh == null) BuildFrontMesh();
+        if (pubMesh == null) BuildPubMesh();
         GameObject g = new GameObject("Pub_" + pub.name);
         g.transform.SetParent(transform, false);
-        g.transform.SetPositionAndRotation(pub.at, Quaternion.LookRotation(pub.outward));
-        g.AddComponent<MeshFilter>().sharedMesh = frontMesh;
+        g.transform.SetPositionAndRotation(pub.corner, pub.rot);
+        g.AddComponent<MeshFilter>().sharedMesh = pubMesh;
         MeshRenderer r = g.AddComponent<MeshRenderer>();
-        r.sharedMaterials = frontMats[pub.paint];
-        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        r.sharedMaterials = PubMaterials(pub.paint, pub.brick);
         Color gold = new Color(0.95f, 0.78f, 0.35f);
-        Words(g.transform, pub.name, new Vector3(0f, 3.35f, 0.37f), 180f, new Vector2(5.8f, 0.48f), 3.2f, gold, false);
+        float mid = Depth / 2f - Proud / 2f;
+        Words(g.transform, pub.name, new Vector3(mid, 3.78f, Proud + 0.36f), 180f, new Vector2(Depth - 0.6f, 0.5f), 3.2f, gold, false);
+        Words(g.transform, pub.name, new Vector3(-Proud - 0.36f, 3.78f, -mid), 90f, new Vector2(Depth - 0.6f, 0.5f), 3.2f, gold, false);
         string two = TwoLines(pub.name);
-        Words(g.transform, two, new Vector3(3.0f + 0.07f, 3.25f, 1.2f), -90f, new Vector2(0.68f, 0.66f), 1.4f, gold, true);
-        Words(g.transform, two, new Vector3(3.0f - 0.07f, 3.25f, 1.2f), 90f, new Vector2(0.68f, 0.66f), 1.4f, gold, true);
+        Words(g.transform, two, new Vector3(Depth - 0.15f + 0.07f, 4.45f, 1.25f), -90f, new Vector2(0.68f, 0.66f), 1.4f, gold, true);
+        Words(g.transform, two, new Vector3(Depth - 0.15f - 0.07f, 4.45f, 1.25f), 90f, new Vector2(0.68f, 0.66f), 1.4f, gold, true);
+        Words(g.transform, Stacked(pub.name), new Vector3(0.9f, 7.55f, Proud + 0.2f), 180f, new Vector2(1.0f, 3.3f), 2.2f, gold, true);
+        Words(g.transform, "FINE\nALES\n&\nWINES", new Vector3(0.9f, 5.25f, Proud + 0.2f), 180f, new Vector2(1.0f, 1.1f), 1.2f, new Color(0.95f, 0.9f, 0.75f), true);
         pub.go = g;
     }
 
@@ -527,6 +572,9 @@ public class LundunPubs : MonoBehaviour
         string s = name.StartsWith("THE ") ? name.Substring(4) : name;
         return "THE\n" + s;
     }
+
+    /// One word to a line, for the tall corner sign.
+    static string Stacked(string name) { return name.Replace(" & ", "\n&\n").Replace(' ', '\n'); }
 
     static void Words(Transform parent, string text, Vector3 at, float yaw, Vector2 box, float size, Color colour, bool wrap)
     {
@@ -545,72 +593,221 @@ public class LundunPubs : MonoBehaviour
         if (r != null) { r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; r.receiveShadows = false; }
     }
 
-    // materials: 0 paint, 1 gold, 2 warm glass, 3 dark wood, 4 black iron, 5 lamp, 6 leaves, 7 flowers, 8 stone
-    static void BuildFrontMesh()
+    static readonly Color[] Bricks =
     {
-        LundunMeshKit k = new LundunMeshKit(9);
-        float hw = FrontWidth / 2f;
-        k.Box(0, new Vector3(0, 1.8f, 0.05f), new Vector3(FrontWidth, 3.6f, 0.1f));                 // panelling
-        k.Box(0, new Vector3(0, 3.35f, 0.2f), new Vector3(FrontWidth + 0.3f, 0.6f, 0.32f));          // fascia
-        k.Box(1, new Vector3(0, 3.66f, 0.36f), new Vector3(FrontWidth + 0.3f, 0.05f, 0.04f));
-        k.Box(1, new Vector3(0, 3.04f, 0.36f), new Vector3(FrontWidth + 0.3f, 0.05f, 0.04f));
-        k.Box(3, new Vector3(0, 3.75f, 0.25f), new Vector3(FrontWidth + 0.5f, 0.14f, 0.42f));        // cornice
-        foreach (float x in new[] { -hw, -0.75f, 0.75f, hw })
-        {
-            k.Box(0, new Vector3(x, 1.5f, 0.16f), new Vector3(0.28f, 3.0f, 0.14f));                  // pilasters
-            k.Box(1, new Vector3(x, 2.95f, 0.22f), new Vector3(0.34f, 0.1f, 0.2f));
-            k.Box(3, new Vector3(x, 0.15f, 0.2f), new Vector3(0.34f, 0.3f, 0.2f));
-        }
-        foreach (float s in new[] { -1f, 1f })
-        {
-            float x = s * 1.875f;
-            k.Box(2, new Vector3(x, 1.75f, 0.11f), new Vector3(1.85f, 1.5f, 0.04f));                 // windows (lit, warm)
-            k.Box(3, new Vector3(x, 0.5f, 0.13f), new Vector3(1.85f, 0.8f, 0.08f));                  // stall riser
-            k.Box(3, new Vector3(x, 0.93f, 0.18f), new Vector3(1.95f, 0.06f, 0.16f));                // sill
-            k.Box(3, new Vector3(x, 1.75f, 0.14f), new Vector3(0.06f, 1.5f, 0.04f));                 // glazing bars
-            k.Box(3, new Vector3(x, 2.15f, 0.14f), new Vector3(1.85f, 0.06f, 0.04f));
-            k.Box(1, new Vector3(x, 1.75f, 0.135f), new Vector3(1.1f, 0.03f, 0.01f));                 // a gold line etched across
-            k.Box(4, new Vector3(0.75f * s, 2.75f, 0.32f), new Vector3(0.2f, 0.3f, 0.2f));           // lanterns by the door
-            k.Box(5, new Vector3(0.75f * s, 2.75f, 0.33f), new Vector3(0.14f, 0.22f, 0.16f));
-            k.Box(4, new Vector3(0.75f * s, 2.95f, 0.26f), new Vector3(0.04f, 0.04f, 0.14f));
-            float bx = s * 2.6f;                                                                       // hanging baskets
-            k.Box(4, new Vector3(bx, 3.0f, 0.5f), new Vector3(0.03f, 0.3f, 0.03f));
-            k.Cyl(6, new Vector3(bx, 2.75f, 0.5f), 0.26f, 0.3f);
-            k.Cyl(7, new Vector3(bx, 2.92f, 0.5f), 0.28f, 0.07f);
-            k.Cyl(6, new Vector3(bx, 2.58f, 0.5f), 0.16f, 0.12f);
-        }
-        k.Box(3, new Vector3(0, 1.2f, 0.1f), new Vector3(1.3f, 2.4f, 0.06f));                        // door
-        k.Box(2, new Vector3(0, 1.75f, 0.135f), new Vector3(0.8f, 0.7f, 0.02f));
-        k.Box(2, new Vector3(0, 2.65f, 0.12f), new Vector3(1.3f, 0.35f, 0.03f));                     // fanlight
-        k.Box(1, new Vector3(0.45f, 1.15f, 0.15f), new Vector3(0.05f, 0.2f, 0.05f));                 // brass handle
-        k.Box(8, new Vector3(0, 0.05f, 0.3f), new Vector3(1.5f, 0.1f, 0.4f));                         // step
-        // the hanging sign on its bracket at the corner end
-        k.Box(4, new Vector3(hw, 3.95f, 0.75f), new Vector3(0.06f, 0.06f, 1.3f));
-        k.Box(4, new Vector3(hw, 3.7f, 0.35f), new Vector3(0.04f, 0.5f, 0.04f));
-        k.Box(4, new Vector3(hw, 3.82f, 1.2f), new Vector3(0.03f, 0.22f, 0.03f));
-        k.Box(1, new Vector3(hw, 3.25f, 1.2f), new Vector3(0.08f, 0.9f, 0.8f));
-        k.Box(0, new Vector3(hw, 3.25f, 1.2f), new Vector3(0.1f, 0.78f, 0.68f));
-        // a barrel to lean on
-        k.Cyl(3, new Vector3(2.2f, 0.5f, 1.0f), 0.32f, 1.0f);
-        k.Cyl(4, new Vector3(2.2f, 0.25f, 1.0f), 0.335f, 0.05f);
-        k.Cyl(4, new Vector3(2.2f, 0.78f, 1.0f), 0.335f, 0.05f);
-        k.Cyl(3, new Vector3(2.2f, 1.02f, 1.0f), 0.38f, 0.05f);
-        frontMesh = k.Build("PubFront");
+        new Color(0.55f, 0.24f, 0.17f),        // red
+        new Color(0.72f, 0.6f, 0.42f),         // London yellow stock
+        new Color(0.42f, 0.18f, 0.13f),        // dark red
+    };
 
-        Material gold = LundunMeshKit.Mat("PubGold", new Color(0.82f, 0.64f, 0.25f), 0.7f, Color.black);
-        Material glass = LundunMeshKit.Mat("PubWindow", new Color(0.25f, 0.15f, 0.06f), 0.95f, new Color(1f, 0.62f, 0.25f) * 0.9f);
-        Material wood = LundunMeshKit.Mat("PubWood", new Color(0.18f, 0.1f, 0.05f), 0.35f, Color.black);
-        Material iron = LundunMeshKit.Mat("PubIron", new Color(0.04f, 0.04f, 0.04f), 0.4f, Color.black);
-        Material lamp = LundunMeshKit.Mat("PubLamp", new Color(1f, 0.85f, 0.5f), 0.5f, new Color(1f, 0.75f, 0.35f) * 2.2f);
-        Material leaves = LundunMeshKit.Mat("PubLeaves", new Color(0.12f, 0.35f, 0.1f), 0.1f, Color.black);
-        Material flowers = LundunMeshKit.Mat("PubFlowers", new Color(0.85f, 0.15f, 0.35f), 0.1f, Color.black);
-        Material stone = LundunMeshKit.Mat("PubStep", new Color(0.55f, 0.53f, 0.5f), 0.2f, Color.black);
-        frontMats = new Material[Paints.Length][];
-        for (int i = 0; i < Paints.Length; i++)
+    private static Mesh pubMesh;
+    private static readonly Dictionary<int, Material[]> pubMats = new Dictionary<int, Material[]>();
+    private static Material[] shared;            // everything but the paint and the brick
+
+    // materials: 0 paint, 1 gold, 2 warm glass, 3 dark wood, 4 black iron, 5 lamp, 6 leaves, 7 flowers, 8 stone,
+    //            9 brick, 10 white (sash frames), 11 dark glass (upstairs), 12 lit glass (upstairs), 13 chimney pot
+    const int MPaint = 0, MGold = 1, MGlass = 2, MWood = 3, MIron = 4, MLamp = 5, MLeaf = 6, MFlower = 7, MStone = 8,
+              MBrick = 9, MWhite = 10, MDark = 11, MLit = 12, MPot = 13;
+
+    /// The ground floor's pieces, on either face: u along the face from the corner, y up, o out from the wall.
+    struct Face
+    {
+        public LundunMeshKit k; public bool b;      // b: the face looking -X (u runs along -Z)
+        public void Box(int m, float u, float y, float o, float su, float sy, float so)
         {
-            Material paint = LundunMeshKit.Mat("PubPaint" + i, Paints[i], 0.6f, Color.black);
-            frontMats[i] = new[] { paint, gold, glass, wood, iron, lamp, leaves, flowers, stone };
+            if (!b) k.Box(m, new Vector3(u, y, o), new Vector3(su, sy, so));
+            else k.Box(m, new Vector3(-o, y, -u), new Vector3(so, sy, su));
         }
+        public void Cyl(int m, float u, float y, float o, float r, float h)
+        {
+            if (!b) k.Cyl(m, new Vector3(u, y, o), r, h);
+            else k.Cyl(m, new Vector3(-o, y, -u), r, h);
+        }
+    }
+
+    static void BuildPubMesh()
+    {
+        LundunMeshKit k = new LundunMeshKit(14);
+        float D = Depth, P = Proud, mid = D / 2f - P / 2f;
+        // the building's skin: brick all round (it may stand taller than what's behind, so its sides show)
+        k.Box(MBrick, new Vector3(mid, Top / 2f, -mid), new Vector3(D + P, Top, D + P));
+        k.Box(MStone, new Vector3(mid, Top + 0.13f, -mid), new Vector3(D + P + 0.12f, 0.26f, D + P + 0.12f));   // parapet coping
+        k.Box(MBrick, new Vector3(D - 1.2f, Top + 1.1f, -D + 1.2f), new Vector3(1.3f, 2.2f, 0.75f));           // chimney stack
+        k.Box(MStone, new Vector3(D - 1.2f, Top + 2.25f, -D + 1.2f), new Vector3(1.42f, 0.12f, 0.87f));
+        for (int i = 0; i < 3; i++) k.Cyl(MPot, new Vector3(D - 1.62f + i * 0.42f, Top + 2.5f, -D + 1.2f), 0.13f, 0.42f);
+
+        foreach (bool b in new[] { false, true })
+        {
+            Face f = new Face { k = k, b = b };
+            float o = P;                                                             // the wall's face
+            // ground floor: the painted front all along, fascia, cornice, greenery
+            f.Box(MPaint, mid, 1.9f, o + 0.04f, D + P, 3.8f, 0.08f);
+            f.Box(MPaint, mid, 3.78f, o + 0.19f, D + P + 0.2f, 0.66f, 0.34f);
+            f.Box(MGold, mid, 4.1f, o + 0.36f, D + P + 0.2f, 0.05f, 0.04f);
+            f.Box(MGold, mid, 3.46f, o + 0.36f, D + P + 0.2f, 0.05f, 0.04f);
+            f.Box(MWood, mid, 4.2f, o + 0.24f, D + P + 0.45f, 0.16f, 0.46f);
+            for (int i = 0; i < 14; i++)                                              // planting along the cornice, spilling over
+            {
+                float u = 0.25f + i * (D - 0.5f) / 13f;
+                float hgt = 0.25f + ((i * 7) % 5) * 0.06f;
+                f.Box(MLeaf, u, 4.32f + hgt / 2f, o + 0.3f, 0.55f, hgt, 0.42f);
+                if (i % 2 == 0) f.Box(MLeaf, u + 0.2f, 3.98f, o + 0.5f, 0.3f, 0.45f, 0.14f);
+                if (i % 3 == 0) f.Box(MFlower, u, 4.35f + hgt, o + 0.32f, 0.3f, 0.08f, 0.3f);
+            }
+            // pilasters and bays
+            float[] pil = { 0.12f, 1.95f, 3.85f, 5.65f, D - 0.12f };
+            foreach (float u in pil)
+            {
+                f.Box(MPaint, u, 1.7f, o + 0.13f, 0.28f, 3.4f, 0.14f);
+                f.Box(MGold, u, 3.36f, o + 0.19f, 0.34f, 0.1f, 0.2f);
+                f.Box(MWood, u, 0.15f, o + 0.17f, 0.34f, 0.3f, 0.2f);
+            }
+            for (int bay = 0; bay < 4; bay++)
+            {
+                float u0 = pil[bay] + 0.14f, u1 = pil[bay + 1] - 0.14f, uc = (u0 + u1) / 2f, w = u1 - u0;
+                if (!b && bay == 0)
+                {
+                    // the door (X face, by the corner): panelled, glazed top, fanlight, brass, a step
+                    f.Box(MWood, uc, 1.2f, o + 0.08f, w, 2.4f, 0.06f);
+                    f.Box(MGlass, uc, 1.75f, o + 0.115f, w - 0.5f, 0.7f, 0.02f);
+                    f.Box(MGlass, uc, 2.75f, o + 0.1f, w, 0.45f, 0.03f);
+                    f.Box(MGold, uc + w * 0.3f, 1.15f, o + 0.13f, 0.05f, 0.2f, 0.05f);
+                    f.Box(MStone, uc, 0.05f, o + 0.3f, w + 0.2f, 0.1f, 0.4f);
+                    continue;
+                }
+                f.Box(MGlass, uc, 1.85f, o + 0.09f, w, 1.7f, 0.04f);                   // window
+                f.Box(MGlass, uc, 3.0f, o + 0.09f, w, 0.35f, 0.04f);                   // fanlight over it
+                f.Box(MWood, uc, 2.78f, o + 0.12f, w, 0.06f, 0.05f);
+                f.Box(MWood, uc, 0.5f, o + 0.11f, w, 0.8f, 0.08f);                     // stall riser
+                f.Box(MWood, uc, 0.96f, o + 0.16f, w + 0.1f, 0.06f, 0.16f);            // sill
+                f.Box(MWood, uc, 1.85f, o + 0.12f, 0.05f, 1.7f, 0.04f);                // glazing bars
+                f.Box(MWood, uc, 2.3f, o + 0.12f, w, 0.05f, 0.04f);
+                f.Box(MGold, uc, 1.85f, o + 0.115f, w * 0.6f, 0.025f, 0.01f);          // etched line
+            }
+            // lanterns: either side of the door, and at the corner
+            float[] lan = b ? new[] { 3.85f } : new[] { 0.12f, 1.95f, 5.65f };
+            foreach (float u in lan)
+            {
+                f.Box(MIron, u, 3.05f, o + 0.42f, 0.2f, 0.3f, 0.2f);
+                f.Box(MLamp, u, 3.05f, o + 0.43f, 0.14f, 0.22f, 0.16f);
+                f.Box(MIron, u, 3.25f, o + 0.3f, 0.04f, 0.04f, 0.24f);
+            }
+            // upstairs: two storeys of sash windows, string courses between
+            f.Box(MStone, mid, 7.2f, o + 0.04f, D + P + 0.1f, 0.18f, 0.08f);
+            float[] wins = b ? new[] { 1.4f, 3.5f, 5.6f } : new[] { 2.9f, 5.2f };
+            for (int fl = 0; fl < 2; fl++)
+            {
+                float wy = 5.75f + fl * 3.0f;
+                for (int i = 0; i < wins.Length; i++)
+                {
+                    float u = wins[i];
+                    bool lit = ((i + fl * 2 + (b ? 1 : 0)) % 3) == 0;
+                    f.Box(lit ? MLit : MDark, u, wy, o + 0.02f, 0.9f, 1.55f, 0.04f);
+                    f.Box(MWhite, u, wy + 0.8f, o + 0.05f, 1.0f, 0.07f, 0.06f);
+                    f.Box(MWhite, u, wy - 0.8f, o + 0.05f, 1.0f, 0.07f, 0.06f);
+                    f.Box(MWhite, u - 0.48f, wy, o + 0.05f, 0.07f, 1.6f, 0.06f);
+                    f.Box(MWhite, u + 0.48f, wy, o + 0.05f, 0.07f, 1.6f, 0.06f);
+                    f.Box(MWhite, u, wy, o + 0.06f, 0.95f, 0.06f, 0.05f);              // the sash's meeting rail
+                    f.Box(MWhite, u, wy, o + 0.055f, 0.04f, 1.55f, 0.04f);
+                    f.Box(MStone, u, wy - 0.93f, o + 0.07f, 1.2f, 0.09f, 0.14f);       // sill
+                    f.Box(MStone, u, wy + 0.93f, o + 0.03f, 1.15f, 0.16f, 0.06f);      // lintel
+                }
+            }
+        }
+        // the tall sign on the corner (X face, upstairs), framed in gold
+        k.Box(MGold, new Vector3(0.9f, 6.9f, P + 0.08f), new Vector3(1.32f, 4.7f, 0.1f));
+        k.Box(MPaint, new Vector3(0.9f, 6.9f, P + 0.12f), new Vector3(1.18f, 4.56f, 0.1f));
+        k.Box(MGold, new Vector3(0.9f, 5.92f, P + 0.175f), new Vector3(0.9f, 0.03f, 0.01f));
+        // the hanging sign on its bracket at the far end of the X face
+        float hx = D - 0.15f;
+        k.Box(MIron, new Vector3(hx, 5.1f, 0.85f), new Vector3(0.06f, 0.06f, 1.4f));
+        k.Box(MIron, new Vector3(hx, 4.85f, 0.4f), new Vector3(0.04f, 0.5f, 0.04f));
+        k.Box(MIron, new Vector3(hx, 4.98f, 1.25f), new Vector3(0.03f, 0.22f, 0.03f));
+        k.Box(MGold, new Vector3(hx, 4.45f, 1.25f), new Vector3(0.08f, 0.9f, 0.8f));
+        k.Box(MPaint, new Vector3(hx, 4.45f, 1.25f), new Vector3(0.1f, 0.78f, 0.68f));
+        // hanging baskets at the corner, and a barrel to lean on round the side
+        foreach (Vector3 bp in new[] { new Vector3(0.12f, 3.0f, P + 0.75f), new Vector3(-P - 0.75f, 3.0f, -0.12f) })
+        {
+            k.Box(MIron, bp + new Vector3(0, 0.45f, 0), new Vector3(0.03f, 0.35f, 0.03f));
+            k.Cyl(MLeaf, bp, 0.26f, 0.3f);
+            k.Cyl(MFlower, bp + new Vector3(0, 0.17f, 0), 0.28f, 0.07f);
+            k.Cyl(MLeaf, bp - new Vector3(0, 0.17f, 0), 0.16f, 0.12f);
+        }
+        Vector3 bar = new Vector3(-P - 1.0f, 0f, -2.9f);
+        k.Cyl(MWood, bar + new Vector3(0, 0.5f, 0), 0.32f, 1.0f);
+        k.Cyl(MIron, bar + new Vector3(0, 0.25f, 0), 0.335f, 0.05f);
+        k.Cyl(MIron, bar + new Vector3(0, 0.78f, 0), 0.335f, 0.05f);
+        k.Cyl(MWood, bar + new Vector3(0, 1.02f, 0), 0.38f, 0.05f);
+        pubMesh = k.Build("PubBuilding");
+    }
+
+    static Material[] PubMaterials(int paint, int brick)
+    {
+        int key = paint * 10 + brick;
+        Material[] m;
+        if (pubMats.TryGetValue(key, out m)) return m;
+        if (shared == null)
+        {
+            shared = new Material[14];
+            shared[MGold] = LundunMeshKit.Mat("PubGold", new Color(0.82f, 0.64f, 0.25f), 0.7f, Color.black);
+            shared[MGlass] = LundunMeshKit.Mat("PubWindow", new Color(0.25f, 0.15f, 0.06f), 0.95f, new Color(1f, 0.62f, 0.25f) * 0.9f);
+            shared[MWood] = LundunMeshKit.Mat("PubWood", new Color(0.18f, 0.1f, 0.05f), 0.35f, Color.black);
+            shared[MIron] = LundunMeshKit.Mat("PubIron", new Color(0.04f, 0.04f, 0.04f), 0.4f, Color.black);
+            shared[MLamp] = LundunMeshKit.Mat("PubLamp", new Color(1f, 0.85f, 0.5f), 0.5f, new Color(1f, 0.75f, 0.35f) * 2.2f);
+            shared[MLeaf] = LundunMeshKit.Mat("PubLeaves", new Color(0.12f, 0.35f, 0.1f), 0.1f, Color.black);
+            shared[MFlower] = LundunMeshKit.Mat("PubFlowers", new Color(0.85f, 0.15f, 0.35f), 0.1f, Color.black);
+            shared[MStone] = LundunMeshKit.Mat("PubStone", new Color(0.78f, 0.75f, 0.68f), 0.2f, Color.black);
+            shared[MWhite] = LundunMeshKit.Mat("PubSash", new Color(0.92f, 0.92f, 0.9f), 0.4f, Color.black);
+            shared[MDark] = LundunMeshKit.Mat("PubUpstairsGlass", new Color(0.08f, 0.09f, 0.11f), 0.95f, Color.black);
+            shared[MLit] = LundunMeshKit.Mat("PubUpstairsLit", new Color(0.3f, 0.22f, 0.12f), 0.9f, new Color(1f, 0.78f, 0.45f) * 0.6f);
+            shared[MPot] = LundunMeshKit.Mat("PubChimneyPot", new Color(0.6f, 0.3f, 0.18f), 0.2f, Color.black);
+        }
+        m = (Material[])shared.Clone();
+        m[MPaint] = LundunMeshKit.Mat("PubPaint" + paint, Paints[paint], 0.6f, Color.black);
+        m[MBrick] = BrickMaterial(brick);
+        pubMats[key] = m;
+        return m;
+    }
+
+    private static readonly Material[] brickMats = new Material[3];
+    /// Brick, drawn here: a metre square of stretcher bond (4 bricks across, 13 courses), mortar lines, a little
+    /// colour in each brick. The mesh's UVs are in metres, so it tiles at true size.
+    static Material BrickMaterial(int i)
+    {
+        if (brickMats[i] != null) return brickMats[i];
+        const int N = 256;
+        Texture2D t = new Texture2D(N, N, TextureFormat.RGBA32, true);
+        System.Random r = new System.Random(77 + i);
+        Color baseC = Bricks[i], mortar = new Color(0.7f, 0.68f, 0.62f);
+        Color[] px = new Color[N * N];
+        int courses = 13; float ch = N / (float)courses, bw = N / 4f;
+        for (int c = 0; c < courses; c++)
+        {
+            int y0 = Mathf.RoundToInt(c * ch), y1 = Mathf.RoundToInt((c + 1) * ch);
+            float off = (c % 2) * bw * 0.5f;
+            for (int bi = -1; bi < 5; bi++)
+            {
+                float v = (float)(r.NextDouble() * 0.18 - 0.09);
+                Color bc = new Color(Mathf.Clamp01(baseC.r + v), Mathf.Clamp01(baseC.g + v * 0.8f), Mathf.Clamp01(baseC.b + v * 0.6f));
+                int x0 = Mathf.RoundToInt(bi * bw + off), x1 = Mathf.RoundToInt((bi + 1) * bw + off);
+                for (int y = y0; y < y1; y++)
+                    for (int x = x0; x < x1; x++)
+                    {
+                        if (x < 0 || x >= N) continue;
+                        bool joint = y - y0 < 2 || x - x0 < 2;
+                        float grain = (float)(r.NextDouble() * 0.05);
+                        px[y * N + x] = joint ? mortar : new Color(bc.r - grain, bc.g - grain, bc.b - grain, 1f);
+                    }
+            }
+        }
+        t.SetPixels(px);
+        t.wrapMode = TextureWrapMode.Repeat; t.filterMode = FilterMode.Bilinear; t.anisoLevel = 2;
+        t.Apply(true, false);
+        Material m = LundunMeshKit.Mat("PubBrick" + i, Color.white, 0.15f, Color.black);
+        if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", t);
+        m.mainTexture = t;
+        brickMats[i] = m;
+        return m;
     }
 
     // ------------------------------------------------------------------ the bar room (one, made once)

@@ -31,8 +31,9 @@ public class LundunMeshKit
             int i0 = v.Count;
             Vector3[] corners = { fc - ea - eb, fc + ea - eb, fc + ea + eb, fc - ea + eb };
             foreach (Vector3 p in corners) { v.Add(c + rot * p); n.Add(rot * f); }
-            float su = Vector3.Dot(Abs(a), size), sv = Vector3.Dot(Abs(b), size);
-            uv.Add(new Vector2(0, 0)); uv.Add(new Vector2(su, 0)); uv.Add(new Vector2(su, sv)); uv.Add(new Vector2(0, sv));
+            float sa = Vector3.Dot(Abs(a), size), sb = Vector3.Dot(Abs(b), size);
+            if (Mathf.Abs(f.y) > 0.5f) { uv.Add(new Vector2(0, 0)); uv.Add(new Vector2(sa, 0)); uv.Add(new Vector2(sa, sb)); uv.Add(new Vector2(0, sb)); }
+            else { uv.Add(new Vector2(0, 0)); uv.Add(new Vector2(0, sa)); uv.Add(new Vector2(sb, sa)); uv.Add(new Vector2(sb, 0)); }   // walls: u across, v up (in metres)
             tris[mat].AddRange(new[] { i0, i0 + 1, i0 + 2, i0, i0 + 2, i0 + 3 });
         }
     }
