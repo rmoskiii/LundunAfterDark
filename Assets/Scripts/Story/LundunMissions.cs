@@ -476,6 +476,7 @@ public class LundunMissions : MonoBehaviour
         int medal = Mathf.Clamp(m.Medal(run), 0, 3);
         if (run.difficulty == LundunDifficulty.Easy) medal = Mathf.Min(medal, 2);   // gold needs Normal or Hard
         long pay = (long)Mathf.Round(m.Reward * run.RewardScale);
+        int secs = Mathf.Max(1, Mathf.RoundToInt(run.Elapsed));
         Clean(true);
         LundunStoryData d = LundunStory.Data;
         string doneFlag = "done:" + m.Id;
@@ -485,6 +486,10 @@ public class LundunMissions : MonoBehaviour
         int best = 0;
         foreach (string s in d.medals) if (s.StartsWith(medalKey)) { int v; if (int.TryParse(s.Substring(medalKey.Length), out v)) best = Mathf.Max(best, v); }
         if (medal > best) { d.medals.RemoveAll(s => s.StartsWith(medalKey)); d.medals.Add(medalKey + medal); }
+        // S6: the best time too (kept with the medals: "time:<id>:<seconds>")
+        int bestTime = BestTime(m.Id);
+        bool newBest = !first && (medal > best || (bestTime > 0 && secs < bestTime));
+        if (bestTime <= 0 || secs < bestTime) { string tk = "time:" + m.Id + ":"; d.medals.RemoveAll(s => s.StartsWith(tk)); d.medals.Add(tk + secs); }
         d.currentMission = "";
         replaying.Remove(m.Id);                                                // S5
         LundunTrust.Recalc(false);
@@ -494,7 +499,7 @@ public class LundunMissions : MonoBehaviour
         run = null;
 
         passMoney.text = "+" + LundunWallet.Format(pay);
-        passMedal.text = medal == 3 ? "GOLD" : medal == 2 ? "SILVER" : medal == 1 ? "BRONZE" : "";
+        passMedal.text = (medal == 3 ? "GOLD" : medal == 2 ? "SILVER" : medal == 1 ? "BRONZE" : "") + "   " + Clock(secs) + (newBest ? "   NEW BEST!" : "");
         passMedal.color = medal == 3 ? new Color(1f, 0.82f, 0.25f) : medal == 2 ? new Color(0.8f, 0.84f, 0.9f) : new Color(0.85f, 0.55f, 0.3f);
         timeScaleBefore = Time.timeScale > 0f ? Time.timeScale : 1f;
         Time.timeScale = 0f;
@@ -502,6 +507,29 @@ public class LundunMissions : MonoBehaviour
         passPanel.SetActive(true);
         LundunHaptics.Medium();
     }
+
+    // ------------------------------------------------------------------ S6: medals and times
+    /// The best medal won on a mission (0 none, 1 bronze, 2 silver, 3 gold).
+    public static int BestMedal(string id)
+    {
+        LundunStoryData d = LundunStory.Data;
+        if (d == null || d.medals == null) return 0;
+        string key = "medal:" + id + ":"; int best = 0;
+        foreach (string s in d.medals) if (s.StartsWith(key)) { int v; if (int.TryParse(s.Substring(key.Length), out v)) best = Mathf.Max(best, v); }
+        return best;
+    }
+
+    /// The best time on a mission in seconds (0: none yet).
+    public static int BestTime(string id)
+    {
+        LundunStoryData d = LundunStory.Data;
+        if (d == null || d.medals == null) return 0;
+        string key = "time:" + id + ":"; int best = 0;
+        foreach (string s in d.medals) if (s.StartsWith(key)) { int v; if (int.TryParse(s.Substring(key.Length), out v) && (best == 0 || v < best)) best = v; }
+        return best;
+    }
+
+    public static string Clock(int secs) { return (secs / 60) + ":" + (secs % 60).ToString("00"); }
 
     // ------------------------------------------------------------------ fix: on to the next mission
     private RectTransform nextButton, roamButton, fade;
@@ -639,7 +667,7 @@ public class LundunMissions : MonoBehaviour
         passPanel = Overlay(root, "MISSION PASSED", Accent, out passNote);
         passMoney = passNote; passMoney.fontSize = 56f; passMoney.color = new Color(0.35f, 0.95f, 0.45f);
         passMedal = Label((RectTransform)passPanel.transform.GetChild(0), "", 34f, Color.white);
-        Place(passMedal.rectTransform, new Vector2(0f, -50f), new Vector2(800f, 50f));
+        Place(passMedal.rectTransform, new Vector2(0f, -50f), new Vector2(1100f, 50f));
         passMedal.characterSpacing = 12f;
         // fix: what's next. NEXT MISSION takes James straight to the next one's start (in order); FREE ROAM leaves him
         // where he is with the GPS route to it. With nothing left: just CONTINUE.

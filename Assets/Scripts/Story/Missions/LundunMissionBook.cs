@@ -17,6 +17,7 @@ public static class LundunMissionBook
                 new M01OneLastFavour(), new M02EasyMoney(), new M03NoWayHome(),                // S3
                 new M04EstateBusiness(), new M05UnclesRules(), new M06PassengerProblems(),     // S4
                 new M07HomeTurf(), new M08BloodIsThicker(),                                     // S5
+                new M09PaperTrail(), new M10OpenForBusiness(),                                  // S6
             };
             return all;
         }

@@ -494,6 +494,15 @@ public class LundunPopulation : MonoBehaviour
 
     /// S3: a car for a mission (Tayo's car, the swap car): one of the city's models in one of its colours (picked by
     /// 'look'), parked at pos facing rot, not part of the traffic: the caller owns it. Null if there are no car models.
+    /// S6: which car look (for NewCar) has this in its name ("Van"), or -1.
+    public int LookIndex(string nameHas)
+    {
+        if (carPrefabs == null) return -1;
+        for (int i = 0; i < carPrefabs.Length; i++)
+            if (carPrefabs[i] != null && carPrefabs[i].name.IndexOf(nameHas, System.StringComparison.OrdinalIgnoreCase) >= 0) return i;
+        return -1;
+    }
+
     public GameObject NewCar(Transform parent, Vector3 pos, Quaternion rot, int look)
     {
         if (carPrefabs == null || carPrefabs.Length == 0) return null;

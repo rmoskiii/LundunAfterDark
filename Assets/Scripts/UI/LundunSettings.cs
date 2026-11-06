@@ -147,6 +147,7 @@ public partial class LundunSettings : MonoBehaviour
         FitPanel();
         if (fpsNote != null) fpsNote.text = FpsNoteText();
         if (crewTab != null && crewTab.activeSelf) RefreshCrew();                    // S5
+        if (missionsTab != null && missionsTab.activeSelf) RefreshMissions();        // S6
         RefreshButtons();
     }
 
@@ -176,6 +177,7 @@ public partial class LundunSettings : MonoBehaviour
         if (controlsTab != null) controlsTab.SetActive(i == 1);
         if (creditsTab != null) creditsTab.SetActive(i == 2);
         if (crewTab != null) { crewTab.SetActive(i == 3); if (i == 3) RefreshCrew(); }      // S5
+        if (missionsTab != null) { missionsTab.SetActive(i == 4); if (i == 4) RefreshMissions(); }     // S6
         RefreshButtons();
     }
 
@@ -294,7 +296,7 @@ public partial class LundunSettings : MonoBehaviour
         Top(title.rectTransform, -26f, 64f);
 
         // A3: tabs, DISPLAY and CONTROLS; V3: CREDITS
-        if (LundunGame.IsStory) Tabs(panel, new[] { "DISPLAY", "CONTROLS", "CREW", "CREDITS" }, -104f, new[] { 0, 1, 3, 2 });   // S5: CREW
+        if (LundunGame.IsStory) Tabs(panel, new[] { "DISPLAY", "CONTROLS", "CREW", "MISSIONS", "CREDITS" }, -104f, new[] { 0, 1, 3, 4, 2 });   // S5: CREW, S6: MISSIONS
         else Tabs(panel, new[] { "DISPLAY", "CONTROLS", "CREDITS" }, -104f);
         displayTab = Rect("DisplayTab", panel).gameObject; Stretch((RectTransform)displayTab.transform);
         controlsTab = Rect("ControlsTab", panel).gameObject; Stretch((RectTransform)controlsTab.transform);
@@ -336,7 +338,7 @@ public partial class LundunSettings : MonoBehaviour
         crr.anchorMin = crr.anchorMax = new Vector2(0f, 1f); crr.pivot = new Vector2(0f, 1f);
         crr.anchoredPosition = new Vector2(56f, -196f); crr.sizeDelta = new Vector2(888f, 470f);
         creditsTab.SetActive(false);
-        if (LundunGame.IsStory) BuildCrew(panel);                                     // S5: the crew's trust
+        if (LundunGame.IsStory) { BuildCrew(panel); BuildMissions(panel); }            // S5: the crew's trust; S6: missions, medals, replay
 
         RectTransform resume = Rect("Resume", panel);
         resume.anchorMin = resume.anchorMax = new Vector2(0.5f, 0f); resume.pivot = new Vector2(0.5f, 0f);
@@ -389,7 +391,7 @@ public partial class LundunSettings : MonoBehaviour
     void Tabs(RectTransform panel, string[] names, float y, int[] ids = null)
     {
         List<Image> list = new List<Image>();
-        float w = names.Length > 3 ? 214f : 260f, gap = 12f, x0 = -(names.Length * w + (names.Length - 1) * gap) * 0.5f;
+        float w = names.Length > 4 ? 176f : names.Length > 3 ? 214f : 260f, gap = 12f, x0 = -(names.Length * w + (names.Length - 1) * gap) * 0.5f;
         Image[] byId = new Image[names.Length];
         for (int i = 0; i < names.Length; i++)
         {
@@ -402,7 +404,7 @@ public partial class LundunSettings : MonoBehaviour
             Button bt = o.gameObject.AddComponent<Button>(); bt.targetGraphic = img;
             bt.onClick.AddListener(() => { SetTab(idx); LundunHaptics.Light(); });
             o.gameObject.AddComponent<LundunPressFX>();
-            TextMeshProUGUI t = Text(o, names[i], 24, Color.white); Stretch(t.rectTransform); t.characterSpacing = 8f;
+            TextMeshProUGUI t = Text(o, names[i], names.Length > 4 ? 21 : 24, Color.white); Stretch(t.rectTransform); t.characterSpacing = names.Length > 4 ? 3f : 8f;
             if (idx >= 0 && idx < byId.Length) byId[idx] = img; else list.Add(img);
         }
         foreach (Image im in byId) if (im != null) list.Add(im);             // marked by tab number (S5: CREW is 3)
