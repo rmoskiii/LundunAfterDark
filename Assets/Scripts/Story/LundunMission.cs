@@ -118,6 +118,8 @@ public abstract class LundunStep
     public Vector3 marker;
     public float markerRadius = 4f;
     public bool route;
+    /// S8: flying there: a straight purple line to the marker, not a route along the roads.
+    public bool air;
 
     /// Guidance: something moving to head for (a car to get into, someone to catch): the route and the on-screen
     /// pointer follow it (null: the marker, if there is one).

@@ -20,6 +20,8 @@ public class LundunGangMember : MonoBehaviour
     enum State { Hang, PickOn, Fight, Scatter, March, Brawl }
 
     public bool IsDead { get { return health == null || health.IsDead; } }
+    /// S8: going for James right now (Marcus's backup fights these).
+    public bool FightingJames { get { return state == State.Fight; } }
     public Weapon Carries { get; private set; }
 
     const float WalkSpeed = 1.4f, RunSpeed = 5.8f;

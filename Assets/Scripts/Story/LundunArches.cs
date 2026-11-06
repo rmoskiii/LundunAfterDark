@@ -18,8 +18,11 @@ using UnityEngine.UI;
 public class LundunArches : MonoBehaviour
 {
     public static LundunArches Instance { get; private set; }
-    /// In the arms dealer's or the lock-up (the camera goes indoors, no rain).
-    public static bool Inside { get; private set; }
+    /// In the arms dealer's or the lock-up (the camera goes indoors, no rain). S8: or a mission's indoor place
+    /// (Warehouse 9's floor).
+    public static bool Inside { get { return inRoom || MissionInside; } private set { inRoom = value; } }
+    private static bool inRoom;
+    public static bool MissionInside;
 
     const float InteriorY = 300f;
     const float Half = 3.2f, Spring = 2.6f, Rad = 3.2f, RoomLen = 12f;
@@ -458,6 +461,7 @@ public class LundunArches : MonoBehaviour
         if (LundunClock.Instance != null) LundunClock.Instance.AddHours(6f);
         if (PlayerHealth.Instance != null) PlayerHealth.Instance.Heal();
         LundunDrunk.Sober();
+        LundunDaily.Note("rest");                                        // S8: a daily challenge
         LundunHaptics.Light();
         yield return new WaitForSecondsRealtime(1.2f);
         LundunStory.MarkDirty();

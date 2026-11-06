@@ -83,6 +83,7 @@ public class LundunNavigation : MonoBehaviour
     public void SetDestination(Vector3 position, string name, bool snapToRoad = false)
     {
         if (graph == null) return;
+        if (!settingStraight) Straight = false;
         if (snapToRoad)
         {
             int e; double t, d;
@@ -100,8 +101,20 @@ public class LundunNavigation : MonoBehaviour
         Plan();
     }
 
+    /// S8: flying: the line goes straight there (no roads in the sky).
+    public bool Straight { get; private set; }
+    private bool settingStraight;
+    public void SetStraight(Vector3 position, string name)
+    {
+        Straight = true;
+        settingStraight = true;
+        SetDestination(position, name);
+        settingStraight = false;
+    }
+
     public void Clear()
     {
+        Straight = false;
         HasWaypoint = false;
         Route.Clear();
         RouteMetres = 0f;
@@ -132,6 +145,14 @@ public class LundunNavigation : MonoBehaviour
         if (vehicles == null) vehicles = FindAnyObjectByType<VehicleSystem>();
         if (vehicles == null) return;
         Vector3 me = vehicles.PlayerTarget.position;
+        if (Straight)
+        {
+            Route.Clear();
+            Route.Add(new Vector3(me.x, 0f, me.z)); Route.Add(Waypoint);
+            RouteMetres = new Vector2(me.x - Waypoint.x, me.z - Waypoint.z).magnitude;
+            RouteVersion++;
+            return;
+        }
         double metres;
         List<NavPoint> pts = graph.Route(new NavPoint(me.x, me.z), new NavPoint(Waypoint.x, Waypoint.z), out metres);
         Route.Clear();

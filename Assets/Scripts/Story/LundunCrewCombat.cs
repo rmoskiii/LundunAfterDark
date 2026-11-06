@@ -27,7 +27,7 @@ public partial class LundunCrew
     private static Material barBackMat, barGreenMat, barRedMat, tracerMat;
     private static int sightMask = -1;
 
-    static bool InMission { get { return LundunMissions.Running; } }
+    static bool InMission { get { return LundunMissions.Running || LundunBackup.Active; } }       // S8: or Marcus came when called
     static int SightMask { get { if (sightMask == -1) sightMask = LayerMask.GetMask("Default"); return sightMask; } }
 
     /// A mission gives 'who' a pistol (true) or takes it back.
@@ -58,11 +58,19 @@ public partial class LundunCrew
         if (!InMission || j == null) return;
         foreach (LundunAngryDriver a in FindObjectsByType<LundunAngryDriver>(FindObjectsSortMode.None))
         {
-            if (a == null || !a.Foe || !a.enabled) continue;
+            if (a == null || !(a.Foe || LundunBackup.Active) || !a.enabled) continue;
             Health h = a.GetComponent<Health>();
             if (h == null || h.IsDead || LundunMissionRun.FlatDistance(h.transform.position, j.position) > 45f) continue;
             foes.Add(h);
         }
+        // S8: Marcus's backup in free roam: gang members going for James count too
+        if (LundunBackup.Active && !LundunMissions.Running)
+            foreach (LundunGangMember gm in FindObjectsByType<LundunGangMember>(FindObjectsSortMode.None))
+            {
+                if (gm == null || gm.IsDead || !gm.FightingJames) continue;
+                Health h = gm.GetComponent<Health>();
+                if (h != null && LundunMissionRun.FlatDistance(h.transform.position, j.position) <= 45f) foes.Add(h);
+            }
     }
 
     // ------------------------------------------------------------------ on foot

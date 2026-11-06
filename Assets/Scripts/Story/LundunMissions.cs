@@ -159,6 +159,9 @@ public class LundunMissions : MonoBehaviour
     static void GiverWaits(LundunMission m, Transform marker)
     {
         if (marker == null || !LundunCast.Has(m.Giver)) return;
+        // S8: one person can't wait in two places: a story mission's giver waits there, not at their side job
+        if (!m.Story && Instance != null)
+            foreach (var kv in Instance.starts) if (kv.Key != m && kv.Key.Story && kv.Key.Giver == m.Giver && kv.Value != null) return;
         Vector3 f = m.GiverFacing; f.y = 0f; f = f.sqrMagnitude > 0.01f ? f.normalized : Vector3.forward;
         Vector3 side = Vector3.Cross(Vector3.up, f);
         LundunCrew.Wait(m.Giver, marker.position + side * 1.6f + f * 0.4f, Quaternion.LookRotation(f).eulerAngles.y);
@@ -278,6 +281,13 @@ public class LundunMissions : MonoBehaviour
         if (LundunGuide.Instance != null && !string.IsNullOrEmpty(s.objective)) LundunGuide.Instance.Announce(s.objective);   // guidance: big, then pinned
     }
 
+    /// S8: a step moved its marker (the next drop): show it again.
+    public static void Repoint()
+    {
+        if (Instance == null || Instance.run == null || Instance.run.Current == null) return;
+        Instance.PointAt(Instance.run.Current);
+    }
+
     /// The marker and GPS route for the step (none if it has none).
     void PointAt(LundunStep s)
     {
@@ -289,7 +299,8 @@ public class LundunMissions : MonoBehaviour
         LundunMinimap map = FindAnyObjectByType<LundunMinimap>();
         if (map != null) map.Track(objectiveMarker, MarkerYellow, "", 22f, true);
         bool far = LundunMissionRun.James() != null && LundunMissionRun.FlatDistance(LundunMissionRun.James().position, s.marker) > 40f;
-        if ((s.route || far) && nav != null) { nav.SetDestination(s.marker, s.objective); routeSet = true; }   // guidance: a route whenever it's a walk
+        if (s.air && nav != null) { nav.SetStraight(s.marker, s.objective); routeSet = true; }                   // S8: flying
+        else if ((s.route || far) && nav != null) { nav.SetDestination(s.marker, s.objective); routeSet = true; }   // guidance: a route whenever it's a walk
     }
 
     void SaveCheckpointPose()
@@ -391,6 +402,8 @@ public class LundunMissions : MonoBehaviour
         LundunTube.ForcedTo = null;                                             // S5: following someone down the Tube
         LundunRoadblocks.MissionFromStars = 0;
         LundunRobbery.MissionStore = null; LundunRobbery.MissionCash = 0;
+        LundunArches.MissionInside = false;                                     // S8: Warehouse 9's floor
+        LundunFlyHeli.LetGoAll();                                               // S8: the helicopter (James back on his feet)
         if (LundunTrain.Instance != null) LundunTrain.Instance.StopHolding();
         LundunMissionZones.Clear();
         if (objectiveMarker != null) { LundunMinimap mm = FindAnyObjectByType<LundunMinimap>(); if (mm != null) mm.Untrack(objectiveMarker); Destroy(objectiveMarker.gameObject); objectiveMarker = null; }
@@ -486,11 +499,15 @@ public class LundunMissions : MonoBehaviour
         Toast("Mission abandoned");
     }
 
+    /// S8: a mission's been passed (its id, the medal): daily challenges listen.
+    public static event System.Action<string, int> Passed;
+
     void Pass()
     {
         LundunMission m = run.mission;
         int medal = Mathf.Clamp(m.Medal(run), 0, 3);
         if (run.difficulty == LundunDifficulty.Easy) medal = Mathf.Min(medal, 2);   // gold needs Normal or Hard
+        try { Passed?.Invoke(m.Id, medal); } catch (System.Exception e) { Debug.LogException(e); }
         long pay = (long)Mathf.Round(m.Reward * run.RewardScale);
         int secs = Mathf.Max(1, Mathf.RoundToInt(run.Elapsed));
         Clean(true);
@@ -557,7 +574,12 @@ public class LundunMissions : MonoBehaviour
     {
         LundunStoryData d = LundunStory.Data;
         if (d == null) return null;
-        foreach (LundunMission m in LundunMissionBook.All) if (m.Available(d)) return m;
+        foreach (LundunMission m in LundunMissionBook.All)
+        {
+            if (!m.Available(d)) continue;
+            if (!m.Story && LundunMissionBook.Done(d, m.Id)) continue;          // S8: a side job you've done is there to repeat, not "next"
+            return m;
+        }
         return null;
     }
 

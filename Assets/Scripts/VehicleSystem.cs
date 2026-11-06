@@ -252,6 +252,13 @@ public class VehicleSystem : MonoBehaviour
         ShowDrivingUI(false);
     }
 
+    /// S8: flying the helicopter: neither the on-foot nor the driving controls (it has its own).
+    public void FlightControls(bool flying)
+    {
+        if (onFootControls != null) onFootControls.SetActive(!flying && currentCar == null && !controlsLocked);
+        if (drivingControls != null) drivingControls.SetActive(!flying && currentCar != null && !controlsLocked);
+    }
+
     // Freeze the player during cutscenes like BUSTED
     public void LockControls(bool locked)
     {

@@ -102,6 +102,8 @@ public class CameraFollow : MonoBehaviour
 
     public float Yaw => yaw;
     public float Pitch => pitch;
+    /// S8: following the helicopter: much further back and higher.
+    public static bool HeliMode;
 
     void Start()
     {
@@ -213,8 +215,9 @@ public class CameraFollow : MonoBehaviour
             if (targetBody != null) fast = Mathf.Clamp01(targetBody.linearVelocity.magnitude / Mathf.Max(1f, speedForFull));
         }
         speedNow = Mathf.Lerp(speedNow, fast, 2f * Time.deltaTime);
-        currentDistance = Mathf.Lerp(currentDistance, vehicleMode ? vehicleDistance + speedPullBack * speedNow : distance, step);
-        currentHeight = Mathf.Lerp(currentHeight, vehicleMode ? vehicleHeight + speedRise * speedNow : height, step);
+        float vDist = HeliMode ? 15f : vehicleDistance + speedPullBack * speedNow, vHeight = HeliMode ? 3.6f : vehicleHeight + speedRise * speedNow;
+        currentDistance = Mathf.Lerp(currentDistance, vehicleMode ? vDist : distance, step);
+        currentHeight = Mathf.Lerp(currentHeight, vehicleMode ? vHeight : height, step);
         currentShoulder = Mathf.Lerp(currentShoulder, vehicleMode ? 0f : shoulderOffset, step);
 
         // A2: tighter over the shoulder while aimed in

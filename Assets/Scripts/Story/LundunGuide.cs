@@ -30,6 +30,9 @@ public class LundunGuide : MonoBehaviour
         { "m08_blood_is_thicker",  new[] { "Knightsbury Circus", "(phone) I've found Tayo. Knightsbury Circus. Come now." } },
         { "m09_paper_trail",       new[] { "your front door", "(phone) Come home, James. I have a job for you. A quiet one." } },
         { "m10_open_for_business", new[] { "your front door", "(phone) Come home. Today the shop opens again." } },
+        { "m13_kemis_deliveries",  new[] { "the bike dock off Rye Lane", "(phone) James! I've got parcels and no rider. Bike dock off Rye Lane?" } },
+        { "m14_prove_yourself",    new[] { "Gilmore Green", "(phone) Gilmore Green. Come and show me what you've got." } },
+        { "m15_warehouse_9",       new[] { "Warehouse Lane, Canary Quay", "(phone) Warehouse Lane, tonight. I've got a job. A big one. Trust me." } },
     };
 
     public static string Where(LundunMission m)

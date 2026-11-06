@@ -8,6 +8,8 @@ public class PlayerCombat : MonoBehaviour
 {
     // Anyone can listen for gunshots (NPCs use it to panic)
     public static event System.Action<Vector3> GunshotFired;
+    /// S8: someone James punched went down (daily challenges).
+    public static event System.Action<Health> KnockedOut;
 
     [Header("Gun")]
     [SerializeField] private float damage = 25f;
@@ -360,6 +362,7 @@ public class PlayerCombat : MonoBehaviour
         Vector3 hitPoint = target.transform.position + Vector3.up * 1.5f;
         target.TakeDamage(punchDamage, hitPoint, dir * 2f);
         if (!wasAlive) return;
+        if (target.IsDead) { try { KnockedOut?.Invoke(target); } catch (System.Exception e) { Debug.LogException(e); } }
 
         if (isOfficer) CrimeSystem.Report(target.IsDead ? CrimeType.KillOfficer : CrimeType.AssaultOfficer, hitPoint);
         else if (brain != null) CrimeSystem.Report(target.IsDead ? CrimeType.KillPedestrian : CrimeType.AssaultPedestrian, hitPoint);
