@@ -18,6 +18,7 @@ public static class LundunMissionBook
                 new M04EstateBusiness(), new M05UnclesRules(), new M06PassengerProblems(),     // S4
                 new M07HomeTurf(), new M08BloodIsThicker(),                                     // S5
                 new M09PaperTrail(), new M10OpenForBusiness(),                                  // S6
+                new M11FamilyMeeting(),                                                         // S9a
                 // S8: side missions (not among the 12; 13 and 14 can be played again and again)
                 new M13KemisDeliveries(), new M14ProveYourself(), new M15Warehouse9(),
             };

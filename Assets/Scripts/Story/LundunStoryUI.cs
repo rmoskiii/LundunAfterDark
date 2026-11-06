@@ -40,6 +40,7 @@ public class LundunStoryUI : MonoBehaviour
             if (GetComponent<LundunArches>() == null) gameObject.AddComponent<LundunArches>();      // S7 the railway arches
             if (GetComponent<LundunDaily>() == null) gameObject.AddComponent<LundunDaily>();        // S8 daily challenges
             if (GetComponent<LundunBackup>() == null) gameObject.AddComponent<LundunBackup>();      // S8 Marcus's backup call
+            if (GetComponent<LundunPalaceWays>() == null) gameObject.AddComponent<LundunPalaceWays>(); // S9a the palace's weak points
         }
         if (LundunGame.ShowStartMenu) OpenMenu();
     }

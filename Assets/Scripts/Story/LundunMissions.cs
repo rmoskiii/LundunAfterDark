@@ -404,6 +404,7 @@ public class LundunMissions : MonoBehaviour
         LundunRobbery.MissionStore = null; LundunRobbery.MissionCash = 0;
         LundunArches.MissionInside = false;                                     // S8: Warehouse 9's floor
         LundunFlyHeli.LetGoAll();                                               // S8: the helicopter (James back on his feet)
+        LundunWheel.SpeedScale = 1f;                                            // S9a: the Wheel back to its own pace
         if (LundunTrain.Instance != null) LundunTrain.Instance.StopHolding();
         LundunMissionZones.Clear();
         if (objectiveMarker != null) { LundunMinimap mm = FindAnyObjectByType<LundunMinimap>(); if (mm != null) mm.Untrack(objectiveMarker); Destroy(objectiveMarker.gameObject); objectiveMarker = null; }

@@ -81,6 +81,12 @@ public class LundunWheel : MonoBehaviour
     private TextMeshProUGUI promptText;
 
     public bool Riding { get { return riding; } }
+    /// S9a: a mission can speed the Wheel up (the climb to the top) or hold it still (scouting at the top). 1 = normal.
+    public static float SpeedScale = 1f;
+    /// S9a: where you board (the top of the steps), and how far round James's capsule is (0 = the bottom, ±180 = the top).
+    public Vector3 BoardPoint { get { return transform.TransformPoint(boardSpot); } }
+    public float RideDelta { get { return riding ? CapsuleDelta(rideCapsule) : 0f; } }
+    public Vector3 RidePosition { get { return riding && capsules[rideCapsule] != null ? capsules[rideCapsule].position : transform.position; } }
     /// The capsule James is in (−1 when he isn't riding).
     public int RideCapsule { get { return riding ? rideCapsule : -1; } }
     public int CapsuleCount { get { return capsules.Length; } }
@@ -155,7 +161,8 @@ public class LundunWheel : MonoBehaviour
 
     void Update()
     {
-        angle = (angle + 360f / Mathf.Max(10f, secondsPerTurn) * Time.deltaTime) % 360f;
+        float turn = 360f / Mathf.Max(10f, secondsPerTurn) * Time.deltaTime * Mathf.Max(0f, SpeedScale);
+        angle = (angle + turn) % 360f;
         Quaternion spin = Quaternion.Euler(0f, 0f, angle);
         if (rotor != null && !far) rotor.localRotation = spin;
         if (farRotor != null && far) farRotor.localRotation = spin;
@@ -164,7 +171,7 @@ public class LundunWheel : MonoBehaviour
 
         if (riding)
         {
-            rideTurned += 360f / Mathf.Max(10f, secondsPerTurn) * Time.deltaTime;
+            rideTurned += turn;
             Transform cp = capsules[rideCapsule];
             rideCam.SetPositionAndRotation(cp.position + Vector3.up * 0.3f, Quaternion.LookRotation(transform.forward, Vector3.up));
             if (playerGo != null) playerGo.transform.position = cp.position;
