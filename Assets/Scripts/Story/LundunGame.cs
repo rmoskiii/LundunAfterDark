@@ -51,6 +51,8 @@ public static class LundunGame
         // pubs on the corners and getting drunk (both modes)
         if (UnityEngine.Object.FindAnyObjectByType<LundunPubs>() == null) new GameObject("LundunPubs").AddComponent<LundunPubs>();
         if (UnityEngine.Object.FindAnyObjectByType<LundunDrunk>() == null) new GameObject("LundunDrunk").AddComponent<LundunDrunk>();
+        // S7: chicken shops (both modes: £20 in Story, free in Free Roam)
+        if (UnityEngine.Object.FindAnyObjectByType<LundunChicken>() == null) new GameObject("LundunChicken").AddComponent<LundunChicken>();
         // a test scene that isn't in the build (it can't be reloaded): always the plain game, no menu
         if (!CanSwitch) { Current = Mode.FreeRoam; return; }
         if (UnityEngine.Object.FindAnyObjectByType<LundunStoryUI>() != null) return;

@@ -39,7 +39,15 @@ public class PlayerHealth : MonoBehaviour
     [SerializeField] private float shakePerDamage = 0.008f;
 
     public float Current { get; private set; }
+    public float Max => maxHealth;
     public bool IsDead { get; private set; }
+
+    /// S7: body armour (Story: bought from the arms dealer). Takes the hits before health does; the blue bar.
+    public const float MaxArmour = 100f;
+    public float Armour { get; private set; }
+    const string ArmourKey = "Lundun.Armour";
+    private Image armourBar, armourTrack;
+    private float armourShown;
     public Transform Body => playerController.transform;
     public bool OnFoot => playerController.gameObject.activeInHierarchy;
 
@@ -68,7 +76,25 @@ public class PlayerHealth : MonoBehaviour
         vehicles = FindAnyObjectByType<VehicleSystem>();
         cam = FindAnyObjectByType<CameraFollow>();
         BuildBarExtras();
+        if (LundunGame.IsStory) Armour = Mathf.Clamp(LundunSave.GetFloat(ArmourKey, 0f), 0f, MaxArmour);
+        armourShown = Armour;
     }
+
+    /// S7: put armour on (up to full).
+    public void GiveArmour(float amount)
+    {
+        Armour = Mathf.Clamp(Armour + amount, 0f, MaxArmour);
+        SaveArmour();
+    }
+
+    /// S7: patched up (the chicken shop, a night's rest at the lock-up).
+    public void Heal()
+    {
+        if (IsDead) return;
+        Current = maxHealth;
+    }
+
+    void SaveArmour() { if (LundunGame.IsStory) LundunSave.SetFloat(ArmourKey, Armour); }
 
     void Update()
     {
@@ -96,6 +122,7 @@ public class PlayerHealth : MonoBehaviour
             SetHeight(barRt, h); SetHeight(chunkRt, h); SetHeight(trackRt, h);
         }
         if (chunk != null) chunk.fillAmount = chunkFill;
+        UpdateArmourBar(car, dt);
 
         // the screen: a red flash on each hit, and a heartbeat once you're badly hurt
         flash = Mathf.MoveTowards(flash, 0f, dt * 1.5f);
@@ -122,8 +149,16 @@ public class PlayerHealth : MonoBehaviour
         // Locked controls (BUSTED / WASTED cutscenes, the Tube) = can't be hurt. (Riding a bike you can.)
         if (IsDead || amount <= 0f || VehicleSystem.Locked) return;
 
-        Current -= amount;
         lastHitTime = Time.time;
+        if (Armour > 0f)
+        {
+            float soak = Mathf.Min(Armour, amount);
+            Armour -= soak;
+            amount -= soak;
+            SaveArmour();
+            if (amount <= 0f) { Hit(soak * 0.5f, maxHealth); return; }    // the vest took it all
+        }
+        Current -= amount;
         flash = Mathf.Max(flash, Mathf.Clamp(0.25f + amount * 0.02f, 0.3f, 0.7f));
         Hit(amount, maxHealth);
 
@@ -141,6 +176,8 @@ public class PlayerHealth : MonoBehaviour
     public void ResetHealth()
     {
         Current = maxHealth;
+        Armour = 0f; armourShown = 0f;            // S7: WASTED / BUSTED: the vest's gone
+        SaveArmour();
         IsDead = false;
         flash = 0f;
         shown = chunkFill = 1f;
@@ -215,6 +252,30 @@ public class PlayerHealth : MonoBehaviour
         trackRt.SetSiblingIndex(at);
         chunkRt.SetSiblingIndex(at + 1);
         barRt.SetSiblingIndex(at + 2);
+    }
+
+    /// S7: the armour bar: thin and blue, just above the health bar, only while there's armour (on foot).
+    void UpdateArmourBar(bool car, float dt)
+    {
+        if (barRt == null) return;
+        if (armourBar == null)
+        {
+            if (Armour <= 0f) return;
+            armourTrack = MakeCopy("ArmourBarTrack", new Color(0f, 0f, 0f, 0.5f));
+            armourTrack.type = Image.Type.Simple;
+            armourBar = MakeCopy("ArmourBar", new Color(0.3f, 0.62f, 1f));
+            float h = Mathf.Max(5f, baseHeight * 0.5f);
+            foreach (Image im in new[] { armourTrack, armourBar })
+            {
+                RectTransform rt = im.rectTransform;
+                rt.sizeDelta = new Vector2(barRt.sizeDelta.x, h);
+                rt.anchoredPosition = barRt.anchoredPosition + new Vector2(0f, baseHeight * 0.5f + h * 0.5f + 5f);
+            }
+        }
+        armourShown = Mathf.MoveTowards(armourShown, Armour, MaxArmour * 1.5f * dt);
+        bool show = !car && (Armour > 0f || armourShown > 0.5f);
+        if (armourBar.gameObject.activeSelf != show) { armourBar.gameObject.SetActive(show); armourTrack.gameObject.SetActive(show); }
+        armourBar.fillAmount = Mathf.Clamp01(armourShown / MaxArmour);
     }
 
     Image MakeCopy(string name, Color colour)

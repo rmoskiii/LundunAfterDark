@@ -298,6 +298,11 @@ public class LundunWeapons : MonoBehaviour
         Refresh();
     }
 
+    /// S7: does James have this gun (the arms dealer, the lock-up's ammo)?
+    public bool Owns(Kind k) { int i = (int)k; return i >= 0 && i < owned.Length && owned[i]; }
+    /// S7: the weapon itself (its magazine, reserve and ammo now).
+    public Weapon Of(Kind k) { return weapons[(int)k]; }
+
     public bool TestMode => testLoadout;
 
     /// G2: switch between the test loadout and normal play.

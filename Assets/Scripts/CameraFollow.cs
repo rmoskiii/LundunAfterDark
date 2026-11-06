@@ -234,7 +234,7 @@ public class CameraFollow : MonoBehaviour
 
         // inside a walk-in shop (Basketful and the rest, LAGOS FOODS): closer and lower, easing in and out
         bool inShop = !vehicleMode && (LundunShopInterior.At(target.position) != null ||
-                      (LundunStoryShop.Instance != null && LundunStoryShop.Instance.Ready && LundunStoryShop.Instance.Inside(target.position)) || LundunPubs.InsidePub);
+                      (LundunStoryShop.Instance != null && LundunStoryShop.Instance.Ready && LundunStoryShop.Instance.Inside(target.position)) || LundunPubs.InsidePub || LundunArches.Inside);
         indoor = Mathf.MoveTowards(indoor, inShop ? 1f : 0f, 2f * Time.deltaTime);
         if (indoor > 0f) { camDistance *= Mathf.Lerp(1f, indoorDistanceScale, indoor); camHeight *= Mathf.Lerp(1f, indoorHeightScale, indoor); }
 

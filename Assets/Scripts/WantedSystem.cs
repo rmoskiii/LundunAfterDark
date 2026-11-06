@@ -367,6 +367,17 @@ public class WantedSystem : MonoBehaviour
     /// S3: seconds since police last saw James (the train: board unseen and they lose you).
     public float SinceSeen => Time.time - lastSighting;
 
+    /// S7: a respray at ARCHES MOTORS: one star less (the last one clears it).
+    public void DropStar()
+    {
+        if (Stars <= 1) { ClearWanted(); return; }
+        Stars -= 1;
+        heat = Mathf.Min(heat, heatForStar[Mathf.Clamp(Stars, 1, heatForStar.Length) - 1]);
+        lastSighting = -99f;
+        timeSinceSeen = 99f;
+        escapeTimerRunning = true;                 // a different car: they're looking, not chasing
+    }
+
     public void ClearWanted()
     {
         heat = 0f;

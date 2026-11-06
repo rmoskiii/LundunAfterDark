@@ -36,6 +36,8 @@ public class LundunStoryUI : MonoBehaviour
             if (GetComponent<LundunRobbery>() == null) gameObject.AddComponent<LundunRobbery>();    // S3 robbing tills
             if (GetComponent<LundunMissions>() == null) gameObject.AddComponent<LundunMissions>();  // S1 missions
             if (GetComponent<LundunGuide>() == null) gameObject.AddComponent<LundunGuide>();        // guidance: what next, and where
+            if (GetComponent<LundunDay>() == null) gameObject.AddComponent<LundunDay>();            // S7 the story's days
+            if (GetComponent<LundunArches>() == null) gameObject.AddComponent<LundunArches>();      // S7 the railway arches
         }
         if (LundunGame.ShowStartMenu) OpenMenu();
     }

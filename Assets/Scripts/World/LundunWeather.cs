@@ -302,11 +302,11 @@ public class LundunWeather : MonoBehaviour
             Transform ct = cam.transform;
             Vector3 fwd = ct.forward; fwd.y = 0f;
             rain.transform.position = ct.position + fwd.normalized * 9f + Vector3.up * 13f;
-            rainEmission.rateOverTime = LundunPubs.InsidePub ? 0f : heavyDropsPerSecond * Rain * Rain * DropScale;   // none in the pub
+            rainEmission.rateOverTime = (LundunPubs.InsidePub || LundunArches.Inside) ? 0f : heavyDropsPerSecond * Rain * Rain * DropScale;   // none in the pub
         }
         if (rainAudio != null)
         {
-            float want = rainVolume * Mathf.Clamp01(Rain * 1.3f) * (LundunPubs.InsidePub ? 0.2f : 1f);
+            float want = rainVolume * Mathf.Clamp01(Rain * 1.3f) * ((LundunPubs.InsidePub || LundunArches.Inside) ? 0.2f : 1f);
             rainAudio.volume = Mathf.MoveTowards(rainAudio.volume, want, Time.unscaledDeltaTime * 0.3f);
             if (rainAudio.volume > 0.001f && !rainAudio.isPlaying) rainAudio.Play();
             else if (rainAudio.volume <= 0.001f && rainAudio.isPlaying) rainAudio.Stop();

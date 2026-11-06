@@ -8,22 +8,25 @@ using UnityEngine.UI;
 ///   • the shoppers run, the cashier stays put and hands it over
 ///   • the alarm: 1★ at once, 2★ by the end
 ///   • let go early (or walk off, or put the gun away) and you keep what's in the bag so far
-/// Allowed while a mission asks for it (MissionStore), and in free play once mission 02 is done: each store once every
-/// ten minutes, £250–£600 a time. Free Roam has none of this (there's no money there).
+/// Allowed while a mission asks for it (MissionStore), and in free play once mission 02 is done.
+/// S7: in free play every walk-in store (not LAGOS FOODS) can be robbed once per in-game day (LundunDay): £300–£1,200,
+/// more the more stars you've got by the end. A red ROBBED TODAY tag hangs over its doors until the next day (06:00).
+/// Free Roam has none of this (there's no money there).
 public class LundunRobbery : MonoBehaviour
 {
     public static LundunRobbery Instance { get; private set; }
     public const string UnlockFlag = "done:m02_easy_money";
-    static readonly string[] Robbable = { "Basketful", "Grocera", "ValuStack" };
     /// Set by a mission: this store can be robbed now, for this much (paid with the mission, not at the till).
     public static string MissionStore;
     public static long MissionCash;
     /// A till's been emptied: the store, and how much (for missions).
     public static event System.Action<string, long> Robbed;
 
-    const float HoldTime = 6f, Reach = 2.6f, Cooldown = 600f;
-    private readonly Dictionary<string, float> coolUntil = new Dictionary<string, float>();
+    const float HoldTime = 6f, Reach = 2.6f;
     private LundunShopInterior store;
+    private bool robbedHere;
+    private float nextTags;
+    private readonly Dictionary<LundunShopInterior, List<GameObject>> tags = new Dictionary<LundunShopInterior, List<GameObject>>();
     private Vector3 till;
     private LundunMarketCrowd crowd;
     private bool holding, started, twoStars;
@@ -37,18 +40,27 @@ public class LundunRobbery : MonoBehaviour
     void OnDestroy() { if (Instance == this) Instance = null; MissionStore = null; MissionCash = 0; }
     void Start() { BuildUI(); }
 
+    /// Every walk-in store but Uncle Femi's.
+    static bool Robbable(LundunShopInterior s)
+    {
+        return s != null && !string.IsNullOrEmpty(s.StoreName) && s.StoreName.ToUpperInvariant().IndexOf("LAGOS") < 0;
+    }
+
+    /// Robbed already today (free play)?
+    public static bool RobbedToday(string name) { return LundunGame.IsStory && LundunDay.DoneToday("rob:" + name); }
+
     bool Allowed(string name)
     {
         if (!LundunGame.IsStory) return false;
         if (MissionStore != null) return name == MissionStore;
         if (LundunMissions.Running) return false;
         LundunStoryData d = LundunStory.Data;
-        if (d == null || !d.flags.Contains(UnlockFlag)) return false;
-        float t; return !coolUntil.TryGetValue(name, out t) || Time.time >= t;
+        return d != null && d.flags.Contains(UnlockFlag);
     }
 
     void Update()
     {
+        if (Time.time >= nextTags) { nextTags = Time.time + 2f; Tags(); }
         if (buttonGo == null) return;
         PlayerHealth ph = PlayerHealth.Instance;
         bool onFoot = ph != null && !ph.IsDead && ph.OnFoot && !VehicleSystem.Locked && ph.Body != null && ph.Body.gameObject.activeInHierarchy;
@@ -75,9 +87,15 @@ public class LundunRobbery : MonoBehaviour
         bool show = store != null;
         if (buttonGo.activeSelf != show) buttonGo.SetActive(show);
         if (!show) return;
+        fill.fillAmount = 0f;
+        if (robbedHere)
+        {
+            label.text = "ROBBED TODAY\n<size=70%>the till's empty till tomorrow</size>";
+            buttonImg.color = new Color(0.2f, 0.2f, 0.22f, 0.85f);
+            return;
+        }
         label.text = gun ? "HOLD TO ROB THE TILL" : "TAKE OUT A GUN\n<size=70%>to rob the till</size>";
         buttonImg.color = gun ? new Color(0.62f, 0.08f, 0.1f, 0.92f) : new Color(0.2f, 0.2f, 0.22f, 0.85f);
-        fill.fillAmount = 0f;
         if (gun && hold != null && hold.IsHeld) Begin();
     }
 
@@ -85,9 +103,24 @@ public class LundunRobbery : MonoBehaviour
     void Look(Vector3 p)
     {
         LundunShopInterior s = LundunShopInterior.At(p);
-        if (s == null || System.Array.IndexOf(Robbable, s.StoreName) < 0 || !Allowed(s.StoreName)) return;
+        if (!Robbable(s) || !Allowed(s.StoreName)) return;
+        bool done = MissionStore == null && RobbedToday(s.StoreName);
         LundunMarketCrowd c = CrowdOf(s);
-        if (c == null || c.TraderSpots == null) return;
+        if (c == null || c.TraderSpots == null || c.TraderSpots.Length == 0)
+        {
+            // no staff spots: the tills just inside the doors
+            Vector3[] doors = s.DoorCentres;
+            if (doors == null) return;
+            Vector3 mid = (s.Min + s.Max) * 0.5f;
+            foreach (Vector3 dc in doors)
+            {
+                Vector3 inward = mid - dc; inward.y = 0f;
+                if (inward.sqrMagnitude < 1f) continue;
+                Vector3 t = dc + inward.normalized * 5f;
+                if (LundunMissionRun.FlatDistance(p, t) < Reach + 1f) { store = s; till = t; crowd = null; robbedHere = done; return; }
+            }
+            return;
+        }
         float best = Reach;
         Vector3[] at = c.TraderSpots, face = c.TraderFacing;
         for (int i = 0; i < at.Length; i++)
@@ -96,7 +129,7 @@ public class LundunRobbery : MonoBehaviour
             Vector3 f = face != null && i < face.Length ? face[i] : Vector3.zero;
             Vector3 t = at[i] - f.normalized * 0.9f;                       // the till is across the counter from the cashier
             float d = LundunMissionRun.FlatDistance(p, t);
-            if (d < best) { best = d; store = s; till = t; crowd = c; }
+            if (d < best) { best = d; store = s; till = t; crowd = c; robbedHere = done; }
         }
     }
 
@@ -112,6 +145,7 @@ public class LundunRobbery : MonoBehaviour
 
     void Begin()
     {
+        if (robbedHere) return;
         holding = true; started = true; twoStars = false; progress = 0f;
         PlayerHealth ph = PlayerHealth.Instance;
         Vector3 me = ph.Body.position;
@@ -139,13 +173,64 @@ public class LundunRobbery : MonoBehaviour
         buttonGo.SetActive(false);
         if (got < 0.12f) { LundunMissions.Toast("Nothing taken"); return; }
         bool mission = MissionStore == name;
-        long full = mission && MissionCash > 0 ? MissionCash : 250 + 50 * Random.Range(0, 8);
+        // S7: £300–£600 in the till, worth more the hotter it got (2★ ×1.25 … 5★ ×2), never more than £1,200
+        int stars = WantedSystem.Instance != null ? WantedSystem.Instance.Stars : 1;
+        long till0 = 300 + 50 * Random.Range(0, 7);
+        long free = (long)Mathf.Min(1200f, till0 * (0.75f + 0.25f * Mathf.Max(1, stars)));
+        long full = mission && MissionCash > 0 ? MissionCash : free;
         long cash = (long)Mathf.Round(full * Mathf.Clamp01(got) / 10f) * 10;
-        coolUntil[name] = Time.time + Cooldown;
+        if (!mission) { LundunDay.MarkToday("rob:" + name); LundunStory.MarkDirty(); nextTags = 0f; }
         if (!mission) LundunWallet.Earn(cash, "Till robbed");
         else LundunMissions.Toast(LundunWallet.Format(cash) + " in the bag");
         Robbed?.Invoke(name, cash);
         store = null;
+    }
+
+    // ------------------------------------------------------------------ S7: ROBBED TODAY over the doors
+    void Tags()
+    {
+        foreach (LundunShopInterior s in LundunShopInterior.All)
+        {
+            if (!Robbable(s)) continue;
+            bool want = RobbedToday(s.StoreName);
+            List<GameObject> have;
+            tags.TryGetValue(s, out have);
+            if (want && have == null)
+            {
+                have = new List<GameObject>();
+                Vector3 mid = (s.Min + s.Max) * 0.5f;
+                if (s.DoorCentres != null)
+                    foreach (Vector3 dc in s.DoorCentres)
+                    {
+                        Vector3 outward = dc - mid; outward.y = 0f;
+                        outward = outward.sqrMagnitude > 0.01f ? outward.normalized : Vector3.forward;
+                        have.Add(Tag(LundunPlaces.Ground(dc) + outward * 1.2f + Vector3.up * 3.3f));
+                    }
+                tags[s] = have;
+            }
+            else if (!want && have != null)
+            {
+                foreach (GameObject g in have) if (g != null) Destroy(g);
+                tags.Remove(s);
+            }
+        }
+    }
+
+    GameObject Tag(Vector3 at)
+    {
+        GameObject g = new GameObject("RobbedToday", typeof(RectTransform));
+        g.transform.SetParent(transform, false);
+        g.transform.position = at;
+        ((RectTransform)g.transform).sizeDelta = new Vector2(4f, 0.8f);
+        TextMeshPro t = g.AddComponent<TextMeshPro>();
+        t.text = "ROBBED TODAY"; t.color = new Color(1f, 0.25f, 0.2f); t.fontStyle = FontStyles.Bold;
+        t.alignment = TextAlignmentOptions.Center; t.textWrappingMode = TextWrappingModes.NoWrap;
+        t.fontSize = 4.5f; t.outlineWidth = 0.2f; t.outlineColor = new Color32(0, 0, 0, 255);
+        if (LundunHud.Instance != null && LundunHud.Instance.FontAsset != null) t.font = LundunHud.Instance.FontAsset;
+        MeshRenderer r = g.GetComponent<MeshRenderer>();
+        if (r != null) { r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; r.receiveShadows = false; }
+        g.AddComponent<LundunFaceCamera>();
+        return g;
     }
 
     // ------------------------------------------------------------------ the button (bottom centre, above the train's)
