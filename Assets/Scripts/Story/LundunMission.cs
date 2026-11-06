@@ -119,6 +119,10 @@ public abstract class LundunStep
     public float markerRadius = 4f;
     public bool route;
 
+    /// Guidance: something moving to head for (a car to get into, someone to catch): the route and the on-screen
+    /// pointer follow it (null: the marker, if there is one).
+    public virtual Transform Follow { get { return null; } }
+
     public virtual void Begin(LundunMissionRun run) { }
     public abstract bool Tick(LundunMissionRun run);
     public virtual void End(LundunMissionRun run) { }
@@ -161,13 +165,14 @@ public class LundunTalk : LundunStep
     int at = -1;
     float next;
     public LundunTalk(string objectiveText, params LundunLine[] said) { lines = said; objective = objectiveText; }
-    public override void Begin(LundunMissionRun run) { at = -1; next = 0f; }
+    public override void Begin(LundunMissionRun run) { at = -1; next = 0f; LundunMissions.TakeSkip(); }
     public override bool Tick(LundunMissionRun run)
     {
-        if (Time.time < next) return false;
+        if (Time.time < next && !LundunMissions.TakeSkip()) return false;      // guidance: tap the subtitle for the next line
         at++;
         if (at >= lines.Length) { LundunMissions.Say(null, null, 0f); return true; }
-        float secs = Mathf.Clamp(1.6f + lines[at].text.Length * 0.05f, 2.2f, 6f);
+        // guidance: long enough to read at an easy pace (at least 4 seconds)
+        float secs = LundunMissions.ReadTime(lines[at].text);
         LundunMissions.Say(lines[at].who, lines[at].text, secs);
         next = Time.time + secs;
         return false;

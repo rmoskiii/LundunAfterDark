@@ -35,6 +35,7 @@ public class LundunStoryUI : MonoBehaviour
             if (GetComponent<LundunCrew>() == null) gameObject.AddComponent<LundunCrew>();          // S2 the crew
             if (GetComponent<LundunRobbery>() == null) gameObject.AddComponent<LundunRobbery>();    // S3 robbing tills
             if (GetComponent<LundunMissions>() == null) gameObject.AddComponent<LundunMissions>();  // S1 missions
+            if (GetComponent<LundunGuide>() == null) gameObject.AddComponent<LundunGuide>();        // guidance: what next, and where
         }
         if (LundunGame.ShowStartMenu) OpenMenu();
     }

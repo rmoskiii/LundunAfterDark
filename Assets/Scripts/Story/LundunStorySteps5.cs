@@ -14,6 +14,7 @@ public class LundunIf : LundunStep
     bool on;
     public LundunIf(Func<bool> condition, LundunStep step) { when = condition; inner = step; checkpoint = step.checkpoint; }
     public LundunStep Inner { get { return inner; } }
+    public override Transform Follow { get { return on ? inner.Follow : null; } }
 
     public override void Begin(LundunMissionRun run)
     {
@@ -234,6 +235,7 @@ public class LundunKeepUp : LundunStep
 {
     readonly Func<Transform> who; readonly Func<bool> arrived, fell; readonly float loseAfter; readonly string text, failText;
     float lostFor;
+    public override Transform Follow { get { return who(); } }
     public LundunKeepUp(Func<Transform> target, Func<bool> gotThere, Func<bool> cameOff, float seconds, string objectiveText, string ifLost)
     {
         who = target; arrived = gotThere; fell = cameOff; loseAfter = seconds; text = objectiveText; failText = ifLost; objective = text;
@@ -277,6 +279,7 @@ public class LundunCatch : LundunStep
 {
     readonly Func<LundunRunner> who; readonly string failText;
     float farFor;
+    public override Transform Follow { get { LundunRunner r = who(); return r != null ? r.transform : null; } }
     public LundunCatch(Func<LundunRunner> runner, string objectiveText, string ifLost) { who = runner; objective = objectiveText; failText = ifLost; }
 
     public override void Begin(LundunMissionRun run)

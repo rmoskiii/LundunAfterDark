@@ -15,6 +15,8 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
 
     [Header("Parts (filled in by the menu)")]
     [SerializeField] private RectTransform hudRoot;        // minimap + health bar; moved clear of the notch
+    /// Guidance: where the minimap sits (things go just under it).
+    public RectTransform HudRoot { get { return hudRoot; } }
     [SerializeField] private RectTransform rotator;
     [SerializeField] private RawImage map;
     [SerializeField] private RectTransform blipLayer;

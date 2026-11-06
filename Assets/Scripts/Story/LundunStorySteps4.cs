@@ -145,7 +145,7 @@ public class LundunDriveTalk : LundunStep
         if (LundunMissionRun.Driving() && Time.time >= next && at + 1 < lines.Length && !LundunMissions.Talking)
         {
             at++;
-            float secs = Mathf.Clamp(1.8f + lines[at].text.Length * 0.055f, 2.6f, 7f);
+            float secs = LundunMissions.ReadTime(lines[at].text);
             LundunMissions.Say(lines[at].who, lines[at].text, secs);
             next = Time.time + secs + 1.2f;
         }
@@ -159,13 +159,13 @@ public class LundunTalkPick : LundunStep
     readonly Func<LundunLine[]> pick;
     LundunLine[] lines; int at = -1; float next;
     public LundunTalkPick(Func<LundunLine[]> which) { pick = which; }
-    public override void Begin(LundunMissionRun run) { lines = pick() ?? new LundunLine[0]; at = -1; next = 0f; }
+    public override void Begin(LundunMissionRun run) { lines = pick() ?? new LundunLine[0]; at = -1; next = 0f; LundunMissions.TakeSkip(); }
     public override bool Tick(LundunMissionRun run)
     {
-        if (Time.time < next) return false;
+        if (Time.time < next && !LundunMissions.TakeSkip()) return false;      // guidance: tap for the next line
         at++;
         if (at >= lines.Length) { LundunMissions.Say(null, null, 0f); return true; }
-        float secs = Mathf.Clamp(1.6f + lines[at].text.Length * 0.05f, 2.2f, 6f);
+        float secs = LundunMissions.ReadTime(lines[at].text);
         LundunMissions.Say(lines[at].who, lines[at].text, secs);
         next = Time.time + secs;
         return false;

@@ -19,6 +19,17 @@ public class LundunMissions : MonoBehaviour
 {
     public static LundunMissions Instance { get; private set; }
     public static bool Running { get { return Instance != null && Instance.run != null; } }
+    /// Guidance: the step on now (null between missions).
+    public static LundunStep CurrentStep { get { return Instance != null && Instance.run != null && Instance.run.failed == null ? Instance.run.Current : null; } }
+    private static bool skip;
+    /// Guidance: how long a line stays up: an easy reading pace, at least 4 seconds.
+    public static float ReadTime(string text)
+    {
+        int words = string.IsNullOrEmpty(text) ? 1 : text.Split(' ').Length;
+        return Mathf.Clamp(1.4f + words * 0.36f, 4f, 10f);
+    }
+    /// Guidance: the subtitle was tapped (once).
+    public static bool TakeSkip() { bool s = skip; skip = false; return s; }
 
     static readonly Color Ink = new Color(0.05f, 0.07f, 0.12f, 0.94f);
     static readonly Color Accent = new Color(1f, 0.66f, 0.18f);
@@ -73,9 +84,6 @@ public class LundunMissions : MonoBehaviour
         BuildUI();
         LundunTrust.Recalc(false);                               // S5: trust from the choices made (and the defaults)
         foreach (LundunMission m in LundunMissionBook.All) MakeStart(m);
-        LundunMission n = NextUp();                              // fix: say where the story picks up
-        if (n != null && LundunStory.Data != null && LundunStory.Data.missionsDone > 0)
-            Toast("NEXT: " + n.Title.ToUpperInvariant() + "\n" + LundunTrust.Pretty(n.Giver) + " is waiting. Look for their letter on the map");
     }
 
     // ------------------------------------------------------------------ for steps and other systems
@@ -267,6 +275,7 @@ public class LundunMissions : MonoBehaviour
         s.Begin(run);
         PointAt(s);
         Objective(s.objective);
+        if (LundunGuide.Instance != null && !string.IsNullOrEmpty(s.objective)) LundunGuide.Instance.Announce(s.objective);   // guidance: big, then pinned
     }
 
     /// The marker and GPS route for the step (none if it has none).
@@ -279,7 +288,8 @@ public class LundunMissions : MonoBehaviour
         objectiveMarker = Glow("Objective", s.marker, Mathf.Max(0.9f, s.markerRadius * 0.45f), 3f);
         LundunMinimap map = FindAnyObjectByType<LundunMinimap>();
         if (map != null) map.Track(objectiveMarker, MarkerYellow, "", 22f, true);
-        if (s.route && nav != null) { nav.SetDestination(s.marker, s.objective); routeSet = true; }
+        bool far = LundunMissionRun.James() != null && LundunMissionRun.FlatDistance(LundunMissionRun.James().position, s.marker) > 40f;
+        if ((s.route || far) && nav != null) { nav.SetDestination(s.marker, s.objective); routeSet = true; }   // guidance: a route whenever it's a walk
     }
 
     void SaveCheckpointPose()
@@ -342,6 +352,12 @@ public class LundunMissions : MonoBehaviour
     void Objective(string s)
     {
         if (objectiveText == null) return;
+        if (LundunGuide.Instance != null)                                       // guidance: the pinned box under the minimap
+        {
+            LundunGuide.Instance.Pin(s);
+            if (objectiveBox.gameObject.activeSelf) objectiveBox.gameObject.SetActive(false);
+            return;
+        }
         if (objectiveText.text != s) objectiveText.text = s;
         objectiveBox.gameObject.SetActive(!string.IsNullOrEmpty(s));
     }
@@ -654,6 +670,13 @@ public class LundunMissions : MonoBehaviour
         RectTransform wr = subWho.rectTransform; wr.anchorMin = new Vector2(0f, 0.58f); wr.anchorMax = Vector2.one; wr.offsetMin = wr.offsetMax = Vector2.zero;
         subText = Label(subBox, "", 30f, Color.white); subText.textWrappingMode = TextWrappingModes.Normal;
         RectTransform tr = subText.rectTransform; tr.anchorMin = Vector2.zero; tr.anchorMax = new Vector2(1f, 0.62f); tr.offsetMin = new Vector2(30f, 6f); tr.offsetMax = new Vector2(-30f, 0f);
+        // guidance: tap the subtitle for the next line ("tap to skip" in its corner)
+        Image subImg = subBox.GetComponent<Image>(); subImg.raycastTarget = true;
+        Button subBtn = subBox.gameObject.AddComponent<Button>(); subBtn.targetGraphic = subImg; subBtn.transition = Selectable.Transition.None;
+        subBtn.onClick.AddListener(() => { skip = true; subUntil = 0f; });
+        TextMeshProUGUI hint = Label(subBox, "TAP ›", 18f, new Color(1f, 1f, 1f, 0.45f));
+        RectTransform hr = hint.rectTransform; hr.anchorMin = hr.anchorMax = new Vector2(1f, 0f); hr.pivot = new Vector2(1f, 0f);
+        hr.anchoredPosition = new Vector2(-22f, 8f); hr.sizeDelta = new Vector2(120f, 26f);
         subBox.gameObject.SetActive(false);
 
         // failed

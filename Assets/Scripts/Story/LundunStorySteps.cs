@@ -24,6 +24,7 @@ public class LundunEnterCar : LundunStep
 {
     readonly Func<GameObject> car;
     readonly string lost;
+    public override Transform Follow { get { GameObject c = car(); return c != null ? c.transform : null; } }
     public LundunEnterCar(Func<GameObject> whichCar, string objectiveText, string ifWrecked)
     {
         car = whichCar; objective = objectiveText; lost = ifWrecked;

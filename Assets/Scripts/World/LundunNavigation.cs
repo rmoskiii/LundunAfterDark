@@ -145,6 +145,6 @@ public class LundunNavigation : MonoBehaviour
         if (toast == null) return;
         toast.text = message;
         toast.gameObject.SetActive(true);
-        toastUntil = Time.unscaledTime + 2.5f;
+        toastUntil = Time.unscaledTime + (LundunGame.IsStory ? 4.5f : 2.5f);     // guidance: longer to read in Story
     }
 }
