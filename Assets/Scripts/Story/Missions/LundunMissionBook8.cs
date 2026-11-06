@@ -503,7 +503,7 @@ public class M15Warehouse9 : LundunMission
         heli = null;
     }
 
-    static void Put(Vector3 at, Quaternion rot)
+    public static void Put(Vector3 at, Quaternion rot)
     {
         PlayerHealth ph = PlayerHealth.Instance;
         if (ph == null || ph.Body == null) return;
@@ -537,7 +537,7 @@ public class M15Warehouse9 : LundunMission
     }
 
     /// The clearest flat spot (room for a helicopter) nearest 'centre' within 'reach'.
-    static Vector3 OpenGround(Vector3 centre, float reach)
+    public static Vector3 OpenGround(Vector3 centre, float reach)
     {
         int mask = LayerMask.GetMask("Default");
         for (float r = 0f; r <= reach; r += 6f)
