@@ -147,7 +147,7 @@ public class LundunDriveTalk : LundunStep
             at++;
             float secs = LundunMissions.ReadTime(lines[at].text);
             LundunMissions.Say(lines[at].who, lines[at].text, secs);
-            next = Time.time + secs + 1.2f;
+            next = Time.time + secs + LundunMissions.TakeDelay() + 1.2f;
         }
         return LundunMissionRun.FlatDistance(j.position, marker) < markerRadius;
     }
@@ -167,7 +167,7 @@ public class LundunTalkPick : LundunStep
         if (at >= lines.Length) { LundunMissions.Say(null, null, 0f); return true; }
         float secs = LundunMissions.ReadTime(lines[at].text);
         LundunMissions.Say(lines[at].who, lines[at].text, secs);
-        next = Time.time + secs;
+        next = Time.time + secs + LundunMissions.TakeDelay();
         return false;
     }
     public override void End(LundunMissionRun run) { LundunMissions.Say(null, null, 0f); }

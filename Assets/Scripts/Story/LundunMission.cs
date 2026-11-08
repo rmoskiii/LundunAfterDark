@@ -176,7 +176,7 @@ public class LundunTalk : LundunStep
         // guidance: long enough to read at an easy pace (at least 4 seconds)
         float secs = LundunMissions.ReadTime(lines[at].text);
         LundunMissions.Say(lines[at].who, lines[at].text, secs);
-        next = Time.time + secs;
+        next = Time.time + secs + LundunMissions.TakeDelay();
         return false;
     }
     public override void End(LundunMissionRun run) { LundunMissions.Say(null, null, 0f); }

@@ -104,6 +104,12 @@ public class LundunExpansionArea : MonoBehaviour
         parkedBlocks = parked ?? new Renderer[0]; policeSpawns = police ?? new Transform[0];
     }
 
+    /// F1: Lundun → 23c re-parks the area's cars (the bays and the baked cars change; the rest stays).
+    public void SetParked(Vector4[] bays, Renderer[] parked)
+    {
+        parkingBays = bays ?? new Vector4[0]; parkedBlocks = parked ?? new Renderer[0];
+    }
+
     public void SetData(string area, Vector3[] lampPositions, int[] styles, string[] names, Vector3[] tops, Vector3[] outDirs)
     {
         areaName = area; lamps = lampPositions; lampStyles = styles; stationNames = names; stationTops = tops; stationOut = outDirs;

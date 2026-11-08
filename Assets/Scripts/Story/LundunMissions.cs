@@ -88,17 +88,30 @@ public class LundunMissions : MonoBehaviour
 
     // ------------------------------------------------------------------ for steps and other systems
     /// A line of dialogue at the bottom of the screen (who = null hides it).
+    /// Phone lines (they start "(phone)") ring the phone first (LundunPhone): the line shows after the ring, without
+    /// the tag, while the caller's voice murmurs down the line.
     public static void Say(string who, string text, float seconds)
     {
         LundunMissions m = Instance;
         if (m == null || m.subBox == null) return;
-        if (who == null) { m.subBox.gameObject.SetActive(false); return; }
+        if (who == null) { m.subBox.gameObject.SetActive(false); m.subShowAt = 0f; LundunPhone.Quiet(); return; }
+        bool phone = text != null && text.StartsWith("(phone)");
+        if (phone) text = text.Substring(7).TrimStart();
+        float delay = LundunPhone.Line(who, text, phone, seconds);
         Color c; if (!Colours.TryGetValue(who, out c)) c = Accent;
         m.subWho.text = who; m.subWho.color = c;
         m.subText.text = text;
-        m.subBox.gameObject.SetActive(true);
-        m.subUntil = Time.time + seconds + 0.3f;
+        if (delay > 0f) { m.subBox.gameObject.SetActive(false); m.subShowAt = Time.time + delay; }
+        else { m.subBox.gameObject.SetActive(true); m.subShowAt = 0f; }
+        m.subUntil = Time.time + delay + seconds + 0.3f;
+        m.lastDelay = delay;
     }
+
+    /// The ring before a call's first line (0 if none): talk steps wait that much longer. Once.
+    public static float TakeDelay() { if (Instance == null) return 0f; float d = Instance.lastDelay; Instance.lastDelay = 0f; return d; }
+    private float subShowAt, lastDelay;
+    /// A line is waiting for the phone to be answered.
+    public static bool Ringing { get { return Instance != null && Instance.subShowAt > 0f; } }
 
     /// S4: is any start marker on show at a place 'test' accepts (LAGOS FOODS opens for a mission that starts inside it)?
     public static bool StartWhere(System.Func<Vector3, bool> test)
@@ -111,7 +124,7 @@ public class LundunMissions : MonoBehaviour
     /// S2: someone's colour (their name on screen and their name tag).
     public static Color ColourOf(string who) { Color c; return who != null && Colours.TryGetValue(who, out c) ? c : Accent; }
     /// S2: a line is on screen right now (the crew don't talk over it).
-    public static bool Talking { get { return Instance != null && Instance.subBox != null && Instance.subBox.gameObject.activeSelf; } }
+    public static bool Talking { get { return Instance != null && Instance.subBox != null && (Instance.subBox.gameObject.activeSelf || Instance.subShowAt > 0f); } }
 
     /// S4: fail the mission now for 'why' (Marcus went down and nobody got to him). Applied on the next frame.
     public static void FailNow(string why) { if (Instance != null && Instance.run != null && Instance.pendingFail == null) Instance.pendingFail = why; }
@@ -176,6 +189,7 @@ public class LundunMissions : MonoBehaviour
 
     void Update()
     {
+        if (subBox != null && subShowAt > 0f && Time.time >= subShowAt) { subShowAt = 0f; subBox.gameObject.SetActive(true); }   // picked up
         if (subBox != null && subBox.gameObject.activeSelf && Time.time > subUntil) subBox.gameObject.SetActive(false);
         for (int i = leftovers.Count - 1; i >= 0; i--)
         {

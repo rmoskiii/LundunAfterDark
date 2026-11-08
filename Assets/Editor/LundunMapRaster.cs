@@ -33,6 +33,9 @@ namespace LundunGreybox
         static readonly byte[] Service = { 140, 146, 150 };
         static readonly byte[] Street = { 186, 192, 198 };
         static readonly byte[] Arterial = { 226, 230, 234 };
+        static readonly byte[] Casing = { 24, 28, 30 };            // F1: a dark edge round every road, so they read crisply
+        // F1: every road drawn at (nearly) the same width on the map, whatever its real width: clean, even lines
+        const double MapRoadHalf = 4.2, MapServiceHalf = 2.8, MapCasing = 1.1;
         static readonly byte[] HospitalPlot = { 112, 66, 72 };
         static readonly byte[] PolicePlot = { 60, 80, 124 };
         static readonly byte[] SafePlot = { 56, 98, 70 };
@@ -144,16 +147,14 @@ namespace LundunGreybox
             }
             catch (Exception) { /* no places planned: draw the map without them */ }
 
-            // roads: pavements first, then carriageways from minor to major so big roads sit on top
+            // roads (F1): every road the same even width (service roads a little thinner), a dark casing round them all
+            // first so junctions join cleanly, then the fills from minor to major so main roads sit on top
             foreach (LwRoad r in allRoads)
-            {
-                double p = cls[r.roadClass].pavement;
-                if (p > 0) Polyline(r.points, r.width / 2 + p, Pavement);
-            }
+                Polyline(r.points, (r.roadClass == "service" ? MapServiceHalf : MapRoadHalf) + MapCasing, Casing);
             string[] order = { "service", "street", "arterial", "bridge", "ring" };
             foreach (string o in order)
                 foreach (LwRoad r in allRoads)
-                    if (r.roadClass == o) Polyline(r.points, r.width / 2, ColourFor(o));
+                    if (r.roadClass == o) Polyline(r.points, o == "service" ? MapServiceHalf : MapRoadHalf, ColourFor(o));
             // E8: the Parade and the Memorial Circle are red, not tarmac
             foreach (MapArea a in areas)
                 if (a != null && a.shapes != null)
@@ -162,7 +163,8 @@ namespace LundunGreybox
 
             // the hand-built high street's side road (not in the world data)
             LwExistingStreet es = W.existingStreet;
-            Capsule(new V2(es.centreX, es.centreZ - es.sizeZ / 2 - 4), new V2(es.centreX, es.centreZ + es.sizeZ / 2 + 4), 4, Street);
+            Capsule(new V2(es.centreX, es.centreZ - es.sizeZ / 2 - 4), new V2(es.centreX, es.centreZ + es.sizeZ / 2 + 4), MapRoadHalf + MapCasing, Casing);
+            Capsule(new V2(es.centreX, es.centreZ - es.sizeZ / 2 - 4), new V2(es.centreX, es.centreZ + es.sizeZ / 2 + 4), MapRoadHalf, Street);
 
             // L6: the railway over everything (its bridges cross the roads), the classic black-and-white map line,
             // and Rye Lane station's platform picked out

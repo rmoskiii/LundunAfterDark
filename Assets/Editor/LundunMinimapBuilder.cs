@@ -48,6 +48,9 @@ public static class LundunMinimapBuilder
             Debug.Log("[Lundun] Minimap built (" + img.width + "×" + img.height + " map). Press Play.");
         }
         finally { EditorUtility.ClearProgressBar(); }
+        // F1: then the full, sharp picture with Brixtun and Kingsmere on it (this menu on its own drew the old city only,
+        // which left the full map with empty areas)
+        LundunMapSharpBuilder.Build();
     }
 
     // ------------------------------------------------------------------ HUD
