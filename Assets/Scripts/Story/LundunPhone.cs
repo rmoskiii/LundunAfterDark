@@ -25,6 +25,7 @@ public class LundunPhone : MonoBehaviour
         { "TAYO",       new Voice(170f, 0.085f, 0.2f, 0.2f) },   // fast and jumpy
         { "LEAH",       new Voice(205f, 0.13f, 0.1f, 0.18f) },   // measured
         { "HOLLIS",     new Voice(112f, 0.14f, 0.06f, 0.35f) },  // smooth and low
+        { "ARMS DEALER", new Voice(90f, 0.15f, 0.05f, 0.4f) },  // v50: gravelly, unhurried
         { "JAMES",      new Voice(138f, 0.115f, 0.12f, 0.2f) },
     };
 

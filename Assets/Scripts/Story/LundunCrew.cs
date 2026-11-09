@@ -31,6 +31,7 @@ public partial class LundunCrew : MonoBehaviour
         public Vector3 leaveTo; public bool inside;                   // leaving: where to, and whether it's in through a door
         public CarController car; public Vector3 carFrom; public int seat;
         public TextMeshPro tag; public Transform head; public bool dotted;
+        public bool pinned;                                          // v50: stood on a floor with no navigation (behind a counter)
         // S4: fighting (LundunCrewCombat)
         public LundunLook look; public float hp, maxHp, nextAttack, downedAt; public bool downed, armed;
         public Health foe; public GameObject gun; public Transform barBack, barFill; public LineRenderer tracer; public float tracerOff;
@@ -208,10 +209,23 @@ public partial class LundunCrew : MonoBehaviour
         GameObject go = LundunCast.Make(who, transform);
         if (go == null) return null;
         Vector3 p = LundunMissionRun.Ground(at);
+        // v50: a spot off the navigation (behind Uncle Femi's counter): the nearest walkable point can be out on the
+        // pavement or on a roof, and the agent snaps him there. Stand him on the real floor instead, agent off until he walks.
+        bool pin = OffNav(at, p);
+        if (pin) p = Floor(at);
+        NavMeshAgent ag0 = go.GetComponent<NavMeshAgent>();
+        if (pin && ag0 != null) ag0.enabled = false;
         go.transform.SetPositionAndRotation(p, Quaternion.Euler(0f, yaw, 0f));
         go.SetActive(true);
         Member m = new Member { who = who, go = go, t = go.transform, agent = go.GetComponent<NavMeshAgent>(), anim = go.GetComponentInChildren<Animator>(), health = go.GetComponent<Health>(), body = go.GetComponent<Collider>() };
-        if (m.agent != null)
+        m.pinned = pin;
+        if (who == "UNCLE FEMI")
+        {
+            LundunStoryShop shop = LundunStoryShop.Instance;
+            Debug.Log("[Lundun] Uncle Femi appears at " + p.ToString("F1") + " (wanted " + at.ToString("F1") + ", " + (pin ? "on the floor, off the navigation" : "on the navigation")
+                + (shop != null ? ", " + (shop.Inside(p) ? "inside LAGOS FOODS" : "NOT inside LAGOS FOODS") : "") + ")");
+        }
+        if (m.agent != null && m.agent.enabled)
         {
             if (m.agent.isOnNavMesh) m.agent.Warp(p);
             m.agent.acceleration = 14f; m.agent.angularSpeed = 600f; m.agent.stoppingDistance = 0.25f; m.agent.autoBraking = true;
@@ -347,7 +361,7 @@ public partial class LundunCrew : MonoBehaviour
             case State.Waiting:
                 if (!waits.ContainsKey(m.who) && !residents.ContainsKey(m.who) && !staged.ContainsKey(m.who)) { Set(m, State.Idle); break; }
                 if (LundunMissionRun.FlatDistance(j.position, m.t.position) > 140f && !Seen(m.t.position)) { Despawn(m); return; }
-                if (!busy) { if (LundunMissionRun.FlatDistance(m.t.position, m.spot) > 1.2f) Walk(m, m.spot, 1.6f); else Stand(m, j, 12f, m.spotYaw); }
+                if (!busy) { if (LundunMissionRun.FlatDistance(m.t.position, m.spot) > 1.2f && !(m.pinned && LundunMissionRun.FlatDistance(m.t.position, m.spot) < 3f)) Walk(m, m.spot, 1.6f); else Stand(m, j, 12f, m.spotYaw); }
                 break;
             case State.Idle:
                 if (!busy) Stand(m, j, 12f, m.t.eulerAngles.y);
@@ -420,6 +434,11 @@ public partial class LundunCrew : MonoBehaviour
 
     void Walk(Member m, Vector3 to, float speed)
     {
+        if (m.pinned && m.agent != null && !m.agent.enabled)
+        {
+            if (Vector3.Distance(m.t.position, LundunMissionRun.Ground(m.t.position)) > 6f) return;   // nowhere walkable near: stay put
+            m.pinned = false; m.agent.enabled = true;                      // v50: off he goes (the agent finds the floor's way out)
+        }
         if (m.agent == null || !m.agent.enabled) return;
         if (!m.agent.isOnNavMesh)
         {
@@ -442,6 +461,24 @@ public partial class LundunCrew : MonoBehaviour
         Vector3 to = j.position - m.t.position; to.y = 0f;
         Quaternion want = to.sqrMagnitude < faceWithin * faceWithin && to.sqrMagnitude > 0.01f ? Quaternion.LookRotation(to) : Quaternion.Euler(0f, yaw, 0f);
         m.t.rotation = Quaternion.RotateTowards(m.t.rotation, want, 240f * Time.deltaTime);
+    }
+
+    /// v50: is the navigation's nearest point for 'at' really somewhere else (another floor, outside the wall)?
+    static bool OffNav(Vector3 at, Vector3 nav)
+    {
+        Vector3 d = nav - at;
+        if (Mathf.Abs(d.y) > 0.8f) return true;
+        d.y = 0f;
+        if (d.magnitude < 0.9f) return false;
+        Vector3 f = Floor(at);
+        return Mathf.Abs(f.y - at.y) < 1.2f;                                // there is a floor right there: stand on it
+    }
+
+    /// v50: the floor under 'at' (a short ray from head height, under the shop's ceiling).
+    static Vector3 Floor(Vector3 at)
+    {
+        if (Physics.Raycast(at + Vector3.up * 1.4f, Vector3.down, out RaycastHit r, 4f, ~0, QueryTriggerInteraction.Ignore)) return r.point;
+        return at;
     }
 
     void Place(Member m, Vector3 at, float yaw)

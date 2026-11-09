@@ -170,6 +170,8 @@ public partial class LundunSettings : MonoBehaviour
     void SetStats(int i) { if (LundunHud.Instance != null) LundunHud.Instance.ShowStats(i == 1); RefreshButtons(); }
     void SetSteering(int i) { VehicleSystem.SteeringMode = (VehicleSystem.Steering)i; RefreshButtons(); }       // L1
     void SetDriveInfo(int i) { VehicleSystem.ShowDriveInfo = i == 1; RefreshButtons(); }                          // L1
+    void SetCamera(int i) { CameraFollow.Mode = i; RefreshButtons(); }                                              // v50: first person
+    void ShowTutorial(int i) { LundunTutorial.Restart(); Resume(); }                                                // v50: the controls guide again
 
     void SetTab(int i)
     {
@@ -289,7 +291,7 @@ public partial class LundunSettings : MonoBehaviour
         Image dim = menu.AddComponent<Image>(); dim.color = new Color(0f, 0.01f, 0.03f, 0.72f);       // blocks touches to the game
 
         panel = Rect("Panel", mr);
-        panel.sizeDelta = new Vector2(1000f, 960f);
+        panel.sizeDelta = new Vector2(1000f, 1040f);                                    // v50: room for CAMERA and the guide
         Image pi = panel.gameObject.AddComponent<Image>();
         pi.sprite = LundunHudArt.Panel; pi.type = Image.Type.Sliced; pi.pixelsPerUnitMultiplier = 0.35f; pi.color = Ink;
 
@@ -312,6 +314,7 @@ public partial class LundunSettings : MonoBehaviour
         Row(dt, "HAPTICS", "haptics", new[] { "ON", "OFF" }, SetHaptics, ref y);
         Row(dt, "PERFORMANCE", "stats", new[] { "HIDE", "SHOW" }, SetStats, ref y);
         Row(dt, "DRIVE INFO", "driveinfo", new[] { "HIDE", "SHOW" }, SetDriveInfo, ref y);
+        Row(dt, "CAMERA", "camera", new[] { "THIRD", "FIRST", "STEADY" }, SetCamera, ref y);                // v50: STEADY = first person, no head bob
 
         y = -196f;
         Row(ct, "STEERING", "steering", new[] { "PAD", "ARROWS", "POINT" }, SetSteering, ref y);       // L1
@@ -328,6 +331,8 @@ public partial class LundunSettings : MonoBehaviour
         }
         else Row(ct, "LOADOUT", "loadout", new[] { "TEST", "NORMAL" }, SetLoadout, ref y);
         Note(ct, "STEERING: PAD = slide your left thumb sideways, ARROWS = left/right buttons (both with GAS and BRAKE pedals), POINT = the joystick.  AUTO fires when the crosshair turns red.  TEST: every weapon, endless ammo.", ref y);
+        y -= 40f;
+        Row(ct, "GUIDE", "tutorial", new[] { "SHOW AGAIN" }, ShowTutorial, ref y);                     // v50
         controlsTab.SetActive(false);
 
         // V3: CREDITS (the car models are CC BY 4.0, which asks for this)
@@ -502,6 +507,7 @@ public partial class LundunSettings : MonoBehaviour
         Mark("loadout", testLoadout ? 0 : 1);
         Mark("steering", (int)VehicleSystem.SteeringMode);
         Mark("driveinfo", VehicleSystem.ShowDriveInfo ? 1 : 0);
+        Mark("camera", CameraFollow.Mode);
         if (lookValue != null) lookValue.text = lookSpeed.ToString("0.0") + "×";
         if (aimValue != null) aimValue.text = Mathf.RoundToInt(aimSpeed * 100f) + "%";
     }

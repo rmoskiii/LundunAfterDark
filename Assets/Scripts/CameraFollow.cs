@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+/// v50: runs after James's animation and the gun rig (so first person sits exactly at his eyes).
+[DefaultExecutionOrder(50)]
 public class CameraFollow : MonoBehaviour
 {
     [SerializeField] private Transform target;
@@ -105,6 +107,48 @@ public class CameraFollow : MonoBehaviour
     /// S8: following the helicopter: much further back and higher.
     public static bool HeliMode;
 
+    // ------------------------------------------------------------------ v50: first person (on foot only)
+    [Header("First person (v50)")]
+    [SerializeField] private float fpFov = 70f;
+    [SerializeField] private float fpSprintFov = 80f;
+    [SerializeField] private float fpAimFov = 45f;
+    [SerializeField] private float fpMinPitch = -75f;
+    [SerializeField] private float fpMaxPitch = 70f;
+    [Tooltip("The eyes, from the head bone: up and forward (m)")]
+    [SerializeField] private Vector3 fpEye = new Vector3(0f, 0.075f, 0.11f);
+
+    const string ViewKey = "Lundun.Camera", LastFirstKey = "Lundun.CameraFirst";
+    static int mode = -1;
+    /// 0 = third person, 1 = first person, 2 = first person, steady (no head bob).
+    public static int Mode
+    {
+        get { if (mode < 0) mode = Mathf.Clamp(PlayerPrefs.GetInt(ViewKey, 0), 0, 2); return mode; }
+        set
+        {
+            mode = Mathf.Clamp(value, 0, 2);
+            PlayerPrefs.SetInt(ViewKey, mode);
+            if (mode > 0) PlayerPrefs.SetInt(LastFirstKey, mode);
+            PlayerPrefs.Save();
+        }
+    }
+    /// The eye button on the HUD: third ↔ first (the first-person style you last chose).
+    public static void ToggleView()
+    {
+        Mode = Mode == 0 ? Mathf.Clamp(PlayerPrefs.GetInt(LastFirstKey, 1), 1, 2) : 0;
+        if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(Mode == 0 ? "THIRD PERSON" : "FIRST PERSON");
+    }
+    /// First person right now (on foot, nothing else holding the camera).
+    public static bool FirstPersonNow { get; private set; }
+
+    private Transform fpHead;               // James's head bone (shrunk away while we're behind his eyes)
+    private Transform fpHeadOf;             // whose head it is
+    private Vector3 fpHeadScale = Vector3.one;
+    private bool fpHidden;
+    private float fp;                       // 0 third … 1 first (eased)
+    private Vector3 fpSmooth;
+    private float fpEyeHeight = -1f, fpRoll, fpLastYaw, fpPull;
+    private float normalNear = -1f;
+
     void Start()
     {
         lookAction = InputSystem.actions.FindAction("Look");
@@ -137,6 +181,7 @@ public class CameraFollow : MonoBehaviour
 
     public void AddRecoil(float up, float sideways)
     {
+        if (FirstPersonNow) { up *= 1.3f; sideways *= 1.2f; }          // v50: the kick reads stronger from the eyes
         pitch -= up; yaw += sideways;
         recoilDebt += new Vector2(sideways, -up);
         lastRecoilTime = Time.time;
@@ -203,7 +248,13 @@ public class CameraFollow : MonoBehaviour
             pitch = Mathf.Lerp(pitch, 12f, vehicleFollowSpeed * Time.deltaTime);
         }
 
-        pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+        // v50: first person? (never in a car, on the Wheel or the train, flying, dead, or with no head to look from)
+        bool wantFp = WantFirstPerson();
+        fp = Mathf.MoveTowards(fp, wantFp ? 1f : 0f, Time.deltaTime * (wantFp ? 5f : 7f));
+        if (wantFp && fp < 0.05f) fp = 0.05f;
+        if (vehicleMode || HeliMode) fp = 0f;                                  // into a car: straight to the car camera
+        FirstPersonNow = wantFp && fp > 0.5f;
+        pitch = Mathf.Clamp(pitch, Mathf.Lerp(minPitch, fpMinPitch, fp), Mathf.Lerp(maxPitch, fpMaxPitch, fp));
 
         // Ease between on-foot and in-car framing
         float step = 5f * Time.deltaTime;
@@ -262,6 +313,8 @@ public class CameraFollow : MonoBehaviour
 
         transform.position = focusPoint - rotation * Vector3.forward * dist;
         transform.rotation = rotation;
+        if (fp > 0f) FirstPerson(rotation, aimIn);
+        else HideHead(false);
 
         if (shake > 0f)
         {
@@ -270,14 +323,94 @@ public class CameraFollow : MonoBehaviour
             if (shake < 0.001f) shake = 0f;
         }
 
-        float targetFov = (player != null && player.IsSprinting) ? sprintFov : normalFov;
+        float targetFov = (player != null && player.IsSprinting) ? Mathf.Lerp(sprintFov, fpSprintFov, fp) : Mathf.Lerp(normalFov, fpFov, fp);
+        float aimFovNow = Mathf.Lerp(aimFov, fpAimFov, fp);
         if (vehicleMode) targetFov = normalFov + speedFov * speedNow;               // V1
         if (aimIn > 0f)
         {
             // the aim blend is already eased, so follow it closely
-            targetFov = Mathf.Lerp(targetFov, aimFov, aimIn);
+            targetFov = Mathf.Lerp(targetFov, aimFovNow, aimIn);
             cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFov, 20f * Time.deltaTime);
         }
         else cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFov, fovChangeSpeed * Time.deltaTime);
+    }
+
+    // ------------------------------------------------------------------ v50: first person
+    bool WantFirstPerson()
+    {
+        if (Mode == 0 || vehicleMode || HeliMode || target == null || player == null) return false;
+        if (!player.gameObject.activeInHierarchy) return false;
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.IsDead) return false;
+        if (LundunBikes.Instance != null && LundunBikes.Instance.Riding) return false;
+        FindHead();
+        return fpHead != null;
+    }
+
+    void FindHead()
+    {
+        if (fpHeadOf == target && fpHead != null) return;
+        HideHead(false);
+        fpHead = null; fpHeadOf = target;
+        Animator a = target != null ? target.GetComponentInChildren<Animator>() : null;
+        if (a != null && a.isHuman && a.avatar != null) fpHead = a.GetBoneTransform(HumanBodyBones.Head);
+        if (fpHead != null) fpHeadScale = fpHead.localScale;
+        fpEyeHeight = -1f;
+    }
+
+    /// Shrink James's head away (his hair and hat with it) so the camera can sit behind his eyes: his real arms,
+    /// hands and gun stay. Put back the moment we leave first person.
+    void HideHead(bool hide)
+    {
+        if (fpHead == null) { fpHidden = false; return; }
+        if (hide) { fpHead.localScale = fpHeadScale * 0.001f; fpHidden = true; }
+        else if (fpHidden) { fpHead.localScale = fpHeadScale; fpHidden = false; }
+    }
+
+    void FirstPerson(Quaternion rotation, float aimIn)
+    {
+        if (fpHead == null) { HideHead(false); return; }
+        // where his eyes are: the head bone (it bobs with his walk), or STEADY: a smoothed eye height above his feet
+        Quaternion bodyYaw = Quaternion.Euler(0f, yaw, 0f);
+        Vector3 eye = fpHead.position + bodyYaw * fpEye;
+        float h = eye.y - target.position.y;
+        fpEyeHeight = fpEyeHeight < 0f ? h : Mathf.Lerp(fpEyeHeight, h, 3f * Time.deltaTime);
+        if (Mode == 2) eye.y = target.position.y + fpEyeHeight;
+        if ((fpSmooth - eye).sqrMagnitude > 1f) fpSmooth = eye;
+        fpSmooth = Vector3.Lerp(fpSmooth, eye, 1f - Mathf.Exp(-(Mode == 2 ? 18f : 30f) * Time.deltaTime));
+
+        // a touch of sway: roll into quick turns (not while aimed in)
+        float dYaw = Mathf.DeltaAngle(fpLastYaw, yaw); fpLastYaw = yaw;
+        float wantRoll = Mode == 2 ? 0f : Mathf.Clamp(-dYaw * 0.35f, -3f, 3f) * (1f - aimIn);
+        fpRoll = Mathf.Lerp(fpRoll, wantRoll, 8f * Time.deltaTime);
+
+        // right up against a wall: ease the eyes back a little so the gun doesn't poke through it
+        float pull = 0f;
+        if (Physics.SphereCast(fpSmooth - rotation * Vector3.forward * 0.1f, 0.08f, rotation * Vector3.forward, out RaycastHit wall, 0.7f, collisionLayers, QueryTriggerInteraction.Ignore))
+            pull = Mathf.Clamp01((0.7f - wall.distance) / 0.5f) * 0.22f;
+        fpPull = Mathf.Lerp(fpPull, pull, 12f * Time.deltaTime);
+
+        Vector3 fpPos = fpSmooth - rotation * Vector3.forward * fpPull;
+        Quaternion fpRot = rotation * Quaternion.Euler(0f, 0f, fpRoll);
+        float k = Ease(fp);
+        transform.position = Vector3.Lerp(transform.position, fpPos, k);
+        transform.rotation = Quaternion.Slerp(transform.rotation, fpRot, k);
+        HideHead(fp > 0.6f);
+        if (normalNear < 0f) normalNear = cam.nearClipPlane;
+        cam.nearClipPlane = Mathf.Lerp(normalNear, 0.03f, k);
+    }
+
+    static float Ease(float t) { return t * t * (3f - 2f * t); }
+
+    void Update()
+    {
+        // back from first person: the usual near clip again
+        if (fp <= 0f && normalNear > 0f && cam != null && !Mathf.Approximately(cam.nearClipPlane, normalNear)) cam.nearClipPlane = normalNear;
+    }
+
+    void OnDisable()
+    {
+        // the binoculars, a cutscene camera: give James his head back
+        HideHead(false); FirstPersonNow = false; fp = 0f;
+        if (cam != null && normalNear > 0f) cam.nearClipPlane = normalNear;
     }
 }

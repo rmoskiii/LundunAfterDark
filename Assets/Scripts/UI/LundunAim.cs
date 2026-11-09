@@ -31,6 +31,9 @@ public class LundunAim : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     [SerializeField] private float aimSize = 150f;
     [SerializeField] private Vector2 switchPosition = new Vector2(-840f, 610f);
     [SerializeField] private float switchSize = 104f;
+    [Tooltip("v50: the eye button (first / third person)")]
+    [SerializeField] private Vector2 viewPosition = new Vector2(-840f, 770f);
+    [SerializeField] private float viewSize = 92f;
 
     static readonly Color Fill = new Color(0.04f, 0.06f, 0.11f, 0.55f);
     static readonly Color Rim = new Color(1f, 1f, 1f, 0.32f);
@@ -41,6 +44,8 @@ public class LundunAim : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     private float blend, pressTime, nextSwitchCheck;
     private Image disc, icon;
     private GameObject switchButton;
+    private Image viewDisc, viewIcon;
+    private int viewShown = -1;
     private PlayerController player;
     private PlayerHealth health;
     private Animator animator;
@@ -62,6 +67,15 @@ public class LundunAim : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         if (look != null) go.AddComponent<LundunFireAim>().Init(look);          // drag on it to steer
         sw.AddComponent<Button>().onClick.AddListener(a.NextTarget);
         sw.SetActive(false);
+        // v50: first / third person
+        Transform oldView = parent.Find("ViewButton");
+        GameObject vw = oldView != null ? oldView.gameObject : MakeButton(parent, "ViewButton", LundunHudArt.Eye, Vector2.zero, 0f, out _, out _);
+        a.Place((RectTransform)vw.transform, a.viewPosition, a.viewSize);
+        a.viewDisc = vw.GetComponent<Image>();
+        Transform vi = vw.transform.Find("LundunIcon"); if (vi != null) a.viewIcon = vi.GetComponent<Image>();
+        Button vb = vw.GetComponent<Button>(); if (vb == null) vb = vw.AddComponent<Button>();
+        vb.onClick.RemoveAllListeners();
+        vb.onClick.AddListener(() => { CameraFollow.ToggleView(); LundunHaptics.Light(); });
         return a;
     }
 
@@ -92,6 +106,16 @@ public class LundunAim : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     void Place(RectTransform rt, Vector2 pos, float size) { rt.anchoredPosition = pos; rt.sizeDelta = new Vector2(size, size); }
 
     void Awake() { Instance = this; }
+
+    void LateUpdate()
+    {
+        // v50: the eye button lit while first person is chosen
+        int m = CameraFollow.Mode > 0 ? 1 : 0;
+        if (m == viewShown || viewDisc == null) return;
+        viewShown = m;
+        viewDisc.color = m == 1 ? OnFill : Fill;
+        if (viewIcon != null) viewIcon.color = m == 1 ? OnIcon : new Color(1f, 1f, 1f, 0.95f);
+    }
 
     void Start()
     {

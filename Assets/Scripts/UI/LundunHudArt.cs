@@ -104,6 +104,10 @@ public static class LundunHudArt
         Line(p, 0.075f, V(0.2f, 0.4f), V(0.2f, 0.2f), V(0.4f, 0.2f)), Line(p, 0.075f, V(0.6f, 0.2f), V(0.8f, 0.2f), V(0.8f, 0.4f)),
         Line(p, 0.075f, V(0.8f, 0.6f), V(0.8f, 0.8f), V(0.6f, 0.8f)), Line(p, 0.075f, V(0.4f, 0.8f), V(0.2f, 0.8f), V(0.2f, 0.6f)),
         Circle(p, C, 0.08f)));
+    /// v50: first / third person: an eye.
+    public static Sprite Eye => Get("i_eye", 128, p => Min(
+        Mathf.Abs(Mathf.Max(Circle(p, V(0.5f, 0.86f), 0.5f), Circle(p, V(0.5f, 0.14f), 0.5f))) - 0.035f,
+        Circle(p, C, 0.1f)));
     /// Next target: two chevrons pointing right.
     public static Sprite Switch => Get("i_switch", 128, p => Min(
         Line(p, 0.09f, V(0.24f, 0.26f), V(0.46f, 0.5f), V(0.24f, 0.74f)),

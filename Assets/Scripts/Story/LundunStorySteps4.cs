@@ -94,6 +94,7 @@ public class LundunAmbush : LundunStep
     public override void Begin(LundunMissionRun run)
     {
         men.Clear();
+        LundunMissions.LendGun();                          // v50
         LundunPopulation pop = LundunPopulation.Instance;
         int n = count + run.ExtraEnemies;
         Vector3 c = LundunMissionRun.Ground(at);

@@ -230,6 +230,7 @@ public class LundunFight : LundunStep
             LundunMissions.Mark(enemies, true);
             return;
         }
+        if (guns) LundunMissions.LendGun();                // v50: they've got guns, James gets a loaner if he's short
         LundunPopulation pop = LundunPopulation.Instance;
         int n = count + run.ExtraEnemies;
         Vector3 centre = LundunMissionRun.Ground(at);

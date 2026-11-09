@@ -195,6 +195,7 @@ public class LundunHud : MonoBehaviour
         SetStats(PlayerPrefs.GetInt(StatsKey, statsOnByDefault ? 1 : 0) == 1);
         ApplySafeArea();
         if (GetComponent<LundunSettings>() == null) gameObject.AddComponent<LundunSettings>();      // V5: pause menu + settings
+        if (GetComponent<LundunTutorial>() == null) gameObject.AddComponent<LundunTutorial>();      // v50: first-time controls guide
     }
 
     void ApplyFont(Transform root)

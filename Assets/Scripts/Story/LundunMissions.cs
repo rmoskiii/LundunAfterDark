@@ -43,7 +43,8 @@ public class LundunMissions : MonoBehaviour
         { "KEMI", new Color(0.78f, 0.5f, 1f) }, { "UNCLE FEMI", new Color(1f, 0.6f, 0.2f) }, { "LEAH", new Color(0.35f, 0.85f, 0.9f) },
         { "HOLLIS", new Color(0.75f, 0.78f, 0.82f) },
         { "KINGSLEY", new Color(0.85f, 0.2f, 0.25f) }, { "TOWER BLOCK KING", new Color(0.8f, 0.35f, 0.3f) }, { "RYE LANE RIDER", new Color(0.95f, 0.5f, 0.2f) },
-        { "ELECTRIC YOUTH", new Color(0.95f, 0.82f, 0.1f) },                                                    // S5
+        { "ELECTRIC YOUTH", new Color(0.95f, 0.82f, 0.1f) },
+        { "ARMS DEALER", new Color(0.6f, 0.7f, 0.45f) },                                                       // v50
     };
 
     private LundunMissionRun run;
@@ -129,6 +130,17 @@ public class LundunMissions : MonoBehaviour
     /// S4: fail the mission now for 'why' (Marcus went down and nobody got to him). Applied on the next frame.
     public static void FailNow(string why) { if (Instance != null && Instance.run != null && Instance.pendingFail == null) Instance.pendingFail = why; }
     private string pendingFail;
+
+    /// v50: an armed fight James isn't kitted for: lend him the best gun he hasn't got (taken back when the mission ends).
+    public static void LendGun()
+    {
+        LundunWeapons w = LundunWeapons.Instance;
+        if (w == null || !LundunGame.IsStory) return;
+        LundunWeapons.Kind? k = w.LendForFight();
+        if (k == null) return;
+        string n = k == LundunWeapons.Kind.Smg ? "SMG" : k == LundunWeapons.Kind.Carbine ? "CARBINE" : "SHOTGUN";
+        Toast("LOANER " + n + "\nFor this job only — swap from the weapon panel");
+    }
 
     public static void Toast(string s) { if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(s); }
 
@@ -419,6 +431,7 @@ public class LundunMissions : MonoBehaviour
         LundunArches.MissionInside = false;                                     // S8: Warehouse 9's floor
         LundunFlyHeli.LetGoAll();                                               // S8: the helicopter (James back on his feet)
         LundunWheel.SpeedScale = 1f;                                            // S9a: the Wheel back to its own pace
+        if (LundunWeapons.Instance != null && LundunWeapons.Instance.ReturnLoans()) Toast("Loaner handed back");   // v50
         if (LundunTrain.Instance != null) LundunTrain.Instance.StopHolding();
         LundunMissionZones.Clear();
         if (objectiveMarker != null) { LundunMinimap mm = FindAnyObjectByType<LundunMinimap>(); if (mm != null) mm.Untrack(objectiveMarker); Destroy(objectiveMarker.gameObject); objectiveMarker = null; }

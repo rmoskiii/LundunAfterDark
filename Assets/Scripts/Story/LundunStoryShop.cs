@@ -5,7 +5,7 @@ using UnityEngine.AI;
 /// by LundunGame, because the shutters are what keep it shut:
 ///   Free Roam   shutters down, always (the shop is part of the story, so Free Roam never opens it)
 ///   Story       shut until mission 01 (which takes place inside it); while a mission uses it, open; after mission 01,
-///               open 7am to 11pm by the game clock with Uncle Femi behind the counter (shut if it's been smashed up)
+///               open 6am to 1am by the game clock with Uncle Femi behind the counter (shut if it's been smashed up)
 /// The shutters roll up and down; the door's shutter blocks the doorway (and carves the NavMesh) while it's down.
 /// Never shuts on James while he's inside. Missions place people with Spot() (LundunShopLayout's positions).
 /// S5: smashed up (mission 08, "lagos:smashed", until mission 10 puts it right): shutters down, broken glass on the
@@ -85,7 +85,7 @@ public class LundunStoryShop : MonoBehaviour
         if (Smashed) return false;
         if (d == null || !d.flags.Contains(OpenedBy)) return false;
         float h = LundunClock.Instance != null ? LundunClock.Instance.Hour : 12f;
-        return h >= 7f && h < 23f;
+        return h >= 6f || h < 1f;                                            // v50: 6am till 1am (night owls find him in)
     }
 
     void Update()

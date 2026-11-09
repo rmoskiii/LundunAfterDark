@@ -95,6 +95,7 @@ public class LundunWeapons : MonoBehaviour
 
     private readonly bool[] owned = new bool[5];
     private readonly bool[] picked = new bool[5];          // found / given in normal play (kept when switching modes)
+    private readonly bool[] loaned = new bool[5];          // v50: lent for one mission fight, taken back after
     private int current = 1;
     private float bloom, readyAt, reloadStart, reloadEnd, nextShell;
     private bool reloading;
@@ -262,8 +263,9 @@ public class LundunWeapons : MonoBehaviour
         for (int i = 0; i < weapons.Length && i < ownedOut.Length; i++)
         {
             ownedOut[i] = i <= 1 || picked[i];
-            spareOut[i] = weapons[i].spare;
-            magOut[i] = weapons[i].inMag;
+            bool lent = loaned[i] && !picked[i];          // v50: a loaner is never saved as James's
+            spareOut[i] = lent ? 0 : weapons[i].spare;
+            magOut[i] = lent ? 0 : weapons[i].inMag;
         }
     }
 
@@ -293,9 +295,52 @@ public class LundunWeapons : MonoBehaviour
     {
         int i = (int)k;
         picked[i] = true;
+        loaned[i] = false;                                 // v50: given for keeps
         UpdateOwned();
         weapons[i].spare += ammo;
         Refresh();
+    }
+
+    /// v50: lend James the best gun he doesn't own for one armed mission fight (SMG, else carbine). Returns what was lent.
+    public Kind? LendForFight()
+    {
+        if (testLoadout || HasLoan) return null;
+        if (picked[(int)Kind.Smg] || picked[(int)Kind.Carbine]) return null;   // he's got a proper gun of his own
+        Kind[] order = { Kind.Smg, Kind.Carbine, Kind.Shotgun };
+        foreach (Kind k in order)
+        {
+            int i = (int)k;
+            if (owned[i]) continue;
+            loaned[i] = true;
+            UpdateOwned();
+            weapons[i].inMag = weapons[i].magazine;
+            weapons[i].spare = weapons[i].magazine * 3;
+            Refresh();
+            return k;
+        }
+        return null;
+    }
+
+    /// v50: is anything lent right now?
+    public bool HasLoan { get { for (int i = 0; i < loaned.Length; i++) if (loaned[i] && !picked[i]) return true; return false; } }
+
+    /// v50: take the lent guns back (end of the fight, mission over or failed). Guns James owns stay.
+    public bool ReturnLoans()
+    {
+        bool any = false;
+        for (int i = 0; i < loaned.Length; i++)
+        {
+            if (!loaned[i]) continue;
+            loaned[i] = false;
+            if (picked[i]) continue;
+            weapons[i].spare = 0; weapons[i].inMag = 0;
+            any = true;
+        }
+        if (!any) return false;
+        UpdateOwned();
+        if (!owned[current]) Equip(1, true);
+        Refresh();
+        return true;
     }
 
     /// S7: does James have this gun (the arms dealer, the lock-up's ammo)?
@@ -320,7 +365,7 @@ public class LundunWeapons : MonoBehaviour
 
     void UpdateOwned()
     {
-        for (int i = 0; i < owned.Length; i++) owned[i] = testLoadout || i <= 1 || picked[i];
+        for (int i = 0; i < owned.Length; i++) owned[i] = testLoadout || i <= 1 || picked[i] || loaned[i];
     }
 
     // ------------------------------------------------------------------ firing (called by PlayerCombat)

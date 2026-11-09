@@ -261,12 +261,28 @@ public class M03NoWayHome : LundunMission
             new LundunLine("TAYO", "Gloves, bro. I'm not stupid."),
             new LundunLine("JAMES", "You are stupid. And now so am I."),
             new LundunLine("TAYO", "You took the money, James. Nobody made you."),
-            new LundunLine("JAMES", "Get off at Rye Lane. Don't call me for a bit.")));
+            new LundunLine("JAMES", "Get off at Rye Lane. Don't call me for a bit."),
+            new LundunLine("TAYO", "Fine. But take this. It was in Kemi's stash at the lock-up. Better you than the feds."),
+            new LundunLine("JAMES", "A shotgun? On a train, Tayo?"),
+            new LundunLine("TAYO", "Under your coat. Up close, it ends arguments.")));
+        run.Add(new LundunNow(r =>
+        {
+            LundunWeapons w = LundunWeapons.Instance;
+            if (w != null) w.Give(LundunWeapons.Kind.Shotgun, 16);
+            LundunMissions.Toast("SHOTGUN\nSwap weapons from the weapon panel");
+        }));
         run.Add(new LundunWhen("Ride the train to Rye Lane", r => LundunTrain.Instance == null || (!LundunTrain.Instance.Riding && LundunTrain.Instance.AtRyeLane)));
         run.Add(new LundunLeave("TAYO"));
         run.Add(new LundunDo(r => LundunRoadblocks.MissionFromStars = 0));
         run.Add(new LundunEscape("Lose the police"));
         run.Add(new LundunGoTo(LundunStoryPlaces.Home, 6f, "Walk home"));
+        // v50: the arms dealer introduces himself (word gets round)
+        run.Add(new LundunTalk("",
+            new LundunLine("ARMS DEALER", "(phone) Mr Adeyemi. You don't know me. A friend of Kemi's says you might need supplies."),
+            new LundunLine("JAMES", "Who is this?"),
+            new LundunLine("ARMS DEALER", "(phone) Surplus and Security, under the arches. Ammunition, protection, better tools. Trade only."),
+            new LundunLine("ARMS DEALER", "(phone) Cash, no questions. Come and see me when you're ready.")));
+        run.Add(new LundunNow(r => LundunMissions.Toast("ARMS DEALER\nUnder the arches: ammo, armour and guns")));
     }
 
     public override int Medal(LundunMissionRun run)
@@ -320,7 +336,16 @@ public class M04EstateBusiness : LundunMission
         run.Add(new LundunTalk("",
             new LundunLine("MARCUS", "Hollis. Uncle's been odd for months. You think he owes him?"),
             new LundunLine("JAMES", "I think we should ask him."),
-            new LundunLine("MARCUS", "Not tonight. Get some sleep. And stay away from Tayo for a bit.")));
+            new LundunLine("MARCUS", "Not tonight. Get some sleep. And stay away from Tayo for a bit."),
+            new LundunLine("MARCUS", "And take this. After today you need more than a pistol."),
+            new LundunLine("JAMES", "Where did you get an SMG, Marcus?"),
+            new LundunLine("MARCUS", "Doors I work, people leave things. Keep it clean.")));
+        run.Add(new LundunNow(r =>
+        {
+            LundunWeapons w = LundunWeapons.Instance;
+            if (w != null) w.Give(LundunWeapons.Kind.Smg, 90);
+            LundunMissions.Toast("SMG UNLOCKED\nSwap weapons from the weapon panel");
+        }));
         run.Add(new LundunLeave("MARCUS", () => LundunStoryPlaces.Home));
     }
 
@@ -386,6 +411,17 @@ public class M05UnclesRules : LundunMission
                       new LundunLine("UNCLE FEMI", "James. Do you know what you have just done?"),
                       new LundunLine("JAMES", "Kept your money in your pocket."),
                       new LundunLine("UNCLE FEMI", "No. You have given him you.") }));
+        run.Add(new LundunTalk("",
+            new LundunLine("HOLLIS", "Oh, and James. Kingsley's boys have been rude to you. Have this, on me."),
+            new LundunLine("HOLLIS", "A good carbine. People who work for me shouldn't get hurt."),
+            new LundunLine("JAMES", "I don't work for you."),
+            new LundunLine("HOLLIS", "Course not. It's a gift.")));
+        run.Add(new LundunNow(r =>
+        {
+            LundunWeapons w = LundunWeapons.Instance;
+            if (w != null) w.Give(LundunWeapons.Kind.Carbine, 90);
+            LundunMissions.Toast("CARBINE\nAccurate at range, full auto");
+        }));
         run.Add(new LundunDriveTalk(LundunStoryPlaces.LagosDoor, 4f, "Take Uncle Femi back to LAGOS FOODS",
             new LundunLine("UNCLE FEMI", "Not a word to Marcus."),
             new LundunLine("JAMES", "Not a word.")));
@@ -398,7 +434,7 @@ public class M05UnclesRules : LundunMission
 // ======================================================================================================================
 /// 06 Passenger Problems. James picks Marcus up after a night on the door at Knightsbury Circus; on the way home the
 /// Rye Lane Riders come after them in two cars. James drives, Marcus shoots out of the window: lose them, or let him take
-/// them out. Home, and Marcus hands over an SMG.
+/// them out. Home, and Marcus hands over body armour and ammo (v50: the SMG came in 04).
 public class M06PassengerProblems : LundunMission
 {
     static readonly Vector3 Circus = new Vector3(560f, 0f, 945f);
@@ -440,12 +476,16 @@ public class M06PassengerProblems : LundunMission
         run.Add(new LundunTalk("",
             new LundunLine("MARCUS", "Gilmore, Hollis, now the Riders. This is getting out of hand."),
             new LundunLine("JAMES", "I know."),
-            new LundunLine("MARCUS", "Here. Take this. If they come again, I want you ready.")));
-        run.Add(new LundunDo(r =>
+            new LundunLine("MARCUS", "Here. A vest from the door, and a bag of rounds. If they come again, I want you ready.")));
+        run.Add(new LundunNow(r =>
         {
+            PlayerHealth ph = PlayerHealth.Instance;
+            if (ph != null) ph.GiveArmour(100f);
             LundunWeapons w = LundunWeapons.Instance;
-            if (w != null) w.Give(LundunWeapons.Kind.Smg, 90);
-            LundunMissions.Toast("SMG UNLOCKED\nSwap weapons from the weapon panel");
+            if (w != null)
+                foreach (LundunWeapons.Kind k in new[] { LundunWeapons.Kind.Pistol, LundunWeapons.Kind.Smg, LundunWeapons.Kind.Shotgun, LundunWeapons.Kind.Carbine })
+                    if (w.Owns(k)) w.Give(k, w.Of(k).magazine * 2);
+            LundunMissions.Toast("BODY ARMOUR + AMMO\nThe blue bar soaks up hits");
         }));
         run.Add(new LundunLeave("MARCUS", () => LundunStoryPlaces.Home));
     }
