@@ -868,10 +868,29 @@ namespace LundunGreybox
                     if (Kingsmere && KingsmereKeepsClear(q, r + 1)) continue;     // E8: not in the lake, on the paths or the forecourt
                     parkTrees.Add(q);
                     trunks.Box(q, d, 0.2, 0.2, 0, h * 0.5, false, 0.1, 0, false);
-                    leaves.Box(q, d, r, r, h * 0.4, h, true, 0.1, 0, false);
+                    Canopy(leaves, q, r, h * 0.4, h);              // V2a: a rounded crown (was a box)
                 }
             }
             R.meshes.Add(grass); R.meshes.Add(trunks); R.meshes.Add(leaves);
+        }
+
+        /// V2a: a tree's crown: a rounded low-poly shape (three rings of six), not a box. No random numbers: the twist
+        /// comes from where the tree stands. Same height and spread as the box it replaces.
+        static void Canopy(MeshData m, V2 c, double r, double y0, double y1)
+        {
+            if (!UseCityPlan) { m.Box(c, new V2(0, 1), r, r, y0, y1, true, 0.1, 0, false); return; }
+            double tw = ((KHash((int)Math.Round(c.x * 10), (int)Math.Round(c.z * 10)) & 1023) / 1023.0) * Math.PI;
+            double R = r * 1.18, hh = y1 - y0;
+            UVRect none = new UVRect();
+            Band(m, c, R * 0.5, y0, R, y0 + hh * 0.3, 6, none, tw);
+            Band(m, c, R, y0 + hh * 0.3, R * 0.9, y0 + hh * 0.62, 6, none, tw);
+            Band(m, c, R * 0.9, y0 + hh * 0.62, R * 0.42, y1, 6, none, tw);
+            List<P3> cap = new List<P3>();
+            for (int i = 0; i < 6; i++) { double a = i * Math.PI * 2 / 6 + tw; cap.Add(new P3(c + new V2(Math.Sin(a), Math.Cos(a)) * R * 0.42, y1)); }
+            m.FanUp(cap);
+            List<P3> under = new List<P3>();
+            for (int i = 5; i >= 0; i--) { double a = i * Math.PI * 2 / 6 + tw; under.Add(new P3(c + new V2(Math.Sin(a), Math.Cos(a)) * R * 0.5, y0)); }
+            m.Quad(under[0], under[1], under[2], under[3], 0, -1, 0); m.Quad(under[3], under[4], under[5], under[0], 0, -1, 0);
         }
 
         static double PolyArea(List<V2> p) { double a = 0; for (int i = 0; i < p.Count; i++) { V2 u = p[i], v = p[(i + 1) % p.Count]; a += u.x * v.z - v.x * u.z; } return a / 2; }

@@ -463,7 +463,7 @@ namespace LundunGreybox
         {
             V2 d = new V2(0.6, 0.8);
             rpTrunks.Box(q, d, 0.18, 0.18, baseY, baseY + h * 0.5, false, 0.1, 0, false);
-            rpLeaves.Box(q, d, r, r, baseY + h * 0.4, baseY + h, true, 0.1, 0, false);
+            Canopy(rpLeaves, q, r, baseY + h * 0.4, baseY + h);
         }
 
         // ------------------------------------------------------------------ chase spaces

@@ -188,6 +188,7 @@ namespace LundunGreybox
             if (!ExpansionMode) DressRailway();     // L6: the railway's fences and graffiti (its own random seed, after everything; the city does all of it)
             if (Brix) { DressRailTags(); DressMarket(); DressBikeDocks(); DressRetailPark(); }     // E2: its bridges' tags; E3: its market, then its bike docks; E4: the retail park (after everything, so nothing else moves)
             if (Kingsmere) DressKingsmere();        // E8: flags, the palace railings and gates, deckchairs, the arch's lettering (after everything)
+            DressCityPlan();                        // V2a step 2: lawns, gardens, the riverside, Rye Common, the freight depot, the rec (own random numbers, last)
 
             foreach (MeshData m in new[] { mSolid, mCut, mGlow }) D.meshes.AddRange(Chunk(m));
             int v = 0; foreach (MeshData m in D.meshes) v += m.VertexCount;

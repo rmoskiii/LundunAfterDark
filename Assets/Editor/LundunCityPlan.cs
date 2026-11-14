@@ -140,6 +140,7 @@ namespace LundunGreybox
                         MarkSegment(railPlan.line.p[i], railPlan.line.p[i + 1], r);
                     }
                 MarkSegment(WheelSite, WheelSite, 46);
+                PlanReserveZones();                                   // step 2: Rye Common and the freight depot stay open
             }
 
             // the land the edges may be built on: inside the Ring north and south (the expansions start beyond it),

@@ -442,7 +442,7 @@ namespace LundunGreybox
             {
                 V2 p = new V2(541.5, z);
                 kTrunk.Box(p, new V2(0, 1), 0.28, 0.28, 0, 6, false, 0.1, 0, false);
-                kLeaf.Box(p, new V2(0, 1), 3.2, 3.2, 4.5, 11.5, true, 0.1, 0, false);
+                Canopy(kLeaf, p, 3.2, 4.5, 11.5);
             }
         }
 
@@ -484,7 +484,7 @@ namespace LundunGreybox
             V2 isl = new V2(298, 1401);
             Cyl(kStone, isl, 8, 0, 0.45, 18, KS(KitArt.S_SootStone));
             Cyl(kDeco, isl, 7.6, 0.45, 0.47, 18, KS(KitArt.S_Green));
-            for (int k = 0; k < 3; k++) { V2 p = isl + new V2(Math.Cos(k * 2.1) * 3.5, Math.Sin(k * 2.1) * 3.5); kTrunk.Box(p, new V2(0, 1), 0.22, 0.22, 0.45, 4.5, false, 0.1, 0, false); kLeaf.Box(p, new V2(0, 1), 2.4, 2.4, 3.2, 8.5, true, 0.1, 0, false); }
+            for (int k = 0; k < 3; k++) { V2 p = isl + new V2(Math.Cos(k * 2.1) * 3.5, Math.Sin(k * 2.1) * 3.5); kTrunk.Box(p, new V2(0, 1), 0.22, 0.22, 0.45, 4.5, false, 0.1, 0, false); Canopy(kLeaf, p, 2.4, 3.2, 8.5); }
             // the bridges: a low stone causeway with a pale deck, ramps at each end, railings both sides
             foreach (double bx in KmBridges)
             {

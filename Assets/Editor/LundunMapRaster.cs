@@ -119,6 +119,9 @@ namespace LundunGreybox
                 Polygon(poly, park.name != null && (park.name.EndsWith("Square") || park.name.EndsWith("Market")) ? Service : Park);     // E1: town squares are paved (E3: and the market)
             }
 
+            // V2a: the city plan's open spaces: Rye Common and Loughborough Rec (green), the freight depot (paved)
+            foreach (KeyValuePair<List<V2>, bool> z in Generator.PlanMapZones(areas.Count > 0)) Polygon(z.Key, z.Value ? Park : Service);
+
             foreach (BuildingInfo bd in allBuildings)
             {
                 V2 f = bd.dir.Norm, l = f.Left;
