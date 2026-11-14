@@ -18,6 +18,7 @@ public static class LundunWeatherBuilder
     {
         new Wet("Assets/World/Materials/Road.mat", 0.86f, 0.38f),
         new Wet("Assets/World/Materials/Pavement.mat", 0.72f, 0.3f),
+        new Wet("Assets/World/Materials/Ground.mat", 0.68f, 0.3f),            // V2a: the yards between the buildings (hard standing now)
         new Wet("Assets/World/Materials/Marking.mat", 0.6f, 0.15f),
         new Wet("Assets/World/Materials/Concrete.mat", 0.6f, 0.25f),
         new Wet("Assets/World/Dressing/Dress_Solid.mat", 0.45f, 0.12f),

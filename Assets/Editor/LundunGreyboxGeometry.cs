@@ -1032,13 +1032,15 @@ namespace LundunGreybox
             int cleared = ExpansionMode ? 0 : ClearPlots(R);                   // R7: room for hospitals, police stations, safehouses
             if (cleared > 0) R.log.Add("  " + cleared + " buildings cleared for hospitals / police stations / safehouses");
             FindLagos(R);                                                        // S3: LAGOS FOODS' unit (built as a walk-in shop)
+            int originalPlots = R.buildings.Count;
+            CityPlanInfill(R, dpoly);                                            // V2a: fill the holes in the frontage (own random numbers, added after the originals)
 
             // L1: the building kit (terraces, parades, estates, towers…) on exactly these plots. The plain boxes below
             // are kept as the fallback (Generator.UseBuildingKit = false).
             if (UseBuildingKit)
             {
                 BuildKit(R);
-                foreach (BuildingInfo b in R.buildings) rng.Next(0, 8);   // the boxes drew one number each: keep the sequence identical for everything built after
+                for (int ob = 0; ob < originalPlots; ob++) rng.Next(0, 8);   // the boxes drew one number each: keep the sequence identical for everything built after (V2a: the original plots only)
                 Dictionary<string, int> perK = new Dictionary<string, int>();
                 foreach (BuildingInfo b in R.buildings) { int n; perK.TryGetValue(b.district, out n); perK[b.district] = n + 1; }
                 foreach (var kv in perK) R.log.Add("  " + kv.Key + ": " + kv.Value + " buildings");

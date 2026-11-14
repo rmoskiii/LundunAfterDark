@@ -51,6 +51,7 @@ public static class LundunSurfaceBuilder
             int mats = 0;
             mats += Apply(bk, MatDir + "/Road.mat", tarmac, 1.12f);
             mats += Apply(bk, MatDir + "/Pavement.mat", paving, 1.1f);
+            mats += Ground(bk, world, Save("Yard", SurfaceArt.Yard(), 4));        // V2a: a city floor, not a lawn
             foreach (string g in AssetDatabase.FindAssets("Bld_ t:Material", new[] { MatDir }))
             {
                 string p = AssetDatabase.GUIDToAssetPath(g);
@@ -161,6 +162,45 @@ public static class LundunSurfaceBuilder
         File.WriteAllText(BackupPath, JsonUtility.ToJson(b, true));
         AssetDatabase.ImportAsset(BackupPath);
         return b;
+    }
+
+    /// V2a: the ground between the buildings becomes hard standing (worn tarmac and concrete): the Ground material
+    /// gets the Yard texture and a tarmac grey, and the ground meshes get UVs from their position (one tile = 20 m).
+    /// Parks keep their own grass. Lundun → 20b puts the lawn back.
+    static readonly Color GroundGrey = new Color(0.235f, 0.235f, 0.245f);
+    static int Ground(Backup bk, Transform world, Texture2D yard)
+    {
+        string path = MatDir + "/Ground.mat";
+        Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (m == null) return 0;
+        bool known = false;
+        foreach (MatState s in bk.mats) if (s.path == path) known = true;
+        if (!known)                                               // a backup from before V2a: remember the lawn now
+        {
+            Texture t0 = m.GetTexture("_BaseMap");
+            bk.mats.Add(new MatState { path = path, baseMapGuid = t0 != null ? AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(t0)) : "", colour = m.GetColor("_BaseColor") });
+            File.WriteAllText(BackupPath, JsonUtility.ToJson(bk, true));
+            AssetDatabase.ImportAsset(BackupPath);
+        }
+        m.SetTexture("_BaseMap", yard);
+        m.SetTextureScale("_BaseMap", Vector2.one); m.SetTextureOffset("_BaseMap", Vector2.zero);
+        m.SetColor("_BaseColor", GroundGrey);
+        m.SetFloat("_Smoothness", 0.22f);
+        EditorUtility.SetDirty(m);
+        float tile = (float)SurfaceArt.YardTileM;
+        foreach (MeshRenderer r in world.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (r.sharedMaterial != m) continue;
+            MeshFilter f = r.GetComponent<MeshFilter>();
+            if (f == null || f.sharedMesh == null) continue;
+            Mesh mesh = f.sharedMesh;
+            Vector3[] v = mesh.vertices;
+            Vector2[] uv = new Vector2[v.Length];
+            for (int i = 0; i < v.Length; i++) { Vector3 w = f.transform.TransformPoint(v[i]); uv[i] = new Vector2(w.x / tile, w.z / tile); }
+            mesh.uv = uv;
+            EditorUtility.SetDirty(mesh);
+        }
+        return 1;
     }
 
     /// Texture on, colour lifted a touch (the detail is a little darker on average). Always from the backed-up colour, so re-running doesn't drift.

@@ -207,17 +207,34 @@ namespace LundunGreybox
             new[] { "AFRO HAIR & BEAUTY", "e0218a", "ffffff" }, new[] { "MAMA'S CARIBBEAN", "008a3e", "ffd200" },
             new[] { "LAGOS FOODS", "2b7a2b", "ffffff" }, new[] { "QUIK CASH TRANSFER", "ffe600", "1a1a1a" },
             new[] { "BETS & CO", "123b8c", "ffcc00" }, new[] { "SUDZ LAUNDERETTE", "6fc3df", "0b2a4a" },
-            new[] { "EVERYTHING £1", "ff6a00", "ffffff" }, new[] { "CHICKEN SHACK", "e31d1a", "ffffff" } };
+            new[] { "EVERYTHING £1", "ff6a00", "ffffff" }, new[] { "CHICKEN SHACK", "e31d1a", "ffffff" },
+            // V2a: more of the high street
+            new[] { "PECKAM PHARMACY", "0a8f4e", "ffffff" }, new[] { "GOLDEN WOK", "b3121d", "ffd75e" },
+            new[] { "NAILS BY NKECHI", "f4c6d7", "7a1247" }, new[] { "RYE CAFF", "f3ead3", "8a1c1c" },
+            new[] { "PHONE HUT", "5b2d90", "ffffff" }, new[] { "CROWN CABS", "101010", "ffd200" },
+            new[] { "PLANTAIN PALACE", "f2b705", "1d3b1d" }, new[] { "SE15 VAPE", "0d0d0d", "39ffb0" },
+            new[] { "BREAD & BUTTER BAKERY", "e9d8b4", "5a3413" }, new[] { "LUCKY 7 SLOTS", "7a0d0d", "ffcf33" } };
         static readonly string[][] KnightShops = {
             new[] { "KNIGHTSBURY DELI", "1d1d1b", "e6d3a3" }, new[] { "MAISON VERT", "2f4a3a", "f2efe6" },
             new[] { "HARTLEY & FINCH", "0f2340", "ffffff" }, new[] { "BLOOMS FLORIST", "f2e9e4", "6b2d5c" },
-            new[] { "CAFE LUMEN", "f4f1ea", "1d1d1b" }, new[] { "SAVILE & SONS", "111111", "c9a24a" } };
+            new[] { "CAFE LUMEN", "f4f1ea", "1d1d1b" }, new[] { "SAVILE & SONS", "111111", "c9a24a" },
+            new[] { "ASHCOMBE ESTATES", "14342b", "e9dfc3" }, new[] { "THE CHELWOOD GALLERY", "f5f5f2", "222222" },
+            new[] { "BELGRAVE WINES", "3a0f1c", "e3c98b" }, new[] { "ORCHID NAILS & SPA", "efe3ea", "7a3d63" },
+            new[] { "ATELIER NOIR", "0c0c0c", "f0f0f0" }, new[] { "PEMBERTON BOOKS", "22382c", "f0e6c8" },
+            new[] { "KNIGHT & DAY CAFE", "1c2a44", "f6d98a" }, new[] { "REGENT PHARMACY", "ffffff", "0a7d55" } };
         static readonly string[][] GilmoreShops = {
             new[] { "GILMORE FOOD & WINE", "1b4fa0", "ffffff" }, new[] { "CHIPPY'S FISH BAR", "0e6aa8", "ffd200" },
-            new[] { "GILMORE NEWS", "b21f24", "ffffff" } };
+            new[] { "GILMORE NEWS", "b21f24", "ffffff" },
+            new[] { "ESTATE CHICKEN & RIBS", "d21f1f", "ffe14d" }, new[] { "GILMORE LAUNDRETTE", "78c6e6", "10324f" },
+            new[] { "CORNER CUTS", "161616", "f2f2f2" }, new[] { "BETTA BETS", "0f3d91", "ffd21f" },
+            new[] { "PENNY SAVER", "ff7a00", "ffffff" }, new[] { "GILMORE PHARMACY", "0c9156", "ffffff" },
+            new[] { "STAR KEBAB", "111111", "ff5533" } };
         static readonly string[][] CanaryShops = {
             new[] { "DOCK ROAST COFFEE", "2b2b2b", "f2c14e" }, new[] { "THE DESK DELI", "f5f5f0", "1a1a1a" },
-            new[] { "IRONWORKS GYM", "0d0d0d", "ff3b30" } };
+            new[] { "IRONWORKS GYM", "0d0d0d", "ff3b30" },
+            new[] { "QUAY SUSHI", "f7f4ee", "c2272d" }, new[] { "WHARF PRESS DRY CLEAN", "14506e", "ffffff" },
+            new[] { "MERIDIAN BANK", "0b2545", "e8eef7" }, new[] { "THE LUNCH BOX", "ffd23f", "1a1a1a" },
+            new[] { "CANARY WINE BAR", "2a1020", "e6c79c" }, new[] { "PIXEL PRINT", "00a7c4", "ffffff" } };
         static readonly string[] Pubs = { "THE CROWN & KNIGHT", "THE DUKE OF KNIGHTSBURY", "THE GILMORE ARMS", "THE BRASS MONKEY", "THE GILDED LAMB", "THE PRINCE REGENT", "THE OLD BELL" };
         static readonly string[][] Ads = {
             new[] { "LUNDUN LAGER", "PROPERLY COLD. SINCE 1891.", "f5c518", "e08a00", "1a1a1a", "ffffff" },
@@ -247,8 +264,10 @@ namespace LundunGreybox
             foreach (var kv in Swatches) a.Swatch(kv.Key, Col.Hex(kv.Value));
             a.UndergroundLogo("ug_logo");
             foreach (var kv in StationTable) a.StationBoard("ug_" + kv.Value, kv.Value);
+            a.NewShelf();
             foreach (string[][] list in new[] { AreaShops(PeckamShops), KnightShops, GilmoreShops, CanaryShops })
-                foreach (string[] s in list) a.Sign("shop_" + s[0], 640, 80, s[0], Col.Hex(s[1]), Col.Hex(s[2]), Col.Hex(s[2]));
+                foreach (string[] s in list) a.Sign("shop_" + s[0], 400, 56, s[0], Col.Hex(s[1]), Col.Hex(s[2]), Col.Hex(s[2]));   // V2a: a little smaller, so twice as many shops fit the atlas
+            a.NewShelf();
             foreach (string p in Pubs) a.Sign("pub_" + p, 640, 80, p, Col.Hex("1f3b2c"), Col.Hex("d9b45a"), new Col(0, 0, 0, 0), 0.42);
             List<string> rids = new List<string>(roads.Keys); rids.Sort();
             foreach (string rid in rids)
@@ -887,6 +906,7 @@ namespace LundunGreybox
                 foreach (JInfo ji in juncs.Values) if (V2.Dist(ji.c, face) < ji.radius + width / 2 + 6) nearJunction = true;
 
                 double chance = dist == "D_PECKAM" ? 0.85 : dist == "D_KNIGHT" ? (road.cls == "arterial" ? 0.55 : 0.2) : dist == "D_CANARY" ? 0.3 : 0.15;
+                if (UseCityPlan && dist != "D_PECKAM") chance = dist == "D_KNIGHT" ? 0.8 : dist == "D_CANARY" ? 0.65 : 0.75;   // V2a: the kit decides where shops go; where they go, they're let
                 int units = Math.Max(1, (int)Math.Floor((width - 1.0) / 7.0));
                 double unitW = (width - 1.0) / units;
                 for (int u = 0; u < units; u++)
@@ -896,7 +916,7 @@ namespace LundunGreybox
                     if (pub) { Pub(uc, n, t, unitW, Pubs[pubs++]); continue; }
                     if (drng.NextDouble() > chance) continue;
                     string[][] list = dist == "D_PECKAM" ? AreaShops(PeckamShops) : dist == "D_KNIGHT" ? KnightShops : dist == "D_CANARY" ? CanaryShops : GilmoreShops;
-                    if (dist == "D_GILMOR" && gilShops >= 4) continue;
+                    if (dist == "D_GILMOR" && gilShops >= (UseCityPlan ? 60 : 4)) continue;
                     if (dist == "D_GILMOR") gilShops++;
                     string[] shop = list[drng.Next(list.Length)];
                     shop = StoryShopName(list, shop, uc, b, u);                  // S3: one LAGOS FOODS, one FADEZ BARBERS (no random numbers)
@@ -1141,7 +1161,7 @@ namespace LundunGreybox
                     V2 e = b.c + f * (end * (b.len / 2 + 1.8));
                     bool roadside = false;
                     foreach (RoadInfo ri in roads.Values) if (ri.line.DistanceTo(e) < ri.w / 2 + Math.Max(ri.pave, ri.verge) + 1.2) roadside = true;
-                    if (roadside || !Free(e, 3)) continue;
+                    if (roadside || !Free(e, 3) || InPlanned(e, 2.2)) continue;      // V2a: not where the city plan built next door
                     int bins = 2 + drng.Next(2);
                     for (int i = 0; i < bins; i++)
                     {

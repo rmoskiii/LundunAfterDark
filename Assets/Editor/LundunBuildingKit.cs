@@ -110,6 +110,10 @@ namespace LundunGreybox
             bool onRoad = p.gap < 8;
             string cls = road != null ? road.cls : "";
             double x = kr.NextDouble();
+            // V2a: what the street is for decides what stands on it (LundunCityPlan)
+            StreetRole role = road != null && UseCityPlan ? RoleOf(road.r.name, cls) : StreetRole.Residential;
+            bool high = UseCityPlan && onRoad && role == StreetRole.HighStreet;
+            bool corner = UseCityPlan && onRoad && p.nearJunction && (role == StreetRole.Local || (role == StreetRole.Residential && x < 0.4));
 
             switch (b.district)
             {
@@ -120,6 +124,7 @@ namespace LundunGreybox
                         else p.type = KitType.Parade;
                     }
                     else if (onRoad && p.nearJunction && peckamPubs < 6 && x < 0.12) { p.type = KitType.Pub; peckamPubs++; }
+                    else if (high || corner) p.type = KitType.Parade;          // V2a: every high street is shops end to end; a parade at the corners of the local streets
                     else p.type = (!onRoad && x < 0.25) || x > 0.92 ? KitType.Infill : KitType.Terrace;
                     if (p.W < 10 && p.type == KitType.Terrace) p.type = KitType.Infill;
                     break;
@@ -127,19 +132,20 @@ namespace LundunGreybox
                     if (b.h >= 45) p.type = KitType.Tower;
                     else
                     {
-                        p.mixed = onRoad && (cls == "arterial" || KnightShopRoads.Contains(p.road));
+                        p.mixed = onRoad && (cls == "arterial" || KnightShopRoads.Contains(p.road) || high || corner);
                         if (Kingsmere && !KingsmereShopRoads.Contains(p.road)) p.mixed = false;      // E8: shops only on a couple of Kingsmere's streets
                         if (p.mixed) p.type = x < 0.55 ? KitType.Stucco : KitType.Mansion;
                         else p.type = x < 0.45 ? KitType.Stucco : x < 0.7 ? KitType.Mansion : KitType.Georgian;
                     }
                     break;
                 case "D_CANARY":
-                    p.type = (onRoad && cls == "arterial" && x < 0.5) || x > 0.82 ? KitType.Office : KitType.Warehouse;
+                    p.type = (onRoad && (cls == "arterial" || high) && x < (UseCityPlan ? 0.75 : 0.5)) || x > 0.82 ? KitType.Office : KitType.Warehouse;
                     break;
                 case "D_CANARY_PEN": p.type = KitType.Tower; break;
                 case "D_GILMOR":
                     if (b.h >= 40) p.type = KitType.EstTower;
                     else if (onRoad && cls == "street" && x < 0.18) p.type = KitType.EstParade;
+                    else if ((high && x < 0.7) || corner) p.type = KitType.EstParade;   // V2a: the estate's own shopping streets
                     else if (p.W >= 40 && x > 0.8) p.type = KitType.Garages;
                     else p.type = x < 0.5 ? KitType.Deck : KitType.Maisonette;
                     break;

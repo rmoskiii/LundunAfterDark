@@ -567,7 +567,10 @@ namespace LundunGreybox
             new[] { "ACRE LANE BAKERY", "f1e3c6", "6b3a1e" }, new[] { "AFRO-CARIB GROCERS", "e8a317", "1a1a1a" },
             new[] { "SOUND SYSTEM HIFI", "1a1a1a", "39ff88" }, new[] { "PATTY KING", "ffcc00", "b01c1c" },
             new[] { "BRIX MONEY TRANSFER", "ffe600", "1a1a1a" }, new[] { "MARKET CAFE", "6a1b1b", "ffffff" },
-            new[] { "LUCKY STAR BETS", "123b8c", "ffcc00" }, new[] { "PARADE PHARMACY", "009a5a", "ffffff" } };
+            new[] { "LUCKY STAR BETS", "123b8c", "ffcc00" }, new[] { "PARADE PHARMACY", "009a5a", "ffffff" },
+            new[] { "ROTI HUT", "e25822", "fff3c4" }, new[] { "GOLD RUSH PAWN", "111111", "ffc93c" },
+            new[] { "VILLAGE VAPE", "101418", "5cf2c4" }, new[] { "IRIE NAILS", "1f8a4c", "ffe14d" },
+            new[] { "HILLTOP MINICABS", "161616", "ffd200" }, new[] { "BRIXTUN FRIED CHICKEN", "c8102e", "ffd200" } };
         static readonly string[] BrixtunTags = { "SW2", "BRIX", "ELEC", "WNDRD", "REGAL", "ACRE", "LDN", "RIDDIM", "SKANK", "ZION" };
         static readonly Dictionary<string, string> BrixtunStations = new Dictionary<string, string> { { "Windward Square", "BRIXTUN" } };
 

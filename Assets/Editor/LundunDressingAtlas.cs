@@ -62,6 +62,8 @@ namespace LundunGreybox
             return true;
         }
         public int UsedHeight { get { return shelfY + shelfH; } }
+        /// V2a: start a new shelf (so a run of same-sized things packs into tidy rows).
+        public void NewShelf() { if (shelfX > 0) { shelfX = 0; shelfY += shelfH + Pad; shelfH = 0; } }
 
         // ------------------------------------------------------------------ pixels
         public void Put(int x, int y, Col c, double cover)

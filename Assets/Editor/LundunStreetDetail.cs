@@ -7,7 +7,7 @@
 //             outside police stations and hospitals
 //   ironwork  manholes, drain gullies along the kerbs, utility covers on the pavements
 //   wear      patches, cracks, oil stains: lots in Peckam and Gilmore, a little in Canary, hardly any in Knightsbury
-//   setts     Knightsbury Mews, Choumert Grove and the warehouse streets are cobbled, Knightsbury and Canary have a
+//   setts     Knightsbury Mews and the warehouse streets (V2a: Choumert Grove, where the story starts, is tarmac now) are cobbled, Knightsbury and Canary have a
 //             granite gutter along the kerbs
 // Randomness has its own seed, so nothing else in the city moves.
 using System;
@@ -30,7 +30,7 @@ namespace LundunGreybox
     {
         public const string StreetDecalMat = "Street_Decals", StreetSettsMat = "Street_Setts";
 
-        static readonly HashSet<string> CobbledRoads = new HashSet<string> { "Knightsbury Mews", "Choumert Grove", "Warehouse Lane", "Dock Street", "Wharf Road" };
+        static readonly HashSet<string> CobbledRoads = new HashSet<string> { "Knightsbury Mews", "Warehouse Lane", "Dock Street", "Wharf Road" };
         static readonly HashSet<string> BusLaneRoads = new HashSet<string> { "Old Kent Lane", "Rye Lane", "Oxbridge Street", "Commercial Way", "Brixtun Road", "Coldharbor Lane" };   // E1: Brixtun's too
         static readonly HashSet<string> NoLineRoads = new HashSet<string> { "Knightsbury Mews" };
         static readonly HashSet<string> ShopStreets = new HashSet<string> { "Peckam High Street", "Brompton Road", "Tower Plaza", "Electric Parade", "Atlantic Road" };

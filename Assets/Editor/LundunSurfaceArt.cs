@@ -101,6 +101,69 @@ namespace LundunGreybox
             return im;
         }
 
+        // ------------------------------------------------------------------ V2a: the ground between the buildings
+        /// Hard standing: worn tarmac and concrete yards, patched and stained, moss in the damp corners. One tile = 20 m
+        /// (laid over the ground by world position), so the city sits on a city floor and not on a lawn.
+        public const double YardTileM = 20.0;
+        public static Img Yard(int n = 1024)
+        {
+            Img im = new Img(n, n);
+            double ppm = n / YardTileM;
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    double big = Fbm(x, y, n, 3, 211);                        // broad light and dark areas (different pours)
+                    double mid = Fbm(x, y, n, 12, 223);
+                    double v = 0.84 + (big - 0.5) * 0.30 + (mid - 0.5) * 0.10 + (R01(x, y, 227) - 0.5) * 0.09;
+                    double r = R01(x, y, 229);
+                    if (r < 0.025) v += 0.14; else if (r > 0.985) v -= 0.12;   // aggregate
+                    double moss = Fbm(x, y, n, 6, 233);
+                    double g = 1.0, b = 1.0;
+                    if (moss > 0.63) { double k = Math.Min(1, (moss - 0.63) / 0.12); v *= 1 - 0.16 * k; g = 1 + 0.10 * k; b = 1 - 0.06 * k; }   // damp, mossy
+                    im.Set(x, y, v, v * g, v * 1.01 * b);
+                }
+            Random rnd = new Random(241);
+            // concrete bays: a few big rectangles of lighter slab with joints every 3 m
+            for (int p = 0; p < 3; p++)
+            {
+                int px = rnd.Next(n), py = rnd.Next(n), pw = (int)((5 + rnd.Next(4)) * ppm), ph = (int)((4 + rnd.Next(4)) * ppm);
+                int joint = (int)(3 * ppm);
+                for (int y = 0; y < ph; y++)
+                    for (int x = 0; x < pw; x++)
+                    {
+                        bool edge = x < 3 || y < 3 || x >= pw - 3 || y >= ph - 3 || x % joint < 2 || y % joint < 2;
+                        im.Mul(px + x, py + y, edge ? 0.74 : 1.13);
+                    }
+            }
+            // tarmac repairs
+            for (int p = 0; p < 7; p++)
+            {
+                int px = rnd.Next(n), py = rnd.Next(n), pw = 40 + rnd.Next(140), ph = 30 + rnd.Next(110);
+                double tone = rnd.NextDouble() < 0.6 ? 0.86 : 1.08;
+                for (int y = 0; y < ph; y++)
+                    for (int x = 0; x < pw; x++) im.Mul(px + x, py + y, (x < 2 || y < 2 || x >= pw - 2 || y >= ph - 2) ? 0.7 : tone);
+            }
+            // oil and damp stains
+            for (int p = 0; p < 10; p++)
+            {
+                int cx = rnd.Next(n), cy = rnd.Next(n); double rad = 10 + rnd.Next(34);
+                for (int y = (int)-rad; y <= rad; y++)
+                    for (int x = (int)-rad; x <= rad; x++)
+                    {
+                        double d = Math.Sqrt(x * x + y * y) / rad; if (d >= 1) continue;
+                        im.Mul(cx + x, cy + y, 1 - 0.28 * (1 - d) * (0.6 + 0.4 * R01(cx + x, cy + y, 251)));
+                    }
+            }
+            // cracks
+            for (int c = 0; c < 9; c++)
+            {
+                double x = rnd.Next(n), y = rnd.Next(n), a = rnd.NextDouble() * Math.PI * 2;
+                int len = 90 + rnd.Next(260);
+                for (int i = 0; i < len; i++) { a += (rnd.NextDouble() - 0.5) * 0.5; x += Math.Cos(a); y += Math.Sin(a); im.Mul((int)x, (int)y, 0.6); }
+            }
+            return im;
+        }
+
         // ------------------------------------------------------------------ paving slabs + granite kerb
         public const double PavingTileM = 9.0, KerbM = 0.3;
 
