@@ -688,6 +688,7 @@ namespace LundunGreybox
             SBox(mSolid, c + look * 0.3, look, 0.3, 0.1, y + 6.3, y + 6.5, S("white"), true);
             SBox(mSolid, c + look * 0.25, look, 0.28, 0.08, y + 6.0, y + 6.2, S("charcoal"), true);
             Claim(c, 0.6);
+            Record("bullet", c + look * 0.3, y + 6.1, Yaw(look), -30, 80, 40, false);   // V2d: on the list with the others
         }
 
         static void TrailerAt(V2 c, V2 f, string colour)

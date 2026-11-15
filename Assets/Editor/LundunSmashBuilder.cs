@@ -1,4 +1,4 @@
-// Lundun → 30  Smashable Street Furniture (V4b)
+// Lundun → 30  Smashable Street Furniture (V4b), and (V2d) the list of CCTV cameras (LundunCctv)
 //   Lists every piece of street furniture a car can knock over (in the city, Brixtun and Kingsmere) for LundunSmash:
 //   bins, wheelie bins, cones, roadworks barriers and signs, trolleys, cycle stands, benches, railings, fly-tipping,
 //   bollards, Belisha beacons, post boxes, cabinets, planters, fences, phone boxes, bus shelters, estate bin stores
@@ -34,6 +34,7 @@ public static class LundunSmashBuilder
             LundunWorldData data = LundunExpansionBuilder.Parse(json.text);
             List<LundunSmash.Prop> props = new List<LundunSmash.Prop>();
             Dictionary<string, int> counts = new Dictionary<string, int>();
+            cctv.Clear();
 
             // the city (the same places Lundun → 13 used)
             EditorUtility.DisplayProgressBar("Lundun", "Finding the city's street furniture…", 0.1f);
@@ -97,6 +98,15 @@ public static class LundunSmashBuilder
             LundunSmash smash = root.AddComponent<LundunSmash>();
             smash.SetData(props.ToArray(), targets.ToArray());
             EditorUtility.SetDirty(smash);
+
+            // V2d: the CCTV cameras (from the same dressing passes), for LundunCctv
+            GameObject oldCams = GameObject.Find(CctvRoot);
+            if (oldCams != null) Object.DestroyImmediate(oldCams);
+            LundunCctv cams = new GameObject(CctvRoot).AddComponent<LundunCctv>();
+            cams.SetData(cctv.ToArray());
+            EditorUtility.SetDirty(cams);
+            int broken = 0; foreach (LundunCctv.Cam c in cctv) if (c.broken) broken++;
+            Debug.Log("[Lundun] V2d: " + cctv.Count + " CCTV cameras listed (" + broken + " sprayed over or smashed). Select LundunCctv in the Hierarchy to see them in the Scene view.");
             EditorSceneManager.MarkSceneDirty(scene);
 
             List<string> parts = new List<string>();
@@ -127,8 +137,18 @@ public static class LundunSmashBuilder
 
     /// Everything breakable from one area's dressing: the rule-placed things, and the Belisha beacons, bus shelters
     /// and phone boxes (their size measured from your prefabs).
+    const string CctvRoot = "LundunCctv";
+    static readonly List<LundunCctv.Cam> cctv = new List<LundunCctv.Cam>();
+
     static void Collect(DressingResult d, List<LundunSmash.Prop> props, Dictionary<string, int> counts)
     {
+        foreach (CctvInfo c in d.cctv)
+            cctv.Add(new LundunCctv.Cam
+            {
+                at = new Vector3((float)c.x, (float)c.y, (float)c.z), yaw = (float)c.yaw, pitch = (float)c.pitch,
+                fov = (float)c.fov, range = (float)c.range, broken = c.broken,
+                kind = c.kind == "dome" ? LundunCctv.Kind.Dome : c.kind == "estate" ? LundunCctv.Kind.Estate : LundunCctv.Kind.Bullet,
+            });
         foreach (BreakInfo b in d.breakables)
         {
             LundunSmash.Kind k;

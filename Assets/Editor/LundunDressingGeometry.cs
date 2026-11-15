@@ -28,6 +28,8 @@ namespace LundunGreybox
         public List<BikeDockInfo> bikeDocks = new List<BikeDockInfo>();
         public List<double[]> crossings = new List<double[]>();       // L2: zebra crossings (x, z, along x, along z, road width)
         public List<double[]> shopLights = new List<double[]>();      // L5: lit shop / pub fronts (x, z, out x, out z, width, kind 0 shop 1 pub)
+        public List<ShopFrontInfo> shopFronts = new List<ShopFrontInfo>();   // V2d: every shop / pub front, open or shut (for the cameras over them)
+        public List<CctvInfo> cctv = new List<CctvInfo>();            // V2d: every CCTV camera (Lundun → 30 saves them for LundunCctv)
         public MarketInfo market;                                     // E3: an expansion's market (stalls, and where its crowd walks); null if none
         public DressAtlas atlas;
         public List<string> log = new List<string>();
@@ -189,6 +191,7 @@ namespace LundunGreybox
             if (Brix) { DressRailTags(); DressMarket(); DressBikeDocks(); DressRetailPark(); }     // E2: its bridges' tags; E3: its market, then its bike docks; E4: the retail park (after everything, so nothing else moves)
             if (Kingsmere) DressKingsmere();        // E8: flags, the palace railings and gates, deckchairs, the arch's lettering (after everything)
             DressCityPlan();                        // V2a step 2: lawns, gardens, the riverside, Rye Common, the freight depot, the rec (own random numbers, last)
+            DressCctv();                            // V2d: CCTV on junctions, shops, estates, offices and doors (own random numbers, after everything)
 
             foreach (MeshData m in new[] { mSolid, mCut, mGlow }) D.meshes.AddRange(Chunk(m));
             int v = 0; foreach (MeshData m in D.meshes) v += m.VertexCount;
@@ -294,6 +297,7 @@ namespace LundunGreybox
             if (Brix) { MarketAtlas(a); RetailAtlas(a); }     // E3/E4: the market's and retail park's colours and signs (expansions only: the city's atlas stays as it was)
             if (Kingsmere) KingsmereAtlas(a);       // E8: flags, deckchair stripes, the arch's lettering, the clock
             ShopWindowArt.Paint(a);                 // V2c: six shop interiors (in the unused ends of the shelves above)
+            CctvArt.Paint(a);                       // V2d: the two CCTV plates (likewise)
             return a;
         }
 
@@ -972,6 +976,7 @@ namespace LundunGreybox
         static void Shop(V2 c, V2 n, V2 t, double w, string[] shop, bool shut)
         {
             double hw = w / 2 - 0.25;
+            D.shopFronts.Add(new ShopFrontInfo { x = c.x, z = c.z, nx = n.x, nz = n.z, w = w, name = shop[0], shut = shut });   // V2d
             // fascia (lit sign) on a dark backing
             SBox(mSolid, c + n * 0.08, t, hw + 0.1, 0.08, 2.95, 3.85, S("charcoal"));
             VQuad(mGlow, c + n * 0.17 - t * hw, c + n * 0.17 + t * hw, 3.0, 3.8, A["shop_" + shop[0]], n);
@@ -997,6 +1002,7 @@ namespace LundunGreybox
             double hw = w / 2 - 0.2;
             SBox(mSolid, c + n * 0.1, t, hw + 0.15, 0.1, 0, 3.9, S("pubgreen"));
             D.shopLights.Add(new[] { c.x, c.z, n.x, n.z, w, 1 });
+            D.shopFronts.Add(new ShopFrontInfo { x = c.x, z = c.z, nx = n.x, nz = n.z, w = w, name = "PUB:" + name });   // V2d
             VQuad(mGlow, c + n * 0.21 - t * hw, c + n * 0.21 + t * hw, 3.05, 3.8, A["pub_" + name], n);
             VQuad(mGlow, c + n * 0.21 - t * (hw - 0.2), c + n * 0.21 + t * (hw - 1.6), 0.7, 2.7, A["pubwin"], n);
             VQuad(mSolid, c + n * 0.21 + t * (hw - 1.4), c + n * 0.21 + t * (hw - 0.2), 0, 2.5, S("glass"), n);
