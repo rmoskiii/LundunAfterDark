@@ -52,7 +52,7 @@ namespace LundunGreybox
         /// Shelf packer, filling from the top of the texture down. Returns the pixel rect (x, y = bottom-left).
         public bool Alloc(string name, int w, int h, out int x, out int y)
         {
-            if (shelfX + w + Pad > W) { shelfX = 0; shelfY += shelfH + Pad; shelfH = 0; }
+            if (shelfX + w + Pad > W) { KeepTail(); shelfX = 0; shelfY += shelfH + Pad; shelfH = 0; }
             x = shelfX; y = H - (shelfY + h);
             if (y < 0 || w > W) throw new Exception("Dressing atlas is full (at '" + name + "'). Make it bigger.");
             shelfX += w + Pad; shelfH = Math.Max(shelfH, h);
@@ -62,8 +62,27 @@ namespace LundunGreybox
             return true;
         }
         public int UsedHeight { get { return shelfY + shelfH; } }
+
+        // V2c: the unused end of each finished shelf, so late additions can go there instead of making the atlas taller
+        readonly List<int[]> tails = new List<int[]>();           // x, top (from the top of the texture), width, height
+        void KeepTail() { if (shelfH > 0 && W - shelfX > 40) tails.Add(new[] { shelfX, shelfY, W - shelfX, shelfH }); }
+        /// Like Alloc, but first tries the unused end of an earlier shelf (nothing already placed moves).
+        public bool AllocTail(string name, int w, int h, out int x, out int y)
+        {
+            foreach (int[] t in tails)
+            {
+                if (t[2] < w + Pad || t[3] < h) continue;
+                x = t[0]; y = H - (t[1] + h);
+                t[0] += w + Pad; t[2] -= w + Pad;
+                cx0 = x; cy0 = y; cx1 = x + w; cy1 = y + h;
+                rects[name] = new UVRect((x + 0.5) / W, (y + 0.5) / H, (x + w - 0.5) / W, (y + h - 0.5) / H);
+                return true;
+            }
+            return Alloc(name, w, h, out x, out y);
+        }
+        public string TailReport() { string r = ""; foreach (int[] t in tails) r += t[2] + "x" + t[3] + " "; return r; }
         /// V2a: start a new shelf (so a run of same-sized things packs into tidy rows).
-        public void NewShelf() { if (shelfX > 0) { shelfX = 0; shelfY += shelfH + Pad; shelfH = 0; } }
+        public void NewShelf() { if (shelfX > 0) { KeepTail(); shelfX = 0; shelfY += shelfH + Pad; shelfH = 0; } }
 
         // ------------------------------------------------------------------ pixels
         public void Put(int x, int y, Col c, double cover)

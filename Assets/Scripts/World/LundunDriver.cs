@@ -32,7 +32,7 @@ public static class LundunDriver
 
     static readonly Profile careful = new Profile { style = Style.Careful, speed = 0.92f, headway = 2.0f, minGap = 5f, brake = 3.5f, accel = 0.55f, junctionSpeed = 4.5f, junctionFrom = 24f, giveWay = 2, watchPeople = true, hornAfter = 5f };
     static readonly Profile normal = new Profile { style = Style.Normal, speed = 1.0f, headway = 1.4f, minGap = 3.5f, brake = 5f, accel = 0.8f, junctionSpeed = 7f, junctionFrom = 16f, giveWay = 1, watchPeople = true, hornAfter = 3f };
-    static readonly Profile reckless = new Profile { style = Style.Reckless, speed = 1.3f, headway = 0.6f, minGap = 2f, brake = 7.5f, accel = 1f, junctionSpeed = 0f, junctionFrom = 0f, giveWay = 0, watchPeople = false, hornAfter = 1.2f };
+    static readonly Profile reckless = new Profile { style = Style.Reckless, speed = 1.2f, headway = 0.8f, minGap = 2.5f, brake = 7.5f, accel = 1f, junctionSpeed = 9f, junctionFrom = 12f, giveWay = 1, watchPeople = false, hornAfter = 1.2f };
 
     public static Profile For(Style s) { return s == Style.Careful ? careful : s == Style.Reckless ? reckless : normal; }
 
@@ -41,7 +41,7 @@ public static class LundunDriver
     {
         bool late = hour >= 0f && hour < 5f;
         double r = rng.NextDouble();
-        double rk = late ? 0.18 : 0.10, nm = 0.25;
+        double rk = late ? 0.12 : 0.06, nm = 0.27;                 // V2c: fewer hot-heads (they caused most of the pile-ups)
         if (r < rk) return Style.Reckless;
         if (r < rk + nm) return Style.Normal;
         return Style.Careful;
@@ -213,13 +213,109 @@ public static class LundunDriver
         return hornClip;
     }
 
-    /// Where in the road a car keeps (UK: the left lane), the same rules traffic has always used.
+    // ------------------------------------------------------------------ V2c: lanes, as painted
+    // Traffic used to keep to one line a quarter of the way across every road, which on the Ring and the arterials is
+    // the dashed lane line itself, and on a street with parking bays brushes the parked cars. Now it drives in the
+    // lanes that are painted:
+    //   Ring (22 m)      two lanes each way: the kerb lane (lane 1) and the outside lane next to the central lines (lane 0)
+    //   arterial (15 m)  the lane by the centre line (lane 0); the kerb lane (lane 1) is the bus lane where one is
+    //                    painted, an ordinary second lane where it isn't
+    //   street (10 m)    one lane each way, clear of the parking bays
+    //   bridge, service  one lane each way
+
+    /// Can cars (not buses) choose between two lanes each way on this road?
+    public static bool TwoLanes(double width, string cls, string road)
+    {
+        if (cls == "ring" || width >= 20) return true;
+        return cls == "arterial" && !LundunStreets.HasBusLane(road, cls);
+    }
+
+    /// How far left of the road's centre line to drive. lane: 0 = by the centre, 1 = by the kerb (in between while
+    /// changing lane); ignored on roads with one lane each way.
+    public static float LaneOffset(double width, string cls, string road, bool narrowHighStreet, bool bus, float lane)
+    {
+        if (narrowHighStreet) return 1.6f;
+        if (cls == "ring" || width >= 20) return bus ? 8.4f : Mathf.Lerp(3.3f, 8.3f, lane);
+        if (cls == "arterial") return bus ? 5.4f : TwoLanes(width, cls, road) ? Mathf.Lerp(1.95f, 5.4f, lane) : 1.95f;
+        if (cls == "bridge") return bus ? 4.2f : 3.6f;
+        if (width > 9.5 && width < 10.5) return bus ? 1.55f : 1.75f;                 // clear of the bays (their line is 3.1 m out)
+        return (float)(width * 0.25);
+    }
+
+    /// For callers that only know the width (police patrols): the kerb lane on the Ring, the centre lane elsewhere.
     public static float LaneOffset(double width, bool narrowHighStreet, bool bus)
     {
-        bool baysStreet = width > 9.5 && width < 10.5;      // L3: 10 m streets have parked cars along the kerb: keep clear of them
-        return narrowHighStreet ? 1.6f
-             : baysStreet ? (float)(width * 0.25) - 0.35f
-             : bus ? Mathf.Max((float)(width * 0.25), (float)(width * 0.5) - 2.1f)      // fix: a little more room from the kerb
-             : (float)(width * 0.25);
+        string cls = width >= 20 ? "ring" : width >= 14 ? "arterial" : width > 9.5 ? "street" : "service";
+        return LaneOffset(width, cls, null, narrowHighStreet, bus, 1f);
+    }
+
+    // ------------------------------------------------------------------ V2c: round the corner on an arc
+    /// Where to steer for: 'look' metres ahead of the car along its lane on the road A→B, and round the corner onto
+    /// B→C on an arc (tight for a left turn, wide for a right turn, UK), instead of cutting straight across.
+    ///   o1, o2     lane offsets (metres left of the centre line) on A→B and B→C
+    ///   advance    true once the car is far enough round that B→C is its road now
+    /// With no road after B (hasNext false), or a U-turn, it just follows the lane.
+    public static Vector3 Aim(Vector3 pos, Vector3 A, Vector3 B, Vector3 C, bool hasNext, float o1, float o2, float look, out bool advance)
+    {
+        pos.y = 0f; A.y = 0f; B.y = 0f; C.y = 0f;
+        Vector3 dir = B - A; float segLen = dir.magnitude; dir /= Mathf.Max(0.001f, segLen);
+        Vector3 left = new Vector3(-dir.z, 0f, dir.x);
+        float s = Vector3.Dot(pos - A, dir);
+        advance = false;
+        Vector3 ndir = hasNext ? C - B : dir; float nextLen = ndir.magnitude;
+        float turn = hasNext && nextLen > 0.1f ? Vector3.SignedAngle(dir, ndir, Vector3.up) : 0f;     // + = to the right
+        if (!hasNext || nextLen < 0.1f || Mathf.Abs(turn) > 150f)
+        {
+            if (segLen - s < look * 0.6f) advance = true;
+            if (s + look <= segLen || !hasNext || nextLen < 0.1f) return A + dir * (s + look) + left * o1;
+            ndir /= nextLen;
+            return B + ndir * (s + look - segLen) + new Vector3(-ndir.z, 0f, ndir.x) * o2;
+        }
+        ndir /= nextLen;
+        Vector3 nleft = new Vector3(-ndir.z, 0f, ndir.x);
+        // where the two lane lines cross, measured along each road (from A, and from B)
+        float sK = segLen, uK = 0f;
+        float sin = Mathf.Sin(turn * Mathf.Deg2Rad), abs = Mathf.Abs(turn);
+        if (abs > 8f)
+        {
+            // A + dir·sK + left·o1 = B + ndir·uK + nleft·o2
+            Vector3 d = (B + nleft * o2) - (A + left * o1);
+            float det = dir.x * -ndir.z - dir.z * -ndir.x;
+            if (Mathf.Abs(det) > 1e-4f)
+            {
+                sK = (d.x * -ndir.z - d.z * -ndir.x) / det;
+                uK = (dir.x * d.z - dir.z * d.x) / det;
+            }
+        }
+        // the arc: tangent length a either side of the crossing (radius about 5.5 m turning left, 8.5 m turning right)
+        float radius = turn > 0f ? 8.5f : 5.5f;
+        float a = abs > 8f ? Mathf.Clamp(radius * Mathf.Tan(abs * 0.5f * Mathf.Deg2Rad), 2f, 12f) : 3f;
+        a = Mathf.Min(a, Mathf.Max(1f, sK - 1f), Mathf.Max(1f, nextLen - uK - 1f));
+        float s0 = sK - a, u2 = uK + a;
+        Vector3 P0 = A + dir * s0 + left * o1, K = A + dir * sK + left * o1, P2 = B + ndir * u2 + nleft * o2;
+        if (abs <= 8f) K = (P0 + P2) * 0.5f;
+        // the arc as a short polyline
+        const int N = 8;
+        float curveLen = 0f; Vector3 prev = P0;
+        float bestD = float.MaxValue, bestAt = 0f;
+        for (int i = 1; i <= N; i++)
+        {
+            float t = i / (float)N, m = 1f - t;
+            Vector3 q = P0 * (m * m) + K * (2f * m * t) + P2 * (t * t);
+            // the nearest point of this piece to the car
+            Vector3 seg = q - prev; float sl = seg.magnitude;
+            float k = sl > 1e-4f ? Mathf.Clamp01(Vector3.Dot(pos - prev, seg) / (sl * sl)) : 0f;
+            float dd = (prev + seg * k - pos).sqrMagnitude;
+            if (dd < bestD) { bestD = dd; bestAt = curveLen + sl * k; }
+            curveLen += sl; prev = q;
+        }
+        // how far along the whole path the car is
+        float p = s < s0 ? s : s0 + bestAt;
+        advance = p >= s0 + curveLen * 0.62f;
+        float want = p + look;
+        if (want <= s0) return A + dir * want + left * o1;
+        if (want >= s0 + curveLen) return B + ndir * (u2 + want - s0 - curveLen) + nleft * o2;
+        float tt = (want - s0) / curveLen, mm = 1f - tt;
+        return P0 * (mm * mm) + K * (2f * mm * tt) + P2 * (tt * tt);
     }
 }

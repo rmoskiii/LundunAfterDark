@@ -76,6 +76,12 @@ public class LundunTrafficCar : MonoBehaviour
     private bool dareRed;                  // L4: this time, a reckless driver runs the red
     private float nose = 2.2f, pivotBack;  // fix: the vehicle's length (stop lines, look-ahead) and where a bus turns about
     private float wedgedFor, backUpUntil, lastSteer;
+    // V2c: lanes (0 = by the centre line, 1 = by the kerb) on roads with two each way
+    private int homeLane = 1;
+    private float lanePos = 1f, nextSideLook;
+    private bool sideClear;
+    private string curCls = "street", curRoad;
+    private static int vehicleMask = -1;
 
     void RollStyle()
     {
@@ -83,6 +89,10 @@ public class LundunTrafficCar : MonoBehaviour
         Style = isBus ? LundunDriver.Style.Careful : LundunDriver.Roll(rng, hour);    // bus drivers are always careful
         profile = LundunDriver.For(Style);
         car.ProportionalBrake = true;
+        // V2c: careful drivers mostly keep to the kerb lane, quicker ones use the outside lane more
+        double kerb = Style == LundunDriver.Style.Careful ? 0.8 : Style == LundunDriver.Style.Normal ? 0.55 : 0.3;
+        homeLane = isBus || rng.NextDouble() < kerb ? 1 : 0;
+        lanePos = homeLane;
     }
 
     void Awake()
@@ -184,23 +194,33 @@ public class LundunTrafficCar : MonoBehaviour
         dir /= segLen;
         double width; string cls;
         graph.EdgeInfo(fromNode, toNode, out width, out cls);
+        curCls = cls; curRoad = graph.EdgeRoadName(fromNode, toNode);
 
         // where are we along this stretch of road?
         Vector3 pos = transform.position; pos.y = 0f;
         float s = Vector3.Dot(pos - A, dir);
-        if (segLen - s < lookAhead * 0.6f) { Advance(); return; }
 
-        // aim at a point a little way ahead, in the left lane (spills onto the next road near the end)
-        float aimS = s + lookAhead;
-        Vector3 target;
-        if (aimS <= segLen) target = LanePoint(A, dir, aimS, width);
-        else
+        // V2c: a dead end ahead: turned round out of sight rather than swinging a U-turn across the street
+        if (nextNode == fromNode && segLen - s < 14f && !Seen()) { TurnBack(A, B, width); return; }
+
+        // V2c: aim a little way ahead in its painted lane, and round the corner on an arc (LundunDriver.Aim)
+        Vector3 Cn = B; float o2; bool hasNext = nextNode >= 0;
+        float signedTurn = 0f;
+        ChooseLane(width, cls, curRoad, B, dir, segLen - s);
+        float o1 = LundunDriver.LaneOffset(width, cls, curRoad, narrowStreet.Contains(new Vector2(pos.x, pos.z)), isBus, lanePos);
+        o2 = o1;
+        if (hasNext)
         {
             NavPoint c = graph.NodePosition(nextNode);
-            Vector3 C = new Vector3((float)c.x, 0f, (float)c.z), ndir = (C - B).normalized;
+            Cn = new Vector3((float)c.x, 0f, (float)c.z);
             double nw; string ncls; graph.EdgeInfo(toNode, nextNode, out nw, out ncls);
-            target = LanePoint(B, ndir, aimS - segLen, nw);
+            o2 = LundunDriver.LaneOffset(nw, ncls, graph.EdgeRoadName(toNode, nextNode), narrowStreet.Contains(new Vector2(B.x, B.z)), isBus, lanePos);
+            signedTurn = Vector3.SignedAngle(dir, Cn - B, Vector3.up);
         }
+        float look = Mathf.Clamp(Mathf.Abs(car.Speed) * 0.9f, isBus ? 6f : 4.5f, lookAhead + 1f);
+        bool passed;
+        Vector3 target = LundunDriver.Aim(pos, A, B, Cn, hasNext, o1, o2, look, out passed);
+        if (passed) { Advance(); return; }
 
         Vector3 local = transform.InverseTransformPoint(new Vector3(target.x, transform.position.y, target.z));
         local.z += pivotBack;                                       // a bus steers from its back axle, so it doesn't cut corners
@@ -225,6 +245,7 @@ public class LundunTrafficCar : MonoBehaviour
             Vector3 ndir = (new Vector3((float)c.x, 0f, (float)c.z) - B).normalized;
             float turn = Vector3.Angle(dir, ndir);
             float corner = Style == LundunDriver.Style.Reckless ? cornerSpeed * 1.4f : cornerSpeed;
+            if (signedTurn < -55f) corner *= 0.8f;                                     // V2c: a left turn is the tight one
             if (turn > 30f) want = Mathf.Min(want, Mathf.Lerp(cruise, corner, Mathf.InverseLerp(30f, 90f, turn)));
         }
         // R3: junctions: ease down into them, and give way (careful / normal drivers)
@@ -316,9 +337,45 @@ public class LundunTrafficCar : MonoBehaviour
     {
         Vector3 centre = start + dir * along;
         Vector3 left = new Vector3(-dir.z, 0f, dir.x);
-        // UK: keep left (buses hug the kerb; clear of the bays on 10 m streets; the old high street is narrower)
-        float offset = LundunDriver.LaneOffset(width, narrowStreet.Contains(new Vector2(centre.x, centre.z)), isBus);
+        // UK: keep left, in the painted lane (buses in the kerb lane; clear of the bays on 10 m streets; the old high street is narrower)
+        float offset = LundunDriver.LaneOffset(width, curCls, curRoad, narrowStreet.Contains(new Vector2(centre.x, centre.z)), isBus, lanePos);
         return centre + left * offset;
+    }
+
+    /// V2c: which lane, on roads with two each way: its usual one; the outside lane before a right turn, the kerb lane
+    /// before a left; it only moves across when there's nobody alongside.
+    void ChooseLane(double width, string cls, string road, Vector3 B, Vector3 dir, float toEnd)
+    {
+        if (isBus || !LundunDriver.TwoLanes(width, cls, road)) return;
+        int want = homeLane;
+        if (nextNode >= 0 && toEnd < 75f)
+        {
+            NavPoint c = graph.NodePosition(nextNode);
+            float signed = Vector3.SignedAngle(dir, new Vector3((float)c.x, 0f, (float)c.z) - B, Vector3.up);
+            if (signed > 30f) want = 0; else if (signed < -30f) want = 1;
+        }
+        if (Mathf.Abs(lanePos - want) < 0.01f) { lanePos = want; return; }
+        bool midChange = lanePos > 0.05f && lanePos < 0.95f;
+        if (!midChange && Time.time >= nextSideLook)
+        {
+            nextSideLook = Time.time + 0.3f;
+            if (vehicleMask == -1) vehicleMask = LayerMask.GetMask("Vehicle", "Player");
+            float side = want < lanePos ? 1f : -1f;                                   // the outside lane is on the right
+            sideClear = !Physics.CheckBox(transform.position + transform.right * (side * 4f) + Vector3.up, new Vector3(1.6f, 1f, 5.5f), transform.rotation, vehicleMask, QueryTriggerInteraction.Ignore);
+        }
+        if (midChange || sideClear) lanePos = Mathf.MoveTowards(lanePos, want, Time.deltaTime * 0.4f);
+    }
+
+    /// V2c: at a dead end, with nobody watching: facing back the way it came, in the lane going back.
+    void TurnBack(Vector3 A, Vector3 B, double width)
+    {
+        Vector3 back = (A - B).normalized;
+        int oldFrom = fromNode;
+        fromNode = toNode; toNode = oldFrom;
+        PickNext();
+        toJunction = IsJunction(toNode);
+        senses.waitedAtJunction = 0f;
+        BackInLane(LanePoint(B, back, 8f, width), back);
     }
 
     void Advance()

@@ -12,7 +12,7 @@ public struct NavPoint
 
 public class LundunRoadGraph
 {
-    class Edge { public int a, b; public double len, width, pave; public string road, cls; }
+    class Edge { public int a, b; public double len, width, pave; public string road, cls, name; public double footfall = 1; }
 
     readonly List<NavPoint> nodes = new List<NavPoint>();
     readonly List<Edge> edges = new List<Edge>();
@@ -55,6 +55,7 @@ public class LundunRoadGraph
                 int a = stops[s].Value, b = stops[s + 1].Value;
                 if (a == b) continue;
                 Edge e = new Edge { a = a, b = b, len = Math.Max(0.01, stops[s + 1].Key - stops[s].Key), width = r.width, pave = pave.ContainsKey(r.roadClass) ? pave[r.roadClass] : 0, road = r.id, cls = r.roadClass };
+                e.name = r.name; e.footfall = LundunStreets.Footfall(r.name, r.roadClass);        // V2c
                 adj[a].Add(edges.Count); adj[b].Add(edges.Count);
                 edges.Add(e);
             }
@@ -119,13 +120,13 @@ public class LundunRoadGraph
             if (classes != null && Array.IndexOf(classes, edges[i].cls) < 0) continue;
             NavPoint a = nodes[edges[i].a], b = nodes[edges[i].b];
             double near = SegDist(centre, a, b), far = Math.Max(NavPoint.Dist(centre, a), NavPoint.Dist(centre, b));
-            if (near <= maxD && far >= minD) { cand.Add(i); total += edges[i].len; }
+            if (near <= maxD && far >= minD) { cand.Add(i); total += edges[i].len * (needPavement ? edges[i].footfall : 1); }   // V2c: people gather on the busy streets
         }
         if (cand.Count == 0) return false;
         for (int attempt = 0; attempt < 40; attempt++)
         {
             double pick = rng.NextDouble() * total; int ei = cand[cand.Count - 1];
-            foreach (int c in cand) { pick -= edges[c].len; if (pick <= 0) { ei = c; break; } }
+            foreach (int c in cand) { pick -= edges[c].len * (needPavement ? edges[c].footfall : 1); if (pick <= 0) { ei = c; break; } }
             Edge e = edges[ei];
             NavPoint a = nodes[e.a], b = nodes[e.b];
             double t = rng.NextDouble();
@@ -224,6 +225,21 @@ public class LundunRoadGraph
     {
         foreach (int ei in adj[a]) { Edge e = edges[ei]; if ((e.a == a && e.b == b) || (e.a == b && e.b == a)) { width = e.width; roadClass = e.cls; return true; } }
         width = 10; roadClass = "street"; return false;
+    }
+
+    /// V2c: the name of the road between two neighbouring nodes ("Rye Lane"), or null.
+    /// V2c: how busy the pavements are on the road nearest q (LundunStreets.Footfall; 1 = an ordinary street).
+    public double FootfallNear(NavPoint q)
+    {
+        int edge; double t, off;
+        NearestOnRoad(q, out edge, out t, out off);
+        return edge >= 0 && off < 40 ? edges[edge].footfall : 1;
+    }
+
+    public string EdgeRoadName(int a, int b)
+    {
+        foreach (int ei in adj[a]) { Edge e = edges[ei]; if ((e.a == a && e.b == b) || (e.a == b && e.b == a)) return e.name; }
+        return null;
     }
 
     static double SegDist(NavPoint q, NavPoint a, NavPoint b)

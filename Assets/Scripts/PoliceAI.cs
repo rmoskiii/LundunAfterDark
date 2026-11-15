@@ -665,20 +665,14 @@ public class PoliceAI : MonoBehaviour
         Vector3 left = new Vector3(-dir.z, 0f, dir.x);
         float lateral = Vector3.Dot(pos - A, left);
         if (Mathf.Abs(lateral) > 14f) { pFrom = -1; return false; }                   // pushed well off the road
-        const float lookAhead = 7f;
-        if (segLen - s < lookAhead * 0.6f) { AdvancePatrol(g); return true; }
-
-        // aim a little ahead in the left lane (onto the next road near the end)
-        float aimS = s + lookAhead;
-        Vector3 target;
-        if (aimS <= segLen) target = A + dir * aimS + left * LundunDriver.LaneOffset(width, false, false);
-        else
-        {
-            NavPoint nc = g.NodePosition(pNext);
-            Vector3 C = new Vector3((float)nc.x, 0f, (float)nc.z), ndir = (C - B).normalized;
-            g.EdgeInfo(pTo, pNext, out double nw, out string ncls);
-            target = B + ndir * (aimS - segLen) + new Vector3(-ndir.z, 0f, ndir.x) * LundunDriver.LaneOffset(nw, false, false);
-        }
+        // V2c: in the painted lane, and round the corner on an arc (the same as traffic: LundunDriver.Aim)
+        NavPoint nc = g.NodePosition(pNext);
+        Vector3 C = new Vector3((float)nc.x, 0f, (float)nc.z);
+        g.EdgeInfo(pTo, pNext, out double nw, out string ncls);
+        float o1 = LundunDriver.LaneOffset(width, cls, g.EdgeRoadName(pFrom, pTo), false, false, 1f);
+        float o2 = LundunDriver.LaneOffset(nw, ncls, g.EdgeRoadName(pTo, pNext), false, false, 1f);
+        Vector3 target = LundunDriver.Aim(pos, A, B, C, true, o1, o2, Mathf.Clamp(Mathf.Abs(car.Speed) * 0.9f, 4.5f, 8f), out bool passed);
+        if (passed) { AdvancePatrol(g); return true; }
         Vector3 local = transform.InverseTransformPoint(new Vector3(target.x, transform.position.y, target.z));
         float steer = Mathf.Clamp(Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg / 25f, -1f, 1f);
 

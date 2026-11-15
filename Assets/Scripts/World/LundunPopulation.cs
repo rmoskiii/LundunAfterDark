@@ -143,7 +143,7 @@ public class LundunPopulation : MonoBehaviour
         TimeOfDayFactor = DensityAt(LundunClock.Instance != null ? LundunClock.Instance.Hour : 22f);
 
         Vector3 player = vehicles.PlayerTarget.position;
-        int target = Mathf.RoundToInt(PedestrianBudget * Scale * TimeOfDayFactor);
+        int target = Mathf.RoundToInt(PedestrianBudget * Scale * TimeOfDayFactor * StreetBusy(player));
         target = Mathf.Max(0, target - LundunGangs.ActiveMembers);              // R4a: gang members share the budget
         target = Mathf.Max(0, target - LundunBusPassengers.Active);             // L5: so do people at the bus stops
         target = Mathf.Max(0, target - LundunHomeless.Active);                  // L6: and people sleeping rough
@@ -631,7 +631,7 @@ public class LundunPopulation : MonoBehaviour
             bool forward = rng.NextDouble() < 0.5;                                          // which way it faces
             Vector3 along3 = new Vector3((float)dir.x, 0f, (float)dir.z) * (forward ? 1f : -1f);
             Vector3 left = new Vector3(-along3.z, 0f, along3.x);
-            float lateral = parked ? (float)halfWidth - 1.2f : (float)(halfWidth * 0.5);
+            float lateral = parked ? (float)halfWidth - 1.2f : LundunDriver.LaneOffset(halfWidth * 2, cls, nav.Graph.EdgeRoadName(a, b), false, false, 1f);   // V2c: in the kerb lane
             Vector3 pos = new Vector3((float)p.x, 0f, (float)p.z) + left * lateral;
             if (cam != null && LundunView.CanSee(cam, pos)) continue;
             if (Physics.CheckSphere(pos + Vector3.up, parked ? parkedCarSpacing : movingCarSpacing, LayerMask.GetMask("Vehicle", "Player"), QueryTriggerInteraction.Ignore)) continue;
@@ -729,7 +729,7 @@ public class LundunPopulation : MonoBehaviour
             double w; string cls; nav.Graph.EdgeInfo(route[i], route[(i + 1) % route.Count], out w, out cls);
             Vector3 along = new Vector3((float)(b.x - a.x), 0f, (float)(b.z - a.z)).normalized;
             Vector3 left = new Vector3(-along.z, 0f, along.x);
-            Vector3 pos = new Vector3((float)p.x, 0f, (float)p.z) + left * Mathf.Max((float)(w * 0.25), (float)(w * 0.5) - 1.8f);
+            Vector3 pos = new Vector3((float)p.x, 0f, (float)p.z) + left * LundunDriver.LaneOffset(w, cls, null, false, true, 1f);   // V2c: in its lane
             if (cam != null && LundunView.CanSee(cam, pos)) continue;
             if (Physics.CheckSphere(pos + Vector3.up * 1.5f, 6f, LayerMask.GetMask("Vehicle", "Player"), QueryTriggerInteraction.Ignore)) continue;
 
@@ -991,6 +991,22 @@ public class LundunPopulation : MonoBehaviour
         for (int i = 0, j = p.Length - 1; i < p.Length; j = i++)
             if (((p[i].z > z) != (p[j].z > z)) && (x < (p[j].x - p[i].x) * (z - p[i].z) / (p[j].z - p[i].z) + p[i].x)) c = !c;
         return c;
+    }
+
+    // V2c: more people about when you're on a high street, fewer on the back streets and the Ring (eased, so the
+    // crowd doesn't jump as you turn a corner). New people are also put down on the busy streets first (the road graph).
+    float streetBusy = 1f, nextBusyLook;
+    float StreetBusy(Vector3 player)
+    {
+        if (Time.time >= nextBusyLook)
+        {
+            nextBusyLook = Time.time + 1f;
+            LundunNavigation nav = LundunNavigation.Instance;
+            double f = nav != null && nav.Graph != null ? nav.Graph.FootfallNear(new NavPoint(player.x, player.z)) : 1;
+            float want = f >= 3.5 ? 1.25f : f >= 1.5 ? 1.1f : f >= 0.9 ? 0.88f : 0.75f;
+            streetBusy = Mathf.MoveTowards(streetBusy, want, 0.08f);
+        }
+        return streetBusy;
     }
 
     bool FindPavementSpot(Vector3 player, Camera cam, out Vector3 pos)

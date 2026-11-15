@@ -293,6 +293,7 @@ namespace LundunGreybox
             if (!ExpansionMode) LagosAtlas(a);      // S3: LAGOS FOODS' inside (appended, city only)
             if (Brix) { MarketAtlas(a); RetailAtlas(a); }     // E3/E4: the market's and retail park's colours and signs (expansions only: the city's atlas stays as it was)
             if (Kingsmere) KingsmereAtlas(a);       // E8: flags, deckchair stripes, the arch's lettering, the clock
+            ShopWindowArt.Paint(a);                 // V2c: six shop interiors (in the unused ends of the shelves above)
             return a;
         }
 
@@ -985,7 +986,7 @@ namespace LundunGreybox
             V2 winC = c - t * (doorW / 2 + 0.1);
             D.shopLights.Add(new[] { c.x, c.z, n.x, n.z, w, 0 });
             SBox(mSolid, winC + n * 0.05, t, winW / 2, 0.06, 0, 0.5, S("charcoal"));                       // stall riser
-            VQuad(mGlow, winC + n * 0.06 - t * (winW / 2), winC + n * 0.06 + t * (winW / 2), 0.5, 2.8, A["shopwin"], n);
+            VQuad(mGlow, winC + n * 0.06 - t * (winW / 2), winC + n * 0.06 + t * (winW / 2), 0.5, 2.8, A[ShopWindowArt.Key(ShopWindowArt.Kind(shop[0]))], n);   // V2c: its own interior
             V2 doorC = c + t * (hw - doorW / 2);
             VQuad(mSolid, doorC + n * 0.05 - t * (doorW / 2), doorC + n * 0.05 + t * (doorW / 2), 0, 2.4, S("glass"), n);
             D.Count("shop fronts");
