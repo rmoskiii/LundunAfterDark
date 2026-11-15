@@ -197,11 +197,14 @@ public class LundunWeather : MonoBehaviour
         Color flat = (l.ambientSky + l.ambientHorizon) * 0.5f;
         l.ambientSky = Color.Lerp(l.ambientSky, flat * 0.9f, c * 0.6f);
         l.ambientHorizon = Color.Lerp(l.ambientHorizon, flat * 0.9f, c * 0.6f);
-        float fogPull = Mathf.Lerp(1f, 0.55f, Mathf.Clamp01(c * 0.6f + r * 0.6f));
+        // V2b: rain no longer turns the picture to grey soup: the fog closes in less, and at night (when there's no
+        // daylight for the clouds to take away) the exposure and colour hardly change
+        float fogPull = Mathf.Lerp(1f, 0.75f, Mathf.Clamp01(c * 0.6f + r * 0.6f));
         l.fogStart *= fogPull; l.fogEnd *= fogPull;
-        l.postExposure -= 0.25f * c;
-        l.saturation -= 14f * c;
-        l.contrast -= 2f * c;
+        float daylight = Mathf.Lerp(0.3f, 1f, bright);
+        l.postExposure -= 0.25f * c * daylight;
+        l.saturation -= 12f * c * daylight;
+        l.contrast -= 2f * c * daylight;
         l.bloom *= 1f + 0.3f * Wetness;
     }
 
@@ -212,8 +215,8 @@ public class LundunWeather : MonoBehaviour
         g.temperature -= 7f * c;
         float lum = g.fogColor.r * 0.3f + g.fogColor.g * 0.59f + g.fogColor.b * 0.11f;
         g.fogColor = Color.Lerp(g.fogColor, new Color(lum * 0.95f, lum, lum * 1.06f), c * 0.7f);
-        g.fogDensity *= 1f + 1.4f * c + 1.6f * r;
-        g.fogStart *= Mathf.Lerp(1f, 0.45f, Mathf.Clamp01(c * 0.5f + r * 0.7f));
+        g.fogDensity *= 1f + 0.5f * c + 0.8f * r;                  // V2b: was 1.4 / 1.6 (rain hid the whole street)
+        g.fogStart *= Mathf.Lerp(1f, 0.7f, Mathf.Clamp01(c * 0.5f + r * 0.7f));
         g.fogFalloff *= Mathf.Lerp(1f, 0.7f, r);               // rain haze reaches higher
         g.vignette += 0.06f * r;
         g.bloomScatter = Mathf.Min(0.9f, g.bloomScatter + 0.12f * Wetness);

@@ -103,7 +103,7 @@ public class LundunPopulation : MonoBehaviour
     private TextMeshProUGUI stats;
     private int activeCount;
 
-    class Car { public GameObject go; public LundunTrafficCar ai; public CarController cc; public Rigidbody rb; public VehicleHealth health; public Renderer[] renderers; public bool active; public bool parked; public bool bus; }
+    class Car { public string model; public GameObject go; public LundunTrafficCar ai; public CarController cc; public Rigidbody rb; public VehicleHealth health; public Renderer[] renderers; public bool active; public bool parked; public bool bus; }
     private readonly List<Car> cars = new List<Car>();
     private int movingCount, parkedCount, busCount, nextRoute;
     private List<List<int>> busRoutes;
@@ -150,7 +150,8 @@ public class LundunPopulation : MonoBehaviour
         target = Mathf.Max(0, target - LundunCyclists.Active);                  // and cyclists
         TickPedestrians(player, target);
         int movingTarget = Mathf.RoundToInt(MovingCarBudget * Scale * TimeOfDayFactor);
-        int parkedTarget = Mathf.RoundToInt(ParkedCarBudget * Scale);
+        // v53: more cars are left parked up at night (when there's less traffic to take one from)
+        int parkedTarget = Mathf.RoundToInt(ParkedCarBudget * Scale * Mathf.Lerp(1.5f, 1f, Mathf.InverseLerp(0.35f, 0.9f, TimeOfDayFactor)));
         TickCars(player, movingTarget, parkedTarget);
         int busTarget = Scale < 0.5f ? 0 : Mathf.RoundToInt(BusBudget * Mathf.Min(1f, Scale));
         TickBuses(player, busTarget);
@@ -834,6 +835,11 @@ public class LundunPopulation : MonoBehaviour
         if (carsMade >= Budgets[2, 1] + Budgets[2, 2]) return null;
         GameObject prefab = carPrefabs[rng.Next(carPrefabs.Length)];
         if (prefab == null) return null;
+        return MakeCar(prefab);
+    }
+
+    Car MakeCar(GameObject prefab)
+    {
         GameObject go = Instantiate(prefab, transform);
         go.SetActive(false);
         go.name = prefab.name + "_" + cars.Count;
@@ -841,10 +847,83 @@ public class LundunPopulation : MonoBehaviour
         Repaint(go, paintColours[ci], ci);
         LundunTrafficCar ai = go.GetComponent<LundunTrafficCar>();
         if (ai == null) ai = go.AddComponent<LundunTrafficCar>();
-        Car nc = new Car { go = go, ai = ai, cc = go.GetComponent<CarController>(), rb = go.GetComponent<Rigidbody>(),
+        Car nc = new Car { model = prefab.name, go = go, ai = ai, cc = go.GetComponent<CarController>(), rb = go.GetComponent<Rigidbody>(),
                            health = go.GetComponent<VehicleHealth>(), renderers = go.GetComponentsInChildren<Renderer>(true) };
         cars.Add(nc);
         return nc;
+    }
+
+    // ------------------------------------------------------------------ v53: any parked car can be taken
+    /// A real, drivable car of this model (a car prefab's name) parked exactly at pos / rot, wearing the same paint as
+    /// 'like' (the static parked car it replaces). LundunParking calls this as James walks up to a parked car.
+    /// Null if that model isn't one of the traffic's, or every car is in use.
+    public GameObject ParkReal(string model, Vector3 pos, Quaternion rot, Renderer like)
+    {
+        if (carPrefabs == null) return null;
+        GameObject prefab = null;
+        foreach (GameObject p in carPrefabs) if (p != null && p.name == model) { prefab = p; break; }
+        if (prefab == null) return null;
+        Car c = null;
+        foreach (Car k in cars) if (!k.active && !k.bus && k.go != null && k.model == model) { c = k; break; }
+        if (c == null)
+        {
+            int made = 0; foreach (Car k in cars) if (!k.bus) made++;
+            if (made < Budgets[2, 1] + Budgets[2, 2] + 6) c = MakeCar(prefab);        // a few extra, kept for this
+            else
+            {   // every car is out: take a parked one of this model that's far away and out of sight
+                Camera cam = Camera.main; float far = 70f;
+                foreach (Car k in cars)
+                {
+                    if (!k.active || k.bus || k.go == null || k.model != model || k.cc.IsDriven || k.ai.CurrentMode == LundunTrafficCar.Mode.Driving) continue;
+                    float d = Flat(k.go.transform.position, pos);
+                    if (d > far && !SeenCar(k, cam)) { far = d; c = k; }
+                }
+                if (c == null) return null;
+                c.go.SetActive(false);
+            }
+        }
+        if (c == null) return null;
+        Vector3 at = pos + Vector3.up * 0.1f;
+        c.go.transform.SetPositionAndRotation(at, rot);
+        c.go.SetActive(true);
+        c.rb.position = at; c.rb.rotation = rot;
+        c.rb.linearVelocity = Vector3.zero; c.rb.angularVelocity = Vector3.zero;
+        c.cc.SetTouchInput(0f, 0f);
+        Fresh(c);
+        c.active = true;
+        c.ai.BeginParked();
+        // the same paint as the car it replaces
+        LundunCarPaint paint = c.go.GetComponent<LundunCarPaint>();
+        if (paint != null && like != null && paint.Variants != null)
+        {
+            Material[] worn = like.sharedMaterials;
+            for (int i = 0; i < paint.Variants.Length; i++)
+                if (paint.Variants[i] != null && System.Array.IndexOf(worn, paint.Variants[i]) >= 0) { paint.Use(i); break; }
+        }
+        return c.go;
+    }
+
+    /// v53: is this car still standing parked where it was put (nobody has driven or damaged it)?
+    public bool StillParkedAt(GameObject car, Vector3 pos)
+    {
+        foreach (Car c in cars)
+            if (c.go == car)
+                return c.active && !c.cc.IsDriven && c.ai.CurrentMode == LundunTrafficCar.Mode.Parked && Flat(car.transform.position, pos) < 0.8f
+                       && !(c.health != null && (c.health.IsWrecked || c.health.IsBurning));
+        return false;
+    }
+
+    /// v53: is this one of the traffic's cars, and out in the world right now?
+    public bool IsOut(GameObject car)
+    {
+        foreach (Car c in cars) if (c.go == car) return c.active;
+        return false;
+    }
+
+    /// v53: put a car made by ParkReal back in the pool (the static parked car is shown again in its place).
+    public void TakeBack(GameObject car)
+    {
+        foreach (Car c in cars) if (c.go == car && !c.cc.IsDriven) { c.go.SetActive(false); c.active = false; return; }
     }
 
     /// Swaps paint materials (names containing "Paint" or "Roof") for a shared coloured copy — cheap to draw.

@@ -91,6 +91,32 @@ public class LundunAtmosphere : MonoBehaviour
         fogColor = new Color(0.62f, 0.45f, 0.47f), fogDensity = 0.007f, fogFalloff = 0.05f, fogStart = 25f, fogStrength = 0.8f, fogOnSky = 0.45f
     };
 
+    /// V2b: the tuned grades (Lundun → 31 calls this in the editor; 31b calls it with false to put V3a's back).
+    /// Clearer air at every hour (thinner ground fog that starts further away), a stronger teal / sodium split at night.
+    public void UseV2bGrades(bool on)
+    {
+        LundunAtmosphere fresh = null;
+        if (!on)
+        {   // the originals are this class's own field defaults: read them off a throwaway copy
+            LundunAtmosphere keep = Instance;
+            GameObject tmp = new GameObject("tmp") { hideFlags = HideFlags.HideAndDontSave };
+            fresh = tmp.AddComponent<LundunAtmosphere>();
+            Instance = keep;
+            night = fresh.night.Copy(); dawn = fresh.dawn.Copy(); day = fresh.day.Copy(); dusk = fresh.dusk.Copy();
+            haloStrength = fresh.haloStrength;
+            if (Application.isPlaying) Destroy(tmp); else DestroyImmediate(tmp);
+            return;
+        }
+        night.shadows = new Color(0.36f, 0.50f, 0.60f); night.highlights = new Color(0.66f, 0.50f, 0.33f); night.splitBalance = -20f; night.vignette = 0.34f;
+        night.bloomThreshold = 0.72f;
+        night.fogColor = new Color(0.15f, 0.11f, 0.13f); night.fogDensity = 0.0045f; night.fogStart = 30f; night.fogOnSky = 0.3f;
+        dawn.fogDensity = 0.010f; dawn.fogStart = 28f;
+        day.shadows = new Color(0.45f, 0.50f, 0.57f); day.highlights = new Color(0.56f, 0.53f, 0.48f); day.vignette = 0.2f;
+        day.fogDensity = 0.003f; day.fogStart = 45f;
+        dusk.fogDensity = 0.005f; dusk.fogStart = 35f;
+        haloStrength = 0.7f;
+    }
+
     [Header("Filled in by Lundun → 18")]
     [SerializeField] private Volume volume;
     [SerializeField] private ScriptableRendererFeature[] fogFeatures = new ScriptableRendererFeature[0];

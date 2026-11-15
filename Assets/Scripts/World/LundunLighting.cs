@@ -26,6 +26,11 @@ public class LundunLighting : MonoBehaviour
     [Tooltip("L5: the other ground glows (heritage, LED lamps; shops, pubs, lobbies)")]
     [SerializeField] private Material[] poolVariants = new Material[0];
 
+    [Tooltip("V2b: shop signs, lit shop fronts and other glowing dressing: dim by day, bright after dark (filled in by Lundun → 31)")]
+    [SerializeField] private Material[] signMaterials = new Material[0];
+    [SerializeField] private float signGlowDay = 0.4f;
+    [SerializeField] private float signGlowNight = 2.2f;
+
     [Header("Strengths at lampLevel = 1")]
     [SerializeField] private float lightPoolStrength = 0.7f;
     [SerializeField] private Color lampGlow = new Color(1f, 0.82f, 0.5f);
@@ -78,6 +83,9 @@ public class LundunLighting : MonoBehaviour
             sky.SetColor("_TopColor", l.skyTop);
             sky.SetColor("_HorizonColor", l.skyHorizon);
             sky.SetColor("_BottomColor", l.skyBottom);
+            // V2b: stars when the sky overhead is dark (a clear night); overcast greys the sky and hides them
+            float overhead = l.skyTop.r * 0.3f + l.skyTop.g * 0.5f + l.skyTop.b * 0.2f;
+            sky.SetFloat("_Stars", Mathf.Clamp01(1.15f - overhead * 22f) * Mathf.Clamp01(l.lampLevel * 1.5f - 0.4f));
             RenderSettings.skybox = sky;
         }
 
@@ -87,6 +95,11 @@ public class LundunLighting : MonoBehaviour
         if (lampHeadMaterial != null) lampHeadMaterial.SetColor("_EmissionColor", lampGlow * (lampGlowStrength * l.lampLevel));
         if (lightPoolMaterial != null) lightPoolMaterial.SetFloat("_Intensity", lightPoolStrength * l.lampLevel);
         if (lampLights != null) lampLights.Level = l.lampLevel;
+        if (signMaterials != null && signMaterials.Length > 0)
+        {
+            Color sign = Color.white * Mathf.Lerp(signGlowDay, signGlowNight, Mathf.Clamp01(l.lampLevel));
+            foreach (Material m in signMaterials) if (m != null) m.SetColor("_EmissionColor", sign);
+        }
         for (int i = 0; lampHeadVariants != null && i < lampHeadVariants.Length; i++)
             if (lampHeadVariants[i] != null)
                 lampHeadVariants[i].SetColor("_EmissionColor", (lampVariantGlow != null && i < lampVariantGlow.Length ? lampVariantGlow[i] : lampGlow) * (lampGlowStrength * l.lampLevel));

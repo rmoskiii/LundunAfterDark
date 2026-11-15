@@ -60,6 +60,48 @@ public struct LightingLook
         return r;
     }
 
+    /// V2b: the tuned looks (Lundun → 31 writes them into the four presets; Lundun → 31b puts Default() back).
+    /// Night is properly dark now: a low blue fill instead of a bright one, so lamp pools, windows and shop signs carry
+    /// the street; more contrast at every hour; fog further off, so the city reads at a distance.
+    public static LightingLook V2b(string which)
+    {
+        LightingLook l = Default(which);
+        switch (which)
+        {
+            case "Dawn":
+                l.sunIntensity = 1.0f;
+                l.ambientSky = new Color(0.44f, 0.43f, 0.56f); l.ambientHorizon = new Color(0.55f, 0.42f, 0.38f); l.ambientGround = new Color(0.16f, 0.15f, 0.14f);
+                l.skyTop = new Color(0.20f, 0.30f, 0.58f);
+                l.fogStart = 170f; l.fogEnd = 480f;
+                l.windowGlow = 0.8f; l.lampLevel = 0.5f;
+                l.contrast = 10f; l.saturation = 4f; l.bloom = 0.45f;
+                return l;
+            case "Dusk":
+                l.sunIntensity = 0.95f;
+                l.ambientSky = new Color(0.36f, 0.33f, 0.50f); l.ambientHorizon = new Color(0.52f, 0.36f, 0.36f); l.ambientGround = new Color(0.14f, 0.12f, 0.12f);
+                l.skyTop = new Color(0.12f, 0.14f, 0.36f); l.skyHorizon = new Color(0.98f, 0.48f, 0.34f);
+                l.fogStart = 170f; l.fogEnd = 500f;
+                l.windowGlow = 1.5f; l.lampLevel = 0.8f;
+                l.postExposure = 0.4f; l.contrast = 12f; l.saturation = 6f; l.bloom = 0.55f;
+                return l;
+            case "Day":
+                l.sunColor = new Color(1f, 0.95f, 0.84f); l.sunIntensity = 1.5f; l.shadowStrength = 0.85f;
+                l.ambientSky = new Color(0.50f, 0.57f, 0.72f); l.ambientHorizon = new Color(0.44f, 0.45f, 0.47f); l.ambientGround = new Color(0.24f, 0.22f, 0.20f);
+                l.skyTop = new Color(0.20f, 0.40f, 0.78f); l.skyHorizon = new Color(0.70f, 0.79f, 0.88f);
+                l.fogStart = 220f; l.fogEnd = 560f;
+                l.contrast = 12f; l.saturation = 8f; l.bloom = 0.3f;
+                return l;
+            default: // Night
+                l.sunColor = new Color(0.55f, 0.68f, 1f); l.sunIntensity = 0.45f; l.shadowStrength = 0.5f;
+                l.ambientSky = new Color(0.27f, 0.31f, 0.47f); l.ambientHorizon = new Color(0.22f, 0.21f, 0.29f); l.ambientGround = new Color(0.10f, 0.09f, 0.10f);
+                l.skyTop = new Color(0.015f, 0.022f, 0.06f); l.skyHorizon = new Color(0.27f, 0.16f, 0.17f); l.skyBottom = new Color(0.04f, 0.035f, 0.045f);
+                l.fogStart = 150f; l.fogEnd = 520f;
+                l.windowGlow = 2.0f; l.lampLevel = 1f;
+                l.postExposure = 0.68f; l.contrast = 14f; l.saturation = -2f; l.bloom = 0.65f;
+                return l;
+        }
+    }
+
     /// Starting values for the three presets the Lundun menu creates.
     public static LightingLook Default(string which)
     {
