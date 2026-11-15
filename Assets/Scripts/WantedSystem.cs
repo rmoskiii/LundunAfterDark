@@ -186,6 +186,7 @@ public class WantedSystem : MonoBehaviour
             {
                 cctvCall = new Report { at = Time.time + Random.Range(2.5f, 4f), worst = type };
                 if (Stars == 0) Toast("Caught on CCTV…");
+                LundunCctvFeed.Caught(cam);                                   // V2f: a second of the camera's picture
             }
             if (gunfire && heatForStar.Length > 0) amount = Mathf.Max(amount, heatForStar[0] - heat - cctvCall.heat);
             cctvCall.heat += amount;

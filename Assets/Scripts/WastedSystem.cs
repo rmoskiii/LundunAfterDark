@@ -56,6 +56,9 @@ public class WastedSystem : MonoBehaviour
             yield return null;
         }
 
+        // V2f: if a camera had him, the last few seconds as CCTV footage
+        if (LundunCctvFeed.Instance != null) yield return LundunCctvFeed.Instance.Replay();
+
         wastedText.SetActive(true);
         yield return new WaitForSecondsRealtime(2f);
 

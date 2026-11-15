@@ -19,6 +19,8 @@ public class LundunMissions : MonoBehaviour
 {
     public static LundunMissions Instance { get; private set; }
     public static bool Running { get { return Instance != null && Instance.run != null; } }
+    /// V2f: the attempt that's running (null if none), for LundunCctv.
+    public static LundunMissionRun CurrentRun { get { return Instance != null ? Instance.run : null; } }
     /// Guidance: the step on now (null between missions).
     public static LundunStep CurrentStep { get { return Instance != null && Instance.run != null && Instance.run.failed == null ? Instance.run.Current : null; } }
     private static bool skip;

@@ -14,7 +14,11 @@ using UnityEngine;
 ///                stolen; drive it past a junction dome and the plate is read: one star, police head for it. Leave
 ///                the car, get it resprayed, or keep away from cameras for three minutes (not wanted) and it's dropped
 ///   minimap      while wanted, the cameras' views show on the minimap (LundunMinimap)
-/// Story missions run as they always have: none of this happens while a mission is on (Live).
+/// V2f: missions too. The cameras watch during missions as well as Free Roam, except the ones listed in
+/// QuietMissions (the first mission: a new player learns the police before the cameras); a mission's own script can
+/// turn them on or off for itself (WatchThisMission). Cars a mission gives James, and his own car, are never "stolen":
+/// only the city's cars (traffic, parked) and police cars can be reported.
+/// The feed: when a camera catches James (and at WASTED / BUSTED) the picture cuts to it (LundunCctvFeed).
 public class LundunCctv : MonoBehaviour
 {
     public static LundunCctv Instance { get; private set; }
@@ -53,8 +57,34 @@ public class LundunCctv : MonoBehaviour
     public int Count { get { return cams.Length; } }
     public Cam this[int i] { get { return cams[i]; } }
 
-    /// The cameras count: there are some, and no story mission is running.
-    public static bool Live { get { return Instance != null && Instance.cams.Length > 0 && !LundunMissions.Running; } }
+    /// The cameras count: there are some, and (in a mission) that mission lets them.
+    public static bool Live { get { return Instance != null && Instance.cams.Length > 0 && MissionAllows; } }
+
+    /// Missions the cameras keep out of (by id), unless the mission says otherwise.
+    static readonly HashSet<string> QuietMissions = new HashSet<string> { "m01_one_last_favour" };
+    static LundunMissionRun overrideRun;
+    static bool overrideOn;
+
+    /// A mission's script: cameras on (true) or off (false) for the rest of this attempt.
+    public static void WatchThisMission(bool on)
+    {
+        overrideRun = LundunMissions.CurrentRun;
+        overrideOn = on;
+    }
+
+    static bool MissionAllows
+    {
+        get
+        {
+            LundunMissionRun run = LundunMissions.CurrentRun;
+            if (run == null) return true;                                    // Free Roam (or between missions)
+            if (overrideRun == run) return overrideOn;
+            return run.mission == null || !QuietMissions.Contains(run.mission.Id);
+        }
+    }
+
+    /// The first camera that can see James right now (-1 if none).
+    public int FirstWatching { get { return watching.Count > 0 ? watching[0] : -1; } }
     /// How fast losing the police runs (WantedSystem): slower on camera, faster where none can see.
     public static float EscapeFactor
     {
@@ -86,7 +116,11 @@ public class LundunCctv : MonoBehaviour
     private readonly Dictionary<CarController, Hot> stolen = new Dictionary<CarController, Hot>();
     private readonly List<CarController> gone = new List<CarController>();
 
-    void Awake() { Instance = this; }
+    void Awake()
+    {
+        Instance = this;
+        if (GetComponent<LundunCctvFeed>() == null) gameObject.AddComponent<LundunCctvFeed>();   // V2f: the feed cut and the replays
+    }
     void OnDestroy() { if (Instance == this) Instance = null; }
     void OnEnable() { VehicleSystem.Entering += OnEntering; LundunTrafficCar.Carjacked += OnCarjacked; }
     void OnDisable() { VehicleSystem.Entering -= OnEntering; LundunTrafficCar.Carjacked -= OnCarjacked; }
@@ -301,7 +335,7 @@ public class LundunCctv : MonoBehaviour
     // ------------------------------------------------------------------ stolen cars
     void OnEntering(CarController car)
     {
-        if (car == null || !Live) return;
+        if (car == null || !Live || !Stealable(car)) return;
         Hot h;
         if (!stolen.TryGetValue(car, out h)) stolen[car] = h = new Hot();
         if (h.reported) return;                                               // back in a car that's already reported
@@ -312,10 +346,20 @@ public class LundunCctv : MonoBehaviour
 
     void OnCarjacked(CarController car)
     {
-        if (car == null || !Live) return;
+        if (car == null || !Live || !Stealable(car)) return;
         Hot h;
         if (!stolen.TryGetValue(car, out h)) stolen[car] = h = new Hot();
         if (!h.reported && (h.reportAt < 0f || h.reportAt > Time.time + 30f)) h.reportAt = Time.time + 30f;   // the driver phones it in
+    }
+
+    /// Only the city's cars (traffic, parked) and police cars can be reported stolen: not James's own car, and not a
+    /// car a mission gave him.
+    static bool Stealable(CarController car)
+    {
+        if (car.GetComponent<PoliceAI>() != null) return true;
+        if (car.GetComponent<LundunTrafficCar>() == null) return false;
+        LundunMissionRun run = LundunMissions.CurrentRun;
+        return run == null || !run.spawned.Contains(car.gameObject);
     }
 
     /// ARCHES MOTORS: a respray means the plate's no longer the one they're looking for.

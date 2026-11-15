@@ -80,6 +80,9 @@ public class BustedSystem : MonoBehaviour
         arrestMeter.gameObject.SetActive(false);
         vehicleSystem.LockControls(true);
 
+        // V2f: if a camera had him, the last few seconds as CCTV footage
+        if (LundunCctvFeed.Instance != null) yield return LundunCctvFeed.Instance.Replay();
+
         // Slow-mo + BUSTED slams onto the screen
         Time.timeScale = 0.3f;
         if (bigTextLabel != null)
