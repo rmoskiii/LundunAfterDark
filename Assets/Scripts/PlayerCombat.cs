@@ -185,7 +185,16 @@ public class PlayerCombat : MonoBehaviour
             float cone = pellets > 1 ? w.pelletCone : spread;
             Vector3 dir = Scatter(centre, cone);
             Vector3 end = cam.position + dir * w.range;
-            if (Physics.Raycast(cam.position, dir, out RaycastHit hit, w.range, hitMask, QueryTriggerInteraction.Ignore))
+            // V2e: a CCTV camera in the line of fire (the shot stops there, unless something nearer is in the way)
+            float reach = w.range;
+            int cctv = LundunCctv.Instance != null ? LundunCctv.Instance.Along(cam.position, dir, w.range, out reach) : -1;
+            if (cctv < 0) reach = w.range;
+            if (!Physics.Raycast(cam.position, dir, out RaycastHit hit, reach, hitMask, QueryTriggerInteraction.Ignore) && cctv >= 0)
+            {
+                end = cam.position + dir * reach;
+                LundunCctv.Instance.Shot(cctv, dir);
+            }
+            else if (hit.collider != null)
             {
                 end = hit.point;
                 Health health = hit.collider.GetComponentInParent<Health>();
@@ -380,11 +389,19 @@ public class PlayerCombat : MonoBehaviour
         LundunAimAssist.NotifyShot();
         Vector3 endPoint = cam.position + dir * range;
 
+        float reach = range;                                                  // V2e: a CCTV camera in the line of fire
+        int cctv = LundunCctv.Instance != null ? LundunCctv.Instance.Along(cam.position, dir, range, out reach) : -1;
+        if (cctv < 0) reach = range;
         if (Physics.Raycast(cam.position, dir, out RaycastHit hit,
-                            range, hitMask, QueryTriggerInteraction.Ignore))
+                            reach, hitMask, QueryTriggerInteraction.Ignore))
         {
             endPoint = hit.point;
             HandleHit(hit);
+        }
+        else if (cctv >= 0)
+        {
+            endPoint = cam.position + dir * reach;
+            LundunCctv.Instance.Shot(cctv, dir);
         }
 
         SpawnTracer(endPoint);

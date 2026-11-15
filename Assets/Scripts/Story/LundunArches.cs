@@ -652,6 +652,7 @@ public class LundunArches : MonoBehaviour
                         if (next == cur) next = (cur + 1) % paint.Variants.Length;
                         paint.Use(next);
                     }
+                    LundunCctv.Resprayed(car);                                 // V2e: a new colour, not the car on their list
                     WantedSystem ws = WantedSystem.Instance;
                     bool had = ws != null && ws.Stars > 0;
                     if (had) ws.DropStar();

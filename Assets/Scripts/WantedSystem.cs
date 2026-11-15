@@ -49,6 +49,7 @@ public class WantedSystem : MonoBehaviour
     private bool escapeTimerRunning;
 
     class Report { public Health witness; public float heat; public Vector3 where; public float when, at; public CrimeType worst; }
+    private Report cctvCall;                   // V2e: a crime seen on CCTV, being phoned through by the operator
 
     /// W1b: police now know about a crime (seen by them, or a call got through) and roughly where.
     /// Everyday patrols nearby respond, the more serious the crime the further away they come from.
@@ -118,8 +119,8 @@ public class WantedSystem : MonoBehaviour
     private float EscapeTime => PoliceTiers.Instance != null ? PoliceTiers.For(Stars).escapeTime : baseEscapeTime + extraTimePerStar * (Stars - 1);
     /// Police have seen you in the last moment.
     public bool Seen => Stars > 0 && Time.time - lastSighting < 1f;
-    /// A witness is on the phone right now.
-    public bool BeingReported => calls.Count > 0;
+    /// A witness (or the CCTV operator) is on the phone right now.
+    public bool BeingReported => calls.Count > 0 || cctvCall != null;
 
     void Awake()
     {
@@ -175,6 +176,26 @@ public class WantedSystem : MonoBehaviour
 
         // a pedestrian saw or heard it: they'll call it in (not for a scuffle)
         if (IsMinor(type) && Stars == 0) return;
+
+        // V2e: a CCTV camera saw it (the crime, or James doing it): the operator phones it through in a few seconds,
+        // and nobody can stop that call. Shots fired on camera are a star, as in front of the police.
+        int cam;
+        if (LundunCctv.Live && LundunCctv.Instance.SeesCrime(position, out cam))
+        {
+            if (cctvCall == null)
+            {
+                cctvCall = new Report { at = Time.time + Random.Range(2.5f, 4f), worst = type };
+                if (Stars == 0) Toast("Caught on CCTV…");
+            }
+            if (gunfire && heatForStar.Length > 0) amount = Mathf.Max(amount, heatForStar[0] - heat - cctvCall.heat);
+            cctvCall.heat += amount;
+            cctvCall.where = position;
+            cctvCall.when = Time.time;
+            if (Severity(type) > Severity(cctvCall.worst)) cctvCall.worst = type;
+            Log(type, "seen on CCTV");
+            return;
+        }
+
         Health w = CivilianWitness(position, gunfire);
         if (w == null) { Log(type, "no witnesses"); return; }   // nobody saw: no stars
         if (!calls.TryGetValue(w, out Report r))
@@ -269,6 +290,17 @@ public class WantedSystem : MonoBehaviour
 
     void ProcessCalls()
     {
+        // V2e: the CCTV operator gets through (police go to where James is now, if a camera still has him)
+        if (cctvCall != null && Time.time >= cctvCall.at)
+        {
+            Report r = cctvCall; cctvCall = null;
+            int before = Stars;
+            Vector3 known = LundunCctv.Instance != null && LundunCctv.Instance.OnCamera && PlayerTarget != null ? PlayerTarget.position : r.where;
+            Apply(r.heat, known, false);
+            Log(r.worst, "phoned in from CCTV");
+            CrimeKnown?.Invoke(r.worst, known);
+            if (before == 0 && Stars > 0) Toast("CCTV called the police");
+        }
         if (calls.Count == 0) return;
         done.Clear();
         foreach (KeyValuePair<Health, Report> kv in calls)
@@ -320,6 +352,14 @@ public class WantedSystem : MonoBehaviour
         escapeTimerRunning = true;
     }
 
+    /// V2e: a CCTV camera can see James while he's wanted: the search area stays on him (it isn't the police seeing
+    /// him, so the chase doesn't restart; his escape just runs slower: LundunCctv.EscapeFactor).
+    public void CameraSighting(Vector3 position)
+    {
+        if (Stars == 0) return;
+        LastKnownPosition = position;
+    }
+
     // Police call this when they reach the last known position and find nothing
     public void BeginSearch()
     {
@@ -332,7 +372,7 @@ public class WantedSystem : MonoBehaviour
         if (Stars == 0 || !escapeTimerRunning) return;
 
         timeSinceSeen += Time.deltaTime;
-        escapeClock += Time.deltaTime * (InSearchArea ? 1f : outsideSearchArea);
+        escapeClock += Time.deltaTime * (InSearchArea ? 1f : outsideSearchArea) * LundunCctv.EscapeFactor;   // V2e: slower on camera, faster in blind spots
         if (escapeClock >= EscapeTime)
         {
             ClearWanted();
@@ -384,6 +424,7 @@ public class WantedSystem : MonoBehaviour
         Stars = 0;
         escapeTimerRunning = false;
         calls.Clear();
+        cctvCall = null;
     }
 
     // TESTING: in Play mode, click the ⋮ on this component and choose "Add a star"

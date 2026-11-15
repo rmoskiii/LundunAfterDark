@@ -149,6 +149,13 @@ public static class LundunSmashBuilder
                 fov = (float)c.fov, range = (float)c.range, broken = c.broken,
                 kind = c.kind == "dome" ? LundunCctv.Kind.Dome : c.kind == "estate" ? LundunCctv.Kind.Estate : LundunCctv.Kind.Bullet,
             });
+        // V2e: each working camera can be shot off its bracket (its housing comes out of the dressing mesh and falls)
+        foreach (CctvInfo c in d.cctv)
+        {
+            if (c.broken) continue;
+            props.Add(new LundunSmash.Prop { kind = LundunSmash.Kind.Cctv, at = new Vector3((float)c.x, (float)c.y - 0.2f, (float)c.z), yaw = (float)c.yaw, size = new Vector3(0.32f, 0.55f, 0.32f) });
+            Count(counts, "cctv");
+        }
         foreach (BreakInfo b in d.breakables)
         {
             LundunSmash.Kind k;

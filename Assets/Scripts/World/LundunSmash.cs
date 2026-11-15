@@ -19,7 +19,8 @@ public class LundunSmash : MonoBehaviour
         Bin, WheelieBin, Cone, Barrier, Sign, Trolley, CycleStand, Bench, Railing, Sofa, Fridge, Mattress, Tyres,
         Bollard, Lamp, Belisha, PostBox, Cabinet, Planter, Fence,
         PhoneBox, BusShelter, EstateBins,
-        TrafficLight                                    // L4 (added last, so saved lists keep their meaning)
+        TrafficLight,                                   // L4 (added last, so saved lists keep their meaning)
+        Cctv                                            // V2e: a CCTV camera (shot off its bracket: LundunCctv)
     }
 
     [System.Serializable]
@@ -66,6 +67,7 @@ public class LundunSmash : MonoBehaviour
             case Kind.Belisha: return new Feel(5.5f, 0.78f, 60f, false);
             case Kind.PostBox: return new Feel(9f, 0.65f, 140f, false);
             case Kind.TrafficLight: return new Feel(5.5f, 0.78f, 70f, false);
+            case Kind.Cctv: return new Feel(999f, 1f, 4f, false);                 // only shot down, never driven into
             case Kind.Cabinet: return new Feel(6f, 0.8f, 70f, true);
             case Kind.Planter: return new Feel(7f, 0.74f, 130f, true);
             case Kind.PhoneBox: return new Feel(13f, 0.55f, 320f, true);
@@ -125,6 +127,30 @@ public class LundunSmash : MonoBehaviour
         foreach (Collider c in thing.GetComponentsInChildren<Collider>()) if (!byCollider.ContainsKey(c)) { byCollider[c] = s; s.colliders.Add(c); }
         states.Add(s);
     }
+
+    /// V2e: the piece of this kind nearest a point (within 'within' metres), for LundunCctv; -1 if none.
+    public int IndexOf(Kind kind, Vector3 near, float within)
+    {
+        int best = -1; float bd = within * within;
+        for (int i = 0; i < states.Count; i++)
+        {
+            if (states[i].prop.kind != kind) continue;
+            float d = (states[i].prop.at - near).sqrMagnitude;
+            if (d < bd) { bd = d; best = i; }
+        }
+        return best;
+    }
+
+    /// V2e: knock piece i down (a CCTV camera that's been shot), flying off with this velocity.
+    public void BreakIndex(int i, Vector3 velocity)
+    {
+        if (!ready || i < 0 || i >= states.Count || states[i].broken) return;
+        State s = states[i];
+        Break(s, s.prop.at, velocity, For(s.prop.kind));
+    }
+
+    /// V2e: is piece i down (not yet put back)?
+    public bool IsBroken(int i) { return i >= 0 && i < states.Count && states[i].broken; }
 
     void Awake() { Instance = this; }
     void OnDestroy() { if (Instance == this) Instance = null; foreach (Target t in meshes) if (t.copy != null) Destroy(t.copy); }

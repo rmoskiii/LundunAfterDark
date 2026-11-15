@@ -15,6 +15,8 @@ public class LundunTrafficCar : MonoBehaviour
     public enum Temper { Flee, Fight, Gun }
 
     public Mode CurrentMode { get; private set; }
+    /// V2e: James pulled a driver out of this car (LundunCctv: the driver phones it in as stolen).
+    public static event System.Action<CarController> Carjacked;
     public bool HasDriver { get; private set; }
     public Temper DriverTemper { get; private set; }
 
@@ -428,6 +430,7 @@ public class LundunTrafficCar : MonoBehaviour
         Transform player = FindAnyObjectByType<VehicleSystem>() != null ? FindAnyObjectByType<VehicleSystem>().PlayerTarget : null;
         EjectDriver(DriverTemper, player);
         CurrentMode = Mode.Abandoned;
+        Carjacked?.Invoke(car);
     }
 
     void OnCollisionEnter(Collision c)

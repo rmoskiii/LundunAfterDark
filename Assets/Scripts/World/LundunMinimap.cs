@@ -279,6 +279,8 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
     private readonly List<Image> cones = new List<Image>();
     static readonly Color ConeLooking = new Color(0.35f, 0.6f, 1f, 0.17f);
     static readonly Color ConeSees = new Color(1f, 0.22f, 0.2f, 0.3f);
+    static readonly Color ConeCctv = new Color(1f, 0.78f, 0.25f, 0.14f);     // V2e: a CCTV camera's view (amber)
+    private readonly List<int> camsNear = new List<int>();
 
     void BuildSearchLayers()
     {
@@ -340,6 +342,19 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
             foreach (PoliceAI car in PoliceAI.Active)
                 if (car != null && car.enabled && !car.IsLeaving && !car.OfficersOut)
                     Cone(ref used, car.transform, tier.carSightRange, tier.carSightCone, car.CanSeeTarget, centre, ppm, camYaw, edge);
+            // V2e: the CCTV cameras round you (amber; red when one has you), only while you're wanted
+            LundunCctv cctv = LundunCctv.Instance;
+            if (cctv != null && LundunCctv.Live)
+            {
+                cctv.Near(centre, radiusM + 30f, camsNear);
+                int shown = 0;
+                foreach (int i in camsNear)
+                {
+                    if (shown++ >= 40) break;
+                    LundunCctv.Cam c = cctv[i];
+                    ConeAt(ref used, c.at, Quaternion.Euler(0f, c.yaw, 0f) * Vector3.forward, c.range, c.fov, cctv.IsWatching(i), ConeCctv, centre, ppm, camYaw, edge);
+                }
+            }
         }
         for (int i = used; i < cones.Count; i++) if (cones[i].gameObject.activeSelf) cones[i].gameObject.SetActive(false);
 
@@ -383,7 +398,13 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
 
     void Cone(ref int used, Transform unit, float range, float coneDeg, bool sees, Vector3 centre, float ppm, float camYaw, float edge)
     {
-        Vector2 off = Rotate(new Vector2(unit.position.x - centre.x, unit.position.z - centre.z) * ppm, camYaw);
+        ConeAt(ref used, unit.position, unit.forward, range, coneDeg, sees, ConeLooking, centre, ppm, camYaw, edge);
+    }
+
+    /// A field of view on the minimap: from 'pos', facing 'forward' (V2e: also used for CCTV cameras).
+    void ConeAt(ref int used, Vector3 pos, Vector3 forward, float range, float coneDeg, bool sees, Color looking, Vector3 centre, float ppm, float camYaw, float edge)
+    {
+        Vector2 off = Rotate(new Vector2(pos.x - centre.x, pos.z - centre.z) * ppm, camYaw);
         if (off.magnitude > edge + range * ppm) return;             // nowhere near the minimap
         if (used >= cones.Count)
         {
@@ -405,11 +426,11 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
         float cone = Mathf.Clamp(coneDeg, 5f, 360f);
         img.fillAmount = cone / 360f;
         // which way they face, on the minimap (degrees clockwise from up), then centre the wedge on it
-        Vector3 f = unit.forward;
+        Vector3 f = forward;
         Vector2 dir = Rotate(new Vector2(f.x, f.z), camYaw);
         float facing = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
         rt.localEulerAngles = new Vector3(0f, 0f, cone * 0.5f - facing);
-        img.color = sees ? ConeSees : ConeLooking;
+        img.color = sees ? ConeSees : looking;
     }
 
     /// Rotates a map offset (x = east, y = north) into minimap space for a camera facing camYaw.
