@@ -34,6 +34,9 @@ public class LundunAim : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     [Tooltip("v50: the eye button (first / third person)")]
     [SerializeField] private Vector2 viewPosition = new Vector2(-840f, 770f);
     [SerializeField] private float viewSize = 92f;
+    [Tooltip("V1: the eye button now sits top right, under the weapon card (from the top-right corner); the old bottom-right position above is no longer used")]
+    [SerializeField] private Vector2 viewTopRight = new Vector2(-96f, -262f);
+    [SerializeField] private float viewSizeTop = 84f;
 
     static readonly Color Fill = new Color(0.04f, 0.06f, 0.11f, 0.55f);
     static readonly Color Rim = new Color(1f, 1f, 1f, 0.32f);
@@ -70,7 +73,12 @@ public class LundunAim : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         // v50: first / third person
         Transform oldView = parent.Find("ViewButton");
         GameObject vw = oldView != null ? oldView.gameObject : MakeButton(parent, "ViewButton", LundunHudArt.Eye, Vector2.zero, 0f, out _, out _);
-        a.Place((RectTransform)vw.transform, a.viewPosition, a.viewSize);
+        // V1: top right, under the weapon card: out of the thumbs' way in a fight (no flicking the view by accident),
+        // but one reach of the right thumb when you want it. The view can also be changed in Settings → CAMERA.
+        RectTransform vr = (RectTransform)vw.transform;
+        vr.anchorMin = vr.anchorMax = new Vector2(1f, 1f);
+        vr.pivot = new Vector2(0.5f, 0.5f);
+        a.Place(vr, a.viewTopRight, a.viewSizeTop);
         a.viewDisc = vw.GetComponent<Image>();
         Transform vi = vw.transform.Find("LundunIcon"); if (vi != null) a.viewIcon = vi.GetComponent<Image>();
         Button vb = vw.GetComponent<Button>(); if (vb == null) vb = vw.AddComponent<Button>();

@@ -32,7 +32,7 @@ public static class LundunGunModels
         redMat = Lit(new Color(0.55f, 0.06f, 0.05f), 0f, 0.45f, "ShellRed");
         lens = Lit(new Color(0.08f, 0.16f, 0.14f, 1f), 0.2f, 0.98f, "Lens");
         dot = Lit(new Color(1f, 0.1f, 0.08f), 0f, 0.5f, "RedDot");
-        dot.EnableKeyword("_EMISSION"); dot.SetColor("_EmissionColor", new Color(4f, 0.3f, 0.2f));
+        dot.EnableKeyword("_EMISSION"); dot.SetColor("_EmissionColor", new Color(6f, 0.25f, 0.15f));
     }
 
     public static Material Brass { get { EnsureMaterials(); return brassMat; } }
@@ -244,10 +244,14 @@ public static class LundunGunModels
         b.Box(polymer, new Vector3(0f, -0.003f, 0.035f), new Vector3(0.008f, 0.005f, 0.045f), 0.0015f);       // trigger guard
         b.Box(metal, new Vector3(0f, 0.081f, 0.055f), new Vector3(0.022f, 0.009f, 0.17f), 0.001f);            // top rail
         for (int i = 0; i < 12; i++) b.Box(metal, new Vector3(0f, 0.087f, -0.025f + i * 0.0145f), new Vector3(0.024f, 0.004f, 0.006f), 0f);
-        // red-dot optic
-        b.Box(polymer, new Vector3(0f, 0.1f, 0.035f), new Vector3(0.028f, 0.03f, 0.048f), 0.006f);
-        b.Panel(lens, new Vector3(0f, 0.104f, 0.0605f), new Vector2(0.02f, 0.018f), Vector3.forward);
-        b.Panel(dot, new Vector3(0f, 0.104f, 0.0595f), new Vector2(0.0025f, 0.0025f), Vector3.back);
+        // V1: an open reflex sight: a low base, a thin hoop round a clear window, the red dot floating in the middle
+        // (nothing in the window, so aimed in you see straight through it)
+        b.Box(polymer, new Vector3(0f, 0.094f, 0.035f), new Vector3(0.03f, 0.01f, 0.05f), 0.003f);            // base on the rail
+        b.Box(polymer, new Vector3(0f, 0.1015f, 0.018f), new Vector3(0.012f, 0.005f, 0.012f), 0.0015f);        // the emitter, below the window
+        b.Box(metal, new Vector3(0.0145f, 0.113f, 0.05f), new Vector3(0.003f, 0.028f, 0.012f), 0.001f);        // hoop: right post
+        b.Box(metal, new Vector3(-0.0145f, 0.113f, 0.05f), new Vector3(0.003f, 0.028f, 0.012f), 0.001f);       // left post
+        b.Box(metal, new Vector3(0f, 0.1265f, 0.05f), new Vector3(0.032f, 0.003f, 0.012f), 0.001f);            // top of the hoop
+        b.Panel(dot, new Vector3(0f, 0.113f, 0.0435f), new Vector2(0.0024f, 0.0024f), Vector3.back);           // the dot
         // folding wire stock
         b.Box(metal, new Vector3(0.016f, 0.06f, -0.17f), new Vector3(0.006f, 0.008f, 0.22f), 0.002f);
         b.Box(metal, new Vector3(-0.016f, 0.06f, -0.17f), new Vector3(0.006f, 0.008f, 0.22f), 0.002f);
@@ -263,7 +267,7 @@ public static class LundunGunModels
         Point(root.transform, "Fore", new Vector3(0f, 0.008f, 0.215f));
         Point(root.transform, "Stock", new Vector3(0f, 0.04f, -0.29f));
         Point(root.transform, "MagWell", new Vector3(0f, -0.02f, 0.085f));
-        Point(root.transform, "Sight", new Vector3(0f, 0.104f, 0.035f));        // V1: the red dot
+        Point(root.transform, "Sight", new Vector3(0f, 0.113f, 0.0435f));       // V1: the red dot
         return root;
     }
 
@@ -284,13 +288,20 @@ public static class LundunGunModels
         for (int i = 0; i < 3; i++) b.Box(polymer, new Vector3(0f, 0.071f, 0.578f + i * 0.015f), new Vector3(0.016f, 0.004f, 0.006f), 0f);
         b.Box(metal, new Vector3(0f, 0.092f, 0.2f), new Vector3(0.024f, 0.011f, 0.56f), 0.001f);              // top rail
         for (int i = 0; i < 30; i++) b.Box(metal, new Vector3(0f, 0.099f, -0.07f + i * 0.0185f), new Vector3(0.026f, 0.004f, 0.007f), 0f);
-        // holographic sight
-        b.Box(polymer, new Vector3(0f, 0.11f, 0.075f), new Vector3(0.036f, 0.016f, 0.075f), 0.004f);
-        b.Box(polymer, new Vector3(0.017f, 0.135f, 0.085f), new Vector3(0.004f, 0.035f, 0.05f), 0.002f);
-        b.Box(polymer, new Vector3(-0.017f, 0.135f, 0.085f), new Vector3(0.004f, 0.035f, 0.05f), 0.002f);
-        b.Box(polymer, new Vector3(0f, 0.154f, 0.085f), new Vector3(0.038f, 0.005f, 0.05f), 0.002f);
-        b.Panel(lens, new Vector3(0f, 0.135f, 0.1f), new Vector2(0.029f, 0.032f), Vector3.forward);
-        b.Panel(dot, new Vector3(0f, 0.135f, 0.099f), new Vector2(0.003f, 0.003f), Vector3.back);
+        // V1: an open holographic sight: a low body, a thin hood over a clear window, the reticle (a ring round a dot)
+        // floating in the window: aimed in, you see straight through it with the ring on the target
+        b.Box(polymer, new Vector3(0f, 0.108f, 0.07f), new Vector3(0.036f, 0.012f, 0.085f), 0.003f);           // body on the rail
+        b.Box(polymer, new Vector3(0.0175f, 0.1325f, 0.09f), new Vector3(0.003f, 0.037f, 0.034f), 0.001f);     // hood: right wall
+        b.Box(polymer, new Vector3(-0.0175f, 0.1325f, 0.09f), new Vector3(0.003f, 0.037f, 0.034f), 0.001f);    // left wall
+        b.Box(polymer, new Vector3(0f, 0.1525f, 0.09f), new Vector3(0.038f, 0.003f, 0.034f), 0.001f);          // roof
+        b.Box(metal, new Vector3(0.0105f, 0.1155f, 0.04f), new Vector3(0.006f, 0.004f, 0.012f), 0.001f);      // buttons, low at the back
+        b.Box(metal, new Vector3(-0.0105f, 0.1155f, 0.04f), new Vector3(0.006f, 0.004f, 0.012f), 0.001f);
+        b.Panel(dot, new Vector3(0f, 0.134f, 0.1f), new Vector2(0.0018f, 0.0018f), Vector3.back);              // the reticle: the dot
+        for (int i = 0; i < 20; i++)                                                                           // and the ring round it
+        {
+            float a = i * Mathf.PI * 2f / 20f;
+            b.Panel(dot, new Vector3(Mathf.Cos(a) * 0.0068f, 0.134f + Mathf.Sin(a) * 0.0068f, 0.1f), new Vector2(0.0013f, 0.0013f), Vector3.back);
+        }
         // grip, trigger guard, vertical foregrip
         b.Box(polymer, new Vector3(0f, -0.042f, -0.022f), new Vector3(0.03f, 0.1f, 0.044f), 0.006f, new Vector3(18f, 0f, 0f));
         b.Box(polymer, new Vector3(0f, -0.014f, 0.035f), new Vector3(0.008f, 0.005f, 0.05f), 0.0015f);
@@ -312,7 +323,7 @@ public static class LundunGunModels
         Point(root.transform, "Fore", new Vector3(0f, -0.02f, 0.27f));
         Point(root.transform, "Stock", new Vector3(0f, 0.035f, -0.33f));
         Point(root.transform, "MagWell", new Vector3(0f, -0.02f, 0.1f));
-        Point(root.transform, "Sight", new Vector3(0f, 0.135f, 0.085f));        // V1: the holographic sight's dot
+        Point(root.transform, "Sight", new Vector3(0f, 0.134f, 0.1f));          // V1: the holographic sight's reticle
         return root;
     }
 

@@ -190,7 +190,8 @@ public class LundunWeaponRig : MonoBehaviour
         Vector3 hipPos = eye + camRot * hip;
 
         // aimed in: the sight on the line from the eye through the middle of the screen
-        float sightDist = kind == LundunWeapons.Kind.Pistol ? 0.33f : kind == LundunWeapons.Kind.Smg ? 0.17f : kind == LundunWeapons.Kind.Carbine ? 0.15f : 0.13f;
+        // (how far in front of the eye the sight sits: a reflex / holo sight about a third of the screen, like COD)
+        float sightDist = kind == LundunWeapons.Kind.Pistol ? 0.33f : kind == LundunWeapons.Kind.Smg ? 0.2f : kind == LundunWeapons.Kind.Carbine ? 0.19f : 0.13f;
         Vector3 sightL = gun.sight != null ? gun.sight.localPosition : new Vector3(0f, 0.08f, 0f);
         Vector3 adsPos = eye + cF * sightDist - camRot * sightL;
 
