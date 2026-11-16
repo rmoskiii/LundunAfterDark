@@ -184,6 +184,7 @@ public class LundunCctvFeed : MonoBehaviour
             eye.allowMSAA = false;
             int ui = LayerMask.NameToLayer("UI");
             if (ui >= 0) eye.cullingMask = ~(1 << ui);
+            if (LundunViewModel.Layer >= 0) eye.cullingMask &= ~(1 << LundunViewModel.Layer);   // V1: not the first-person arms and gun
             UniversalAdditionalCameraData data = eye.GetUniversalAdditionalCameraData();
             if (data != null)
             {

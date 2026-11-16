@@ -5,6 +5,7 @@ using UnityEngine;
 /// real-world sizes, gunmetal / polymer / tan finishes, sights and optics. Each gun is +Z forward, +Y up, with the
 /// origin where the right hand grips. Named child points tell the rig where everything is:
 ///   Muzzle, Eject (shells come out here, flying right), Fore (left hand), Stock (shoulder), MagWell,
+///   Sight (V1: the point on the line of sight: rear sight / optic window / bead line, for aiming down sights),
 ///   and moving parts: Mag (drops out on reload), Pump (shotgun).
 public static class LundunGunModels
 {
@@ -226,6 +227,7 @@ public static class LundunGunModels
         Point(root.transform, "Eject", new Vector3(0.018f, 0.055f, 0.045f));
         Point(root.transform, "Fore", new Vector3(-0.022f, -0.028f, 0.0f));
         Point(root.transform, "MagWell", new Vector3(0f, -0.085f, -0.03f));
+        Point(root.transform, "Sight", new Vector3(0f, 0.0685f, -0.042f));      // V1: over the rear sight, level with the front
         return root;
     }
 
@@ -261,6 +263,7 @@ public static class LundunGunModels
         Point(root.transform, "Fore", new Vector3(0f, 0.008f, 0.215f));
         Point(root.transform, "Stock", new Vector3(0f, 0.04f, -0.29f));
         Point(root.transform, "MagWell", new Vector3(0f, -0.02f, 0.085f));
+        Point(root.transform, "Sight", new Vector3(0f, 0.104f, 0.035f));        // V1: the red dot
         return root;
     }
 
@@ -309,6 +312,7 @@ public static class LundunGunModels
         Point(root.transform, "Fore", new Vector3(0f, -0.02f, 0.27f));
         Point(root.transform, "Stock", new Vector3(0f, 0.035f, -0.33f));
         Point(root.transform, "MagWell", new Vector3(0f, -0.02f, 0.1f));
+        Point(root.transform, "Sight", new Vector3(0f, 0.135f, 0.085f));        // V1: the holographic sight's dot
         return root;
     }
 
@@ -342,6 +346,7 @@ public static class LundunGunModels
         Point(root.transform.Find("Pump"), "Fore", new Vector3(0f, 0.008f, 0.31f));
         Point(root.transform, "Stock", new Vector3(0f, 0.012f, -0.37f));
         Point(root.transform, "MagWell", new Vector3(0f, 0.0f, 0.08f));         // loading port, underneath
+        Point(root.transform, "Sight", new Vector3(0f, 0.0845f, 0.05f));        // V1: along the top of the receiver to the bead
         return root;
     }
 

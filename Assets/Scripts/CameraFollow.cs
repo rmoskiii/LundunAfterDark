@@ -333,6 +333,10 @@ public class CameraFollow : MonoBehaviour
             cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFov, 20f * Time.deltaTime);
         }
         else cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFov, fovChangeSpeed * Time.deltaTime);
+
+        // V1: the camera's at his eyes now: frame the gun from here (and his hands onto it)
+        if (FirstPersonNow && LundunWeaponRig.Instance != null)
+            LundunWeaponRig.Instance.FirstPersonPose(transform, aimIn, player != null && player.IsSprinting);
     }
 
     // ------------------------------------------------------------------ v50: first person
@@ -394,7 +398,7 @@ public class CameraFollow : MonoBehaviour
         float k = Ease(fp);
         transform.position = Vector3.Lerp(transform.position, fpPos, k);
         transform.rotation = Quaternion.Slerp(transform.rotation, fpRot, k);
-        HideHead(fp > 0.6f);
+        HideHead(fp > 0.6f && !LundunViewModel.Available);       // V1: with the view model his body's only a shadow: his head stays
         if (normalNear < 0f) normalNear = cam.nearClipPlane;
         cam.nearClipPlane = Mathf.Lerp(normalNear, 0.03f, k);
     }

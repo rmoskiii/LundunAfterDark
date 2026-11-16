@@ -9,6 +9,11 @@ using UnityEngine;
 ///   • the gun kicks back on every shot and settles; the shotgun's pump racks (left hand riding it)
 ///   • reloads: the gun tilts, the magazine drops out and a fresh one goes in (shotgun: shells into the loading port)
 /// Each gun is one of LundunGunModels (original, made in code). Added automatically by LundunWeapons.
+/// V1: first person (COD-style). The camera calls FirstPersonPose after it's placed at his eyes: the gun is framed
+/// from the eyes instead of his shoulder: at the hip, lower right, whenever he's got a gun out (aimed or not); aiming
+/// lines its sight up with the middle of the screen; sprinting tips it down and across; it bobs as he walks, lags a
+/// touch behind quick turns and kicks on each shot. His own arms reach for it (the same hands-on-gun code as third
+/// person), and LundunViewModel draws those arms and the gun on their own camera so they never go into a wall.
 public class LundunWeaponRig : MonoBehaviour
 {
     public static LundunWeaponRig Instance { get; private set; }
@@ -43,7 +48,7 @@ public class LundunWeaponRig : MonoBehaviour
     class Gun
     {
         public GameObject go;
-        public Transform muzzle, eject, fore, stock, magWell, mag, pump;
+        public Transform muzzle, eject, fore, stock, magWell, mag, pump, sight;
         public Vector3 magRest, pumpRest;
         public bool longGun;
     }
@@ -67,6 +72,9 @@ public class LundunWeaponRig : MonoBehaviour
         weapons = GetComponent<LundunWeapons>();
         aimMask = ~LayerMask.GetMask("Player", "UI", "Ignore Raycast");
         anim = (player != null ? player.gameObject : gameObject).GetComponentInChildren<Animator>();
+        // V1: the first-person view model (Lundun → 33 adds it with his arms; without that, just the gun)
+        GameObject who = player != null ? player.gameObject : gameObject;
+        if (who.GetComponent<LundunViewModel>() == null) who.AddComponent<LundunViewModel>();
         if (anim == null || !anim.isHuman) { anim = null; return; }
         spine = anim.GetBoneTransform(HumanBodyBones.Spine);
         chest = anim.GetBoneTransform(HumanBodyBones.Chest);
@@ -111,14 +119,100 @@ public class LundunWeaponRig : MonoBehaviour
             gun = new Gun { go = go };
             gun.muzzle = Find(go.transform, "Muzzle"); gun.eject = Find(go.transform, "Eject"); gun.fore = Find(go.transform, "Fore");
             gun.stock = Find(go.transform, "Stock"); gun.magWell = Find(go.transform, "MagWell");
-            gun.mag = Find(go.transform, "Mag"); gun.pump = Find(go.transform, "Pump");
+            gun.mag = Find(go.transform, "Mag"); gun.pump = Find(go.transform, "Pump"); gun.sight = Find(go.transform, "Sight");
             if (gun.mag != null) gun.magRest = gun.mag.localPosition;
             if (gun.pump != null) gun.pumpRest = gun.pump.localPosition;
             gun.longGun = gun.stock != null;
             guns[k] = gun;
+            if (fpMode) SetLayer(gun, fpLayer, false);
         }
         gun.go.SetActive(weight > 0.01f);
         pumpStart = -99f;
+    }
+
+    // ------------------------------------------------------------------ V1: first person
+    private bool fpMode;
+    private int fpLayer = -1;
+    private float fpAds, fpSprint, fpMove, fpBob, fpSwayX, fpSwayY, fpLastYaw, fpLastPitch;
+    private Vector3 fpLastPos;
+
+    /// LundunViewModel: first person on (the guns go on the view-model layer, no shadows) or off (back as they were).
+    public void SetViewModel(bool on, int layer)
+    {
+        if (on == fpMode && (!on || layer == fpLayer)) return;
+        fpMode = on; fpLayer = layer;
+        foreach (Gun g in guns.Values) if (g.go != null) SetLayer(g, on ? layer : gameObject.layer, !on);
+        if (on && player != null) fpLastPos = player.transform.position;
+    }
+
+    void SetLayer(Gun g, int layer, bool shadows)
+    {
+        if (layer < 0) layer = gameObject.layer;
+        foreach (Transform t in g.go.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = layer;
+        foreach (Renderer r in g.go.GetComponentsInChildren<Renderer>(true))
+            r.shadowCastingMode = shadows ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
+    }
+
+    /// The gun James has out right now (null for fists).
+    public GameObject CurrentGun => gun != null ? gun.go : null;
+
+    /// CameraFollow, once the camera is at his eyes: frame the gun from there and put his hands on it.
+    public void FirstPersonPose(Transform camT, float aimIn, bool sprinting)
+    {
+        if (!fpMode || !Ready || gun == null || weight <= 0f || player == null) return;
+        float dt = Mathf.Max(Time.deltaTime, 1e-4f);
+        Quaternion camRot = camT.rotation;
+        Vector3 eye = camT.position, cF = camT.forward, cU = camT.up, cR = camT.right;
+        bool reloading = weapons != null && weapons.Reloading;
+
+        // how much he's moving (bob) and how fast he's turning (sway)
+        Vector3 pos = player.transform.position, vel = (pos - fpLastPos) / dt; fpLastPos = pos; vel.y = 0f;
+        fpMove = Mathf.Lerp(fpMove, Mathf.Clamp01(vel.magnitude / 4.5f), 8f * dt);
+        fpBob += dt * Mathf.Lerp(6f, 11f, fpMove) * (fpMove > 0.05f ? 1f : 0f);
+        Vector3 e = camRot.eulerAngles;
+        float dYaw = Mathf.DeltaAngle(fpLastYaw, e.y), dPitch = Mathf.DeltaAngle(fpLastPitch, e.x);
+        fpLastYaw = e.y; fpLastPitch = e.x;
+        if (Mathf.Abs(dYaw) > 30f || Mathf.Abs(dPitch) > 30f) { dYaw = 0f; dPitch = 0f; }      // a cut, not a turn
+        fpSwayX = Mathf.Lerp(fpSwayX, Mathf.Clamp(-dYaw * 0.0022f, -0.022f, 0.022f), 10f * dt);
+        fpSwayY = Mathf.Lerp(fpSwayY, Mathf.Clamp(dPitch * 0.0018f, -0.016f, 0.016f), 10f * dt);
+
+        // aimed in (not while reloading); sprinting (not while aiming, firing or reloading)
+        fpAds = Mathf.MoveTowards(fpAds, reloading ? 0f : aimIn, dt * 7f);
+        bool sprintPose = sprinting && aimIn < 0.1f && !reloading && Time.time - lastFire > 0.5f;
+        fpSprint = Mathf.MoveTowards(fpSprint, sprintPose ? 1f : 0f, dt * 4f);
+        float ads = Ease(fpAds), sp = Ease(fpSprint), calm = Mathf.Lerp(1f, 0.15f, ads);
+
+        // at the hip: lower right, canted a little, pointing in at the crosshair
+        bool pistol = !gun.longGun;
+        Vector3 hip = pistol ? new Vector3(0.105f, -0.13f, 0.30f) : new Vector3(0.105f, -0.15f, 0.18f);
+        hip += new Vector3(-0.03f, -0.05f, -0.03f) * sp;
+        Quaternion hipRot = camRot * Quaternion.Euler(1.5f + 20f * sp, -2.5f - 34f * sp, -5f - 16f * sp);
+        Vector3 hipPos = eye + camRot * hip;
+
+        // aimed in: the sight on the line from the eye through the middle of the screen
+        float sightDist = kind == LundunWeapons.Kind.Pistol ? 0.33f : kind == LundunWeapons.Kind.Smg ? 0.17f : kind == LundunWeapons.Kind.Carbine ? 0.15f : 0.13f;
+        Vector3 sightL = gun.sight != null ? gun.sight.localPosition : new Vector3(0f, 0.08f, 0f);
+        Vector3 adsPos = eye + cF * sightDist - camRot * sightL;
+
+        Quaternion gunRot = Quaternion.Slerp(hipRot, camRot, ads);
+        Vector3 gunPos = Vector3.Lerp(hipPos, adsPos, ads);
+
+        // walking bob, breathing, and the lag behind quick turns (much less aimed in)
+        float bx = Mathf.Sin(fpBob) * 0.007f * fpMove, by = -Mathf.Abs(Mathf.Cos(fpBob)) * 0.009f * fpMove + Mathf.Sin(Time.time * 1.6f) * 0.0015f;
+        gunPos += camRot * new Vector3((bx + fpSwayX) * calm, (by + fpSwayY) * calm, 0f);
+        gunRot = gunRot * Quaternion.Euler(-fpSwayY * 30f * calm, fpSwayX * 30f * calm, -fpSwayX * 50f * calm);
+
+        // a long gun: his upper body turns into it (left shoulder forward) so his left hand reaches the foregrip; it
+        // turns about the spine's own upright, so his eyes (the camera) hardly move
+        if (gun.longGun)
+        {
+            Transform[] spineBones = { spine, chest, upperChest };
+            int count = 0; foreach (Transform t in spineBones) if (t != null) count++;
+            float blade = 18f * weight;
+            foreach (Transform t in spineBones) if (t != null) t.rotation = Quaternion.AngleAxis(blade / Mathf.Max(1, count), Vector3.up) * t.rotation;
+        }
+
+        Hold(gunPos, gunRot, cF, cR, cU, Mathf.Lerp(0.03f, 0.018f, ads), Mathf.Lerp(3.5f, 1.2f, ads), true);
     }
 
     /// A shot went off: up into the aim, kick.
@@ -148,6 +242,7 @@ public class LundunWeaponRig : MonoBehaviour
         bool wantUp = LundunAim.Aiming || Time.time - lastFire < lowerAfter;
         raise = Mathf.MoveTowards(raise, wantUp ? 1f : 0f, Time.deltaTime * (wantUp ? 8f : 2.5f));
         kick = Mathf.MoveTowards(kick, 0f, Time.deltaTime * 9f) * Mathf.Exp(-14f * Time.deltaTime);
+        if (fpMode) return;                      // V1: first person: the camera frames the gun (FirstPersonPose), his spine stays as animated
         float up = Ease(raise);
 
         Transform body = player.transform;
@@ -200,9 +295,15 @@ public class LundunWeaponRig : MonoBehaviour
             gunPos = Vector3.Lerp(lowGrip, upGrip, up);
         }
 
+        Hold(gunPos, gunRot, bFwd, bRight, bUp, 0.035f, 4.5f, false);
+    }
+
+    /// The gun at this pose (plus the kick and the reload), its moving parts, and both hands on it.
+    void Hold(Vector3 gunPos, Quaternion gunRot, Vector3 bFwd, Vector3 bRight, Vector3 bUp, float kickBack, float kickUp, bool firstPerson)
+    {
         // recoil kick: back and muzzle up
-        gunPos -= gunRot * Vector3.forward * (kick * 0.035f);
-        gunRot = gunRot * Quaternion.Euler(-kick * 4.5f, 0f, 0f);
+        gunPos -= gunRot * Vector3.forward * (kick * kickBack);
+        gunRot = gunRot * Quaternion.Euler(-kick * kickUp, 0f, 0f);
 
         // reload: tilt the gun, swap the magazine (or load shells)
         Vector3 leftTarget = gun.fore != null ? gun.fore.position : gunPos;
@@ -231,7 +332,8 @@ public class LundunWeaponRig : MonoBehaviour
         Vector3 rFinger = (gF * 0.75f - gU * 0.45f - gR * 0.2f).normalized;
         Vector3 rAcross = (-gU * 0.95f - gF * 0.3f).normalized;
         Vector3 rWrist = gunPos - gU * 0.04f - rFinger * 0.062f + gR * 0.018f + gunRot * rightHandNudge;
-        PlaceArm(rUpper, rLower, rHand, rWrist, -bUp * 0.7f + bRight * 0.7f - bFwd * 0.2f, rMiddleP, rIndexP, rLittleP, rFinger, rAcross, rFingers, true);
+        Vector3 rPole = firstPerson ? -bUp * 0.8f + bRight * 0.5f : -bUp * 0.7f + bRight * 0.7f - bFwd * 0.2f;   // V1: elbows down from the eyes' view
+        PlaceArm(rUpper, rLower, rHand, rWrist, rPole, rMiddleP, rIndexP, rLittleP, rFinger, rAcross, rFingers, true);
 
         // left hand: under the handguard / on the foregrip / round the pistol grip / on the magazine
         Vector3 lFinger, lAcross, lWrist;
@@ -256,7 +358,8 @@ public class LundunWeaponRig : MonoBehaviour
             lWrist = gunPos - gU * 0.06f - gR * 0.03f - lFinger * 0.05f;
         }
         lWrist += gunRot * leftHandNudge;
-        PlaceArm(lUpper, lLower, lHand, lWrist, -bUp * 0.7f - bRight * 0.6f - bFwd * 0.2f, lMiddleP, lIndexP, lLittleP, lFinger, lAcross, lFingers, false);
+        Vector3 lPole = firstPerson ? -bUp * 0.8f - bRight * 0.4f : -bUp * 0.7f - bRight * 0.6f - bFwd * 0.2f;
+        PlaceArm(lUpper, lLower, lHand, lWrist, lPole, lMiddleP, lIndexP, lLittleP, lFinger, lAcross, lFingers, false);
     }
 
     void AnimateParts(float p, bool shellReload)
