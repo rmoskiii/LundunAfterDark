@@ -30,6 +30,9 @@ Shader "Lundun/HeightFog"
                 float2 uv = input.texcoord;
                 half4 col = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv);
                 if (_LundunFogColor.a <= 0.0001) return col;
+                // V1: not on the first-person arms-and-gun camera (it only sees 5 m, and its depth is empty: fogging it
+                // would fog the whole screen a second time)
+                if (_ProjectionParams.z < 10.0) return col;
 
                 #if UNITY_REVERSED_Z
                     float depth = SampleSceneDepth(uv);

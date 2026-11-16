@@ -83,7 +83,11 @@ public class LundunViewModel : MonoBehaviour
             if (Layer >= 0) g.layer = Layer;
             arms.Add(smr);
         }
+        if (arms.Count == 0)
+            Debug.LogWarning("[Lundun] V1: first person has no arms yet. In the Editor, with the Lundun scene open: Lundun → 33 First Person Arms, then Cmd+S.");
     }
+
+    bool told;
 
     void OnEnable() { Available = Layer >= 0; }
     void OnDisable() { Switch(false); Available = false; }
@@ -107,6 +111,12 @@ public class LundunViewModel : MonoBehaviour
     {
         on = to;
         Active = to;
+        if (to && !told)
+        {
+            told = true;
+            Debug.Log("[Lundun] V1 first person: arms " + arms.Count + ", view-model layer " + Layer + (Layer < 0 ? " (no free layer!)" : ""));
+            if (arms.Count == 0 && LundunNavigation.Instance != null && Application.isEditor) LundunNavigation.Instance.ShowToast("No first-person arms\nRun Lundun → 33");
+        }
 
         // his body: shadow only while we're behind his eyes
         if (to)

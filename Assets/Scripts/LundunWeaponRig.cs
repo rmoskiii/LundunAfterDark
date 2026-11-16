@@ -184,7 +184,7 @@ public class LundunWeaponRig : MonoBehaviour
 
         // at the hip: lower right, canted a little, pointing in at the crosshair
         bool pistol = !gun.longGun;
-        Vector3 hip = pistol ? new Vector3(0.105f, -0.13f, 0.30f) : new Vector3(0.105f, -0.15f, 0.18f);
+        Vector3 hip = pistol ? new Vector3(0.08f, -0.14f, 0.40f) : new Vector3(0.105f, -0.15f, 0.18f);
         hip += new Vector3(-0.03f, -0.05f, -0.03f) * sp;
         Quaternion hipRot = camRot * Quaternion.Euler(1.5f + 20f * sp, -2.5f - 34f * sp, -5f - 16f * sp);
         Vector3 hipPos = eye + camRot * hip;

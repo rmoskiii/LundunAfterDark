@@ -1402161,6 +1402161,7 @@ GameObject:
   - component: {fileID: 2127824355}
   - component: {fileID: 2127824356}
   - component: {fileID: 2127824357}
+  - component: {fileID: 2127824358}
   m_Layer: 6
   m_Name: James
   m_TagString: Untagged
@@ -1402420,6 +1402421,24 @@ MonoBehaviour:
   softLandingHold: 0.35
   hardLandingHold: 0.6
   rollHold: 0.9
+--- !u!114 &2127824358
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2127824345}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9c40513e0e84f45be89608e5bc5ffe96, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LundunViewModel
+  armMeshes:
+  - {fileID: 4300000, guid: b1e2ac37c399c45489139f13f61b49fa, type: 2}
+  armSources:
+  - Ch06
+  hipFov: 58
+  aimFov: 48
 --- !u!1 &2128013230
 GameObject:
   m_ObjectHideFlags: 0
