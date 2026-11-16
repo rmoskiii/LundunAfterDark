@@ -158,7 +158,7 @@ public class LundunViewModel : MonoBehaviour
                 UniversalAdditionalCameraData md = main.GetUniversalAdditionalCameraData();
                 vd.renderType = CameraRenderType.Overlay;
                 vd.renderShadows = false;
-                vd.clearDepth = true;
+                // (an overlay camera always starts from a clear depth buffer: the arms and gun draw over everything)
                 vd.renderPostProcessing = md.renderPostProcessing;
                 if (!md.cameraStack.Contains(vmCam)) md.cameraStack.Add(vmCam);
             }
