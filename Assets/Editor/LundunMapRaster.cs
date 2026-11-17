@@ -77,6 +77,17 @@ namespace LundunGreybox
         /// the Greater Lundun backdrop is (RenderBackdrop), so the two meet without a seam.
         public static MapImage Render(LundunWorldData W, GreyboxResult R, double metresPerPixel, List<MapArea> areas)
         {
+            return Render(W, R, metresPerPixel, areas, false);
+        }
+
+        // V3: the full map's simple picture: the buildings only as a faint built-up tone (no outlines, no plot colours),
+        // so zoomed out the map reads as land, water, parks and roads
+        static readonly byte[] BuiltUp = { 46, 52, 49 };
+        static readonly byte[] PavedQuiet = { 62, 67, 66 };         // squares, car parks, the depot: quiet, not bright
+
+        /// V3: simple = the full map's zoomed-out picture (see BuiltUp).
+        public static MapImage Render(LundunWorldData W, GreyboxResult R, double metresPerPixel, List<MapArea> areas, bool simple)
+        {
             List<LwPoly> allParks = new List<LwPoly>(W.parks);
             List<BuildingInfo> allBuildings = new List<BuildingInfo>(R.buildings);
             List<LwRoad> allRoads = new List<LwRoad>(W.roads);
@@ -116,17 +127,17 @@ namespace LundunGreybox
             {
                 List<V2> poly = new List<V2>();
                 foreach (LwPoint p in park.polygon) poly.Add(new V2(p.x, p.z));
-                Polygon(poly, park.name != null && (park.name.EndsWith("Square") || park.name.EndsWith("Market")) ? Service : Park);     // E1: town squares are paved (E3: and the market)
+                Polygon(poly, park.name != null && (park.name.EndsWith("Square") || park.name.EndsWith("Market")) ? (simple ? PavedQuiet : Service) : Park);     // E1: town squares are paved (E3: and the market)
             }
 
             // V2a: the city plan's open spaces: Rye Common and Loughborough Rec (green), the freight depot (paved)
-            foreach (KeyValuePair<List<V2>, bool> z in Generator.PlanMapZones(areas.Count > 0)) Polygon(z.Key, z.Value ? Park : Service);
+            foreach (KeyValuePair<List<V2>, bool> z in Generator.PlanMapZones(areas.Count > 0)) Polygon(z.Key, z.Value ? Park : (simple ? PavedQuiet : Service));
 
             foreach (BuildingInfo bd in allBuildings)
             {
                 V2 f = bd.dir.Norm, l = f.Left;
                 double hl = bd.len / 2, hd = bd.dep / 2;
-                Polygon(new List<V2> { bd.c - f * hl - l * hd, bd.c + f * hl - l * hd, bd.c + f * hl + l * hd, bd.c - f * hl + l * hd }, Building);
+                Polygon(new List<V2> { bd.c - f * hl - l * hd, bd.c + f * hl - l * hd, bd.c + f * hl + l * hd, bd.c - f * hl + l * hd }, simple ? BuiltUp : Building);
             }
 
             // E4: the retail park: wasteland a shade lighter, car parks and yards paved, the stores and ruins as buildings
@@ -136,10 +147,11 @@ namespace LundunGreybox
                 foreach (MapArea a in areas)
                     if (a != null && a.shapes != null)
                         foreach (Generator.RetailMapPoly rmp in a.shapes)
-                            if (rmp.kind == k) Polygon(rmp.poly, ShapeColour(k));
+                            if (rmp.kind == k) Polygon(rmp.poly, simple && k == 1 ? BuiltUp : simple && k == 0 ? PavedQuiet : ShapeColour(k));
 
-            // V2b: hospitals, police stations and safehouses (their plots), tinted so they read on the map
-            try
+            // V2b: hospitals, police stations and safehouses (their plots), tinted so they read on the map (not on the
+            // simple picture: their icons say it)
+            if (!simple) try
             {
                 foreach (PlaceSite s in Generator.MapPlaces())
                 {

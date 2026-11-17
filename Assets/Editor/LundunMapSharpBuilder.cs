@@ -18,16 +18,18 @@ public static class LundunMapSharpBuilder
     const string JsonPath = "Assets/World/LundunWorld.json";
     const string MapPath = "Assets/World/Generated/LundunMap.png";
     const string BackdropPath = "Assets/World/Generated/LundunMapBackdrop.png";
+    const string SimplePath = "Assets/World/Generated/LundunMapSimple.png";      // V3: the full map's zoomed-out picture
+    const double SimpleMetresPerPixel = 1.2;
     const double BackdropMetresPerPixel = 2.25;
     const double MetresPerPixel = 0.5;
 
-    [MenuItem("Lundun/17  Sharper Maps (V2b)", false, 18)]
+    [MenuItem("Lundun/17  Sharper Maps (V2b)", false, 18)]   // V3: also the full map's simple picture
     public static void Build()
     {
         TextAsset json = AssetDatabase.LoadAssetAtPath<TextAsset>(JsonPath);
         if (json == null) { EditorUtility.DisplayDialog("Lundun", "Can't find " + JsonPath, "OK"); return; }
         LundunWorldData data = LundunExpansionBuilder.Parse(json.text);
-        MapImage img, back;
+        MapImage img, back, simple;
         try
         {
             EditorUtility.DisplayProgressBar("Lundun", "Drawing the map at 0.5 m per pixel…", 0.3f);
@@ -48,6 +50,11 @@ public static class LundunMapSharpBuilder
             EditorUtility.DisplayProgressBar("Lundun", "Saving " + img.width + "×" + img.height + "…", 0.6f);
             SavePng(MapPath, img);                                    // same file, so everything using it keeps its link
 
+            // V3: the full map's simple picture (zoomed out); the same area, coarser, buildings only as a faint tone
+            EditorUtility.DisplayProgressBar("Lundun", "Drawing the full map's simple picture…", 0.65f);
+            simple = MapRaster.Render(data, city, SimpleMetresPerPixel, areas, true);
+            SavePng(SimplePath, simple);
+
             EditorUtility.DisplayProgressBar("Lundun", "Drawing Greater Lundun round it…", 0.75f);
             back = MapRaster.RenderBackdrop(data, BackdropMetresPerPixel);
             SavePng(BackdropPath, back);
@@ -56,7 +63,9 @@ public static class LundunMapSharpBuilder
 
         Import(MapPath, TextureImporterFormat.ASTC_4x4);
         Import(BackdropPath, TextureImporterFormat.ASTC_6x6);
+        Import(SimplePath, TextureImporterFormat.ASTC_6x6);
         Texture2D backTex = AssetDatabase.LoadAssetAtPath<Texture2D>(BackdropPath);
+        Texture2D simpleTex = AssetDatabase.LoadAssetAtPath<Texture2D>(SimplePath);
 
         // line everything up with the new picture (the area is the same; width/height round to the new pixel size)
         float minX = (float)img.minX, minZ = (float)img.minZ;
@@ -74,7 +83,11 @@ public static class LundunMapSharpBuilder
             a.floatValue = minX; b.floatValue = minZ; c.floatValue = w; d.floatValue = h;
             so.ApplyModifiedPropertiesWithoutUndo();
             if (mb is LundunFullMap fm)
+            {
                 fm.SetBackdrop(backTex, new Vector4((float)back.minX, (float)back.minZ, (float)(back.width * back.metresPerPixel), (float)(back.height * back.metresPerPixel)), outerNames, outerAt);
+                // V3: the simple picture's own area (it rounds to its coarser pixels, so it's a hair bigger than the map's)
+                fm.SetSimplePicture(simpleTex, new Vector4((float)simple.minX, (float)simple.minZ, (float)(simple.width * simple.metresPerPixel), (float)(simple.height * simple.metresPerPixel)));
+            }
             EditorUtility.SetDirty(mb);
             fixedUp++;
         }

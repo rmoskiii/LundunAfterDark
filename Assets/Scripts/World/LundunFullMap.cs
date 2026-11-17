@@ -10,7 +10,11 @@ using UnityEngine.UI;
 ///   • tap a place's icon, or anywhere on a road, to select it: a card at the bottom shows what it is and how far,
 ///     with SET ROUTE. With a route set, the card shows it with CLEAR ROUTE
 ///   • PLACES (top right) opens a list of every destination
-///   • R4b: gang areas you've been into are shaded in the gang's colour, with their name under the district's
+///   • V3: simpler: zoomed out it shows a calm picture (land, water, parks, roads; buildings only as a faint tone), and
+///     fades to the detailed picture (the minimap's) as you zoom into the streets; no gang colours; names never pile
+///     on top of each other (district names first, then places, then streets); Rye Common, Quay Freight and
+///     Loughborough Rec are named; the filters fold away behind LEGEND; bike docks, the Tube and rail stations show
+///     once you zoom in; it always sits over the HUD (the minimap can't draw on top of it)
 ///   • E8: Greater Lundun round the playable city (the river across the middle, the outer boroughs and their names),
 ///     drawn behind the map picture; zooming right out shows all of it, top to bottom, without scrolling
 /// Built by Lundun → 6  Build Full Map + GPS (which fills in the fields below); the new look is made in code.
@@ -46,6 +50,15 @@ public class LundunFullMap : MonoBehaviour
     [Tooltip("Zoomed right out, this much room is left round Greater Lundun (fraction of the screen)")]
     [SerializeField] private float fitMargin = 0.02f;
 
+    [Header("V3: the simple picture (filled in by Lundun → 17)")]
+    [SerializeField] private Texture2D simplePicture;
+    [Tooltip("Its area: min x, min z, width, height (world metres)")]
+    [SerializeField] private Vector4 simpleArea = Vector4.zero;
+    [Tooltip("The detailed picture shows through once less than this many metres fit top-to-bottom (fully below the lower)")]
+    [SerializeField] private Vector2 detailBetween = new Vector2(260f, 480f);
+    [Tooltip("Bike docks, the Tube and rail stations show once less than this many metres fit top-to-bottom")]
+    [SerializeField] private float minorIconsBelow = 900f;
+
     [Header("Zoom")]
     [SerializeField] private float openMetresTall = 700f;     // how much map fits top-to-bottom when it opens
     [SerializeField] private float closestMetresTall = 120f;
@@ -79,12 +92,31 @@ public class LundunFullMap : MonoBehaviour
     private Item selected;
     private readonly Item pin = new Item { kind = "pin", name = "Dropped pin", isPin = true };
 
-    private RectTransform backdropRect;
+    private RectTransform backdropRect, simpleRect;
+    private RawImage simpleImg;
+    private RectTransform legendButton;
+    private bool legendOpen;
+    private readonly List<TextMeshProUGUI> placeLabels = new List<TextMeshProUGUI>();      // V3: the open spaces' names
+    private readonly List<TextMeshProUGUI> itemLabels = new List<TextMeshProUGUI>();       // landmark names under their icons
+    private readonly List<TextMeshProUGUI> outerLabels = new List<TextMeshProUGUI>();
+    private readonly List<RectTransform> placedRects = new List<RectTransform>();
+    private readonly List<Rect> placed = new List<Rect>();
+    private readonly Dictionary<TextMeshProUGUI, Vector2> labelSize = new Dictionary<TextMeshProUGUI, Vector2>();
+    static readonly string[] MinorKinds = { "bike", "tube", "rail" };
+
+    // V3: the city plan's open spaces (no district of their own): name and middle (world x, z)
+    static readonly string[] OpenSpaceNames = { "RYE COMMON", "QUAY FREIGHT", "LOUGHBOROUGH REC" };
+    static readonly Vector2[] OpenSpaceAt = { new Vector2(1330f, 250f), new Vector2(1266f, 1076f), new Vector2(840f, -546f) };
     private readonly List<KeyValuePair<string, GameObject>> gangAreas = new List<KeyValuePair<string, GameObject>>();   // R4b
 
     void Awake() { Instance = this; if (window != null) window.SetActive(false); }
 
     /// Lundun → 17: Greater Lundun's picture, its area, and the outer boroughs' names.
+#if UNITY_EDITOR
+    /// Lundun → 17 (V3).
+    public void SetSimplePicture(Texture2D picture, Vector4 area) { simplePicture = picture; simpleArea = area; }
+#endif
+
     public void SetBackdrop(Texture2D picture, Vector4 area, string[] names, Vector2[] at)
     {
         backdrop = picture; backdropArea = area;
@@ -115,7 +147,6 @@ public class LundunFullMap : MonoBehaviour
         if (window == null || viewport == null || content == null)
         { Debug.LogWarning("[Lundun] Full map parts missing — run Lundun → 6  Build Full Map + GPS again."); return; }
         if (!built) BuildContents();
-        else ShowGangAreas();                    // R4b: any gang area James has found since
         IsOpen = true;
         window.SetActive(true);
         if (drawer != null) drawer.gameObject.SetActive(false);
@@ -246,6 +277,23 @@ public class LundunFullMap : MonoBehaviour
         float da = Mathf.Lerp(0.16f, 0.42f, Mathf.InverseLerp(250f, 800f, metresTall));
         foreach (TextMeshProUGUI d in districtLabels) d.alpha = da;
 
+        // V3: the simple picture zoomed out, the detailed one in the streets
+        if (simpleImg != null)
+        {
+            float a = Mathf.InverseLerp(detailBetween.x, detailBetween.y, metresTall);
+            simpleImg.color = new Color(1f, 1f, 1f, a);
+            simpleImg.enabled = a > 0.001f;
+        }
+        // V3: the small things (bike docks, Tube, rail) once you're zoomed in (and their filter's on)
+        bool minor = metresTall < minorIconsBelow;
+        foreach (Item it in items)
+        {
+            if (it.icon == null || System.Array.IndexOf(MinorKinds, it.kind) < 0) continue;
+            bool on = minor && ChipOn(it.kind);
+            if (it.icon.gameObject.activeSelf != on) it.icon.gameObject.SetActive(on);
+        }
+        Declutter(streets);
+
         // selection ring and pin
         if (selectRing != null)
         {
@@ -342,6 +390,25 @@ public class LundunFullMap : MonoBehaviour
         Transform oldCross = window.transform.Find("CloseButton");
         if (oldCross != null) oldCross.gameObject.SetActive(false);
 
+        // V3: always over the HUD (its own sorting, above the minimap and buttons; and it takes the touches first)
+        Canvas wc = window.GetComponent<Canvas>();
+        if (wc == null) wc = window.AddComponent<Canvas>();
+        wc.overrideSorting = true;
+        wc.sortingOrder = 300;
+        if (window.GetComponent<GraphicRaycaster>() == null) window.AddComponent<GraphicRaycaster>();
+
+        // V3: the simple picture over the detailed one (it fades out as you zoom into the streets)
+        if (simplePicture != null && simpleArea.z > 0f)
+        {
+            simpleRect = Rect("MapSimple", content);
+            Transform detailed = content.Find("MapImage");
+            simpleRect.SetSiblingIndex(detailed != null ? detailed.GetSiblingIndex() + 1 : 0);
+            simpleRect.anchorMin = simpleRect.anchorMax = simpleRect.pivot = new Vector2(0.5f, 0.5f);
+            simpleImg = simpleRect.gameObject.AddComponent<RawImage>();
+            simpleImg.texture = simplePicture;
+            simpleImg.raycastTarget = false;
+        }
+
         // E8: Greater Lundun behind the map picture, and the outer boroughs' names
         if (HasBackdrop)
         {
@@ -353,9 +420,9 @@ public class LundunFullMap : MonoBehaviour
             ri.raycastTarget = false;
             for (int i = 0; i < outerNames.Length && i < outerAt.Length; i++)
             {
-                TextMeshProUGUI t = Label(labelLayer, outerNames[i], new Vector3(outerAt[i].x, 0f, outerAt[i].y), 34, new Color(1f, 1f, 1f, 0.3f));
-                t.characterSpacing = 18f;
-                districtLabels.Add(t);
+                TextMeshProUGUI t = Label(labelLayer, outerNames[i], new Vector3(outerAt[i].x, 0f, outerAt[i].y), 30, new Color(1f, 1f, 1f, 0.22f));
+                t.characterSpacing = 16f;
+                outerLabels.Add(t);
             }
         }
 
@@ -366,15 +433,20 @@ public class LundunFullMap : MonoBehaviour
             foreach (LwPoly d in w.districts)
             {
                 if (d.id == "D_CANARY_PEN") continue;
-                float cx = 0, cz = 0;
-                foreach (LwPoint p in d.polygon) { cx += p.x; cz += p.z; }
-                cx /= d.polygon.Length; cz /= d.polygon.Length;
-                TextMeshProUGUI t = Label(labelLayer, d.name, new Vector3(cx, 0, cz), 40, new Color(1f, 1f, 1f, 0.4f));
+                Vector2 mid = AreaMiddle(d.polygon);                      // V3: the middle of its area, not of its corners
+                TextMeshProUGUI t = Label(labelLayer, d.name.ToUpperInvariant(), new Vector3(mid.x, 0, mid.y), 36, new Color(1f, 1f, 1f, 0.4f));
                 t.characterSpacing = 18f;
                 districtLabels.Add(t);
                 districtById[d.id] = t;
             }
-            GangAreas(w, districtById);
+            // V3: no gang colours on the full map (it reads cleaner); the open spaces get their names instead
+            for (int i = 0; i < OpenSpaceNames.Length; i++)
+            {
+                TextMeshProUGUI t = Label(labelLayer, OpenSpaceNames[i], new Vector3(OpenSpaceAt[i].x, 0f, OpenSpaceAt[i].y), 24, new Color(0.62f, 0.86f, 0.62f, 0.75f));
+                t.characterSpacing = 10f;
+                t.fontStyle = FontStyles.Italic;
+                placeLabels.Add(t);
+            }
             foreach (LwRoad r in w.roads)
             {
                 if (r.roadClass == "service" || r.points == null || r.points.Length < 2 || string.IsNullOrEmpty(r.name)) continue;
@@ -514,6 +586,7 @@ public class LundunFullMap : MonoBehaviour
             TextMeshProUGUI l = Label(labelLayer, name, pos, 20, new Color(1f, 1f, 1f, 0.75f));
             l.fontStyle = FontStyles.Italic;
             l.rectTransform.anchoredPosition = new Vector2(0f, -22f);
+            itemLabels.Add(l);
         }
         items.Add(new Item { kind = kind, name = name, pos = pos, icon = ic });
     }
@@ -543,8 +616,10 @@ public class LundunFullMap : MonoBehaviour
         RectTransform places = PillButton(overlay, LundunHudArt.List, "PLACES", new Vector2(1, 1), new Vector2(-148, -42), ToggleDrawer);
         places.pivot = new Vector2(1, 1);
 
-        // filters, down the left
-        float y = -150f;
+        // V3: the filters fold away behind LEGEND (top left, under the title)
+        legendButton = PillButton(overlay, LundunHudArt.List, "LEGEND", new Vector2(0, 1), new Vector2(36f, -142f), ToggleLegend);
+        legendButton.pivot = new Vector2(0f, 1f);
+        float y = -226f;
         foreach (string kind in KindOrder(new[] { "safehouse", "hospital", "police", "tube", "rail", "bike", "landmark" }, LundunNavigation.Instance))
         {
             bool any = false;
@@ -613,6 +688,74 @@ public class LundunFullMap : MonoBehaviour
         c.label.alignment = TextAlignmentOptions.MidlineLeft; c.label.characterSpacing = 3f;
         Stretch(c.label.rectTransform); c.label.rectTransform.offsetMin = new Vector2(56f, 0f);
         chips.Add(c);
+        r.gameObject.SetActive(legendOpen);                 // V3: folded away until LEGEND is tapped
+    }
+
+    void ToggleLegend()
+    {
+        legendOpen = !legendOpen;
+        foreach (Chip c in chips) if (c.label != null) c.label.transform.parent.gameObject.SetActive(legendOpen);
+        LundunHaptics.Light();
+    }
+
+    bool ChipOn(string kind)
+    {
+        foreach (Chip c in chips) if (c.kind == kind) return c.on;
+        return true;
+    }
+
+    /// V3: names never pile on top of each other: districts first, then the open spaces, then landmarks, the outer
+    /// boroughs and (zoomed in) the streets; any that would overlap one already shown is hidden this frame.
+    void Declutter(bool streets)
+    {
+        placed.Clear();
+        Vector2 half = viewport.rect.size * 0.5f + new Vector2(200f, 200f);
+        PlaceAll(districtLabels, half, 14f);
+        PlaceAll(placeLabels, half, 10f);
+        PlaceAll(itemLabels, half, 6f);
+        PlaceAll(outerLabels, half, 14f);
+        if (streets) PlaceAll(streetLabels, half, 4f);
+    }
+
+    void PlaceAll(List<TextMeshProUGUI> labels, Vector2 half, float pad)
+    {
+        foreach (TextMeshProUGUI t in labels)
+        {
+            if (t == null) continue;
+            RectTransform rt = t.rectTransform;
+            Vector2 uv = rt.anchorMin;
+            Vector2 at = content.anchoredPosition + (uv - new Vector2(0.5f, 0.5f)) * content.rect.size + rt.anchoredPosition;
+            bool show = Mathf.Abs(at.x) < half.x && Mathf.Abs(at.y) < half.y;          // off screen: don't let it block others
+            if (show)
+            {
+                Vector2 size;
+                if (!labelSize.TryGetValue(t, out size)) { size = t.GetPreferredValues(t.text); labelSize[t] = size; }
+                float ang = rt.localEulerAngles.z * Mathf.Deg2Rad;
+                float w = Mathf.Abs(Mathf.Cos(ang)) * size.x + Mathf.Abs(Mathf.Sin(ang)) * size.y;
+                float h = Mathf.Abs(Mathf.Sin(ang)) * size.x + Mathf.Abs(Mathf.Cos(ang)) * size.y;
+                Rect r = new Rect(at.x - w * 0.5f - pad, at.y - h * 0.5f - pad, w + pad * 2f, h + pad * 2f);
+                foreach (Rect o in placed) if (o.Overlaps(r)) { show = false; break; }
+                if (show) placed.Add(r);
+            }
+            if (t.enabled != show) t.enabled = show;
+        }
+    }
+
+    /// The middle of a polygon's area (a district's name sits there).
+    static Vector2 AreaMiddle(LwPoint[] poly)
+    {
+        double a = 0, cx = 0, cz = 0;
+        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
+        {
+            double cross = (double)poly[j].x * poly[i].z - (double)poly[i].x * poly[j].z;
+            a += cross; cx += (poly[j].x + poly[i].x) * cross; cz += (poly[j].z + poly[i].z) * cross;
+        }
+        if (System.Math.Abs(a) < 1e-6)
+        {
+            float sx = 0, sz = 0; foreach (LwPoint p in poly) { sx += p.x; sz += p.z; }
+            return new Vector2(sx / poly.Length, sz / poly.Length);
+        }
+        return new Vector2((float)(cx / (3 * a)), (float)(cz / (3 * a)));
     }
 
     void ToggleChip(Chip c)
@@ -874,6 +1017,12 @@ public class LundunFullMap : MonoBehaviour
     void ApplyZoom()
     {
         content.sizeDelta = new Vector2(mapWidth * ppm, mapHeight * ppm);
+        if (simpleRect != null)
+        {
+            Vector4 s = simpleArea;
+            simpleRect.sizeDelta = new Vector2(s.z * ppm, s.w * ppm);
+            simpleRect.anchoredPosition = new Vector2(s.x + s.z * 0.5f - (mapMinX + mapWidth * 0.5f), s.y + s.w * 0.5f - (mapMinZ + mapHeight * 0.5f)) * ppm;
+        }
         if (backdropRect != null)
         {
             // E8: Greater Lundun's picture, sized and placed round the map picture (content's middle is the map's middle)
