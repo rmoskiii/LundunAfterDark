@@ -7,6 +7,7 @@
 //     gun bones    spine, chest, both arms and hands, index and middle fingers (the gun rig holds the guns with these)
 //     arms         its own first-person arms (Lundun → 33 for that model)
 //     guns fitted  marked as looked at in Play with every gun (can't be checked here: it needs eyes)
+//     outfits      (Phase 3) how many of the outfits it has built (a note, not a pass/fail)
 //   Writes a report to the Console and shows the summary. Changes nothing.
 using System.Collections.Generic;
 using System.Text;
@@ -50,6 +51,10 @@ public static class LundunCharacterCheck
                 LundunViewModel vm = pc.GetComponent<LundunViewModel>();
                 if (vm == null || !vm.HasArms) fails.Add("no first-person arms: run Lundun → 33, then Cmd+S");
                 else notes.Add("first-person arms: on the player (LundunViewModel)");
+                LundunOutfitSet outfits = pc.GetComponent<LundunOutfitSet>();
+                int have = 0;
+                if (outfits != null) foreach (LundunOutfits.Outfit o in LundunOutfits.All) if (outfits.Has(o.id)) have++;
+                notes.Add(outfits == null ? "outfits: not built yet (Lundun → 35): Midnight only" : "outfits: " + have + " of " + LundunOutfits.All.Count);
             }
             else
             {

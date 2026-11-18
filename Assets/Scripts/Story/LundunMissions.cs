@@ -19,6 +19,8 @@ public class LundunMissions : MonoBehaviour
 {
     public static LundunMissions Instance { get; private set; }
     public static bool Running { get { return Instance != null && Instance.run != null; } }
+    /// Phase 3: a mission's card is up (the wardrobe keeps out of its way).
+    public static bool CardOpen { get { return Instance != null && Instance.card != null && Instance.card.activeSelf; } }
     /// V2f: the attempt that's running (null if none), for LundunCctv.
     public static LundunMissionRun CurrentRun { get { return Instance != null ? Instance.run : null; } }
     /// Guidance: the step on now (null between missions).

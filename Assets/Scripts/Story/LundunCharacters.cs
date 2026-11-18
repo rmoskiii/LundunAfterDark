@@ -9,14 +9,14 @@ using UnityEngine;
 ///   the choice  picked on the CHOOSE YOUR CHARACTER screen after NEW STORY, saved in the story's own key/value list as
 ///               "story.character" (story.json, same save version). CONTINUE loads it; a save from before Phase 2 has
 ///               none and plays as James. Anything unknown, switched off or broken also falls back to James.
-///   Free Roam   untouched: it never reads or writes the story's choice. If Free Roam gets its own later it will be a
-///               separate PlayerPrefs key (FreeRoamKey), so the two can never overwrite each other.
-/// Character (who) and outfit (what they wear, Phase 3) are kept apart: nothing here is about clothes.
+///   Free Roam   Phase 3: its own choice (the select screen every time you pick FREE ROAM), kept in PlayerPrefs
+///               (FreeRoamKey), never the story file: the two can never overwrite each other.
+/// Character (who) and outfit (what they wear: LundunOutfits) are kept apart, each saved on its own.
 public static class LundunCharacters
 {
     /// The story save's key for the chosen character.
     public const string StoryKey = "story.character";
-    /// Reserved for a future Free Roam choice (PlayerPrefs, never the story file). Not used yet.
+    /// Free Roam's chosen character (PlayerPrefs, never the story file).
     public const string FreeRoamKey = "Lundun.FreeRoam.Character";
     public const string DefaultId = "james";
 
@@ -92,49 +92,107 @@ public static class LundunCharacters
         return a != null && a.avatar != null && a.avatar.isHuman && a.avatar.isValid;
     }
 
-    // ------------------------------------------------------------------ the story's choice
-    /// Picked on the select screen, written into the new story when it starts (LundunStory.Reset).
-    public static string Pending { get; set; }
+    // ------------------------------------------------------------------ the choice, kept per mode
+    // Story: the story's own key/value list (story.json), wiped with the story.
+    // Free Roam (Phase 3): PlayerPrefs under its own keys. Neither mode ever reads or writes the other's.
+    public const string StoryOutfitKey = "story.outfit";
+    public const string FreeRoamOutfitKey = "Lundun.FreeRoam.Outfit";
 
-    /// LundunStory.Reset: a brand new story takes the character just picked (James if none was).
+    static string Read(LundunGame.Mode mode, string storyKey, string freeKey)
+    {
+        string v;
+        if (mode == LundunGame.Mode.Story) return LundunStory.TryGet(storyKey, out v) ? v : null;
+        v = PlayerPrefs.GetString(freeKey, "");
+        return v.Length > 0 ? v : null;
+    }
+
+    static void Write(LundunGame.Mode mode, string storyKey, string freeKey, string value)
+    {
+        if (mode == LundunGame.Mode.Story) LundunStory.Set(storyKey, value);
+        else { PlayerPrefs.SetString(freeKey, value); PlayerPrefs.Save(); }
+    }
+
+    /// Picked on the select screen for a new story, written into it when it starts (LundunStory.Reset).
+    public static string Pending { get; set; }
+    public static string PendingOutfit { get; set; }
+
+    /// LundunStory.Reset: a brand new story takes the character and outfit just picked (James in Midnight if none were).
     public static void SeedNewStory()
     {
         Def d = Find(Pending);
-        string id = d != null && d.selectable ? d.id : DefaultId;
-        Pending = null;
-        LundunStory.Set(StoryKey, id);
+        LundunStory.Set(StoryKey, d != null && d.selectable ? d.id : DefaultId);
+        LundunOutfits.Outfit o = LundunOutfits.Find(PendingOutfit);
+        LundunStory.Set(StoryOutfitKey, o != null ? o.id : LundunOutfits.DefaultId);
+        Pending = null; PendingOutfit = null;
     }
 
-    /// The character this story is played as. Story only: in Free Roam this is always James and nothing is read.
-    public static Def Story
+    /// The character saved for a mode (James if none, or if it isn't available).
+    public static Def SavedCharacter(LundunGame.Mode mode)
     {
-        get
+        string id = Read(mode, StoryKey, FreeRoamKey);
+        if (id == null) return Default;                                   // a save from before Phase 2 / Free Roam's first time
+        Def d = Find(id);
+        if (d == null || !d.selectable || !CanLoad(d))
         {
-            if (!LundunGame.IsStory) return Default;
-            string id;
-            if (!LundunStory.TryGet(StoryKey, out id)) return Default;      // a save from before Phase 2
-            Def d = Find(id);
-            if (d == null || !d.selectable || !CanLoad(d))
-            {
-                Debug.LogWarning("[Lundun] Story character '" + id + "' isn't available: playing as James.");
-                return Default;
-            }
-            return d;
+            Debug.LogWarning("[Lundun] " + mode + " character '" + id + "' isn't available: playing as James.");
+            return Default;
         }
+        return d;
     }
 
-    /// LundunStoryUI (Story only): put the story's character in charge of the player. James is already the player in the
-    /// city, so for him there's nothing to change. Another character's model goes in here when the first one is approved;
-    /// until then anything else falls back to James.
-    public static void ApplyStory()
+    /// The outfit saved for a mode (Midnight if none, or if it's unknown).
+    public static LundunOutfits.Outfit SavedOutfit(LundunGame.Mode mode)
     {
-        if (!LundunGame.IsStory) return;
-        Def d = Story;
+        LundunOutfits.Outfit o = LundunOutfits.Find(Read(mode, StoryOutfitKey, FreeRoamOutfitKey));
+        return o ?? LundunOutfits.Default;
+    }
+
+    /// Free Roam's select screen (PLAY): keep its character and outfit.
+    public static void SaveFreeRoam(string characterId, string outfitId)
+    {
+        Write(LundunGame.Mode.FreeRoam, StoryKey, FreeRoamKey, Find(characterId) != null ? characterId : DefaultId);
+        Write(LundunGame.Mode.FreeRoam, StoryOutfitKey, FreeRoamOutfitKey, LundunOutfits.Find(outfitId) != null ? outfitId : LundunOutfits.DefaultId);
+    }
+
+    /// The wardrobe: change the outfit for the mode being played, and wear it now.
+    public static void ChangeOutfit(string outfitId)
+    {
+        LundunOutfits.Outfit o = LundunOutfits.Find(outfitId) ?? LundunOutfits.Default;
+        Write(LundunGame.Current, StoryOutfitKey, FreeRoamOutfitKey, o.id);
+        if (LundunGame.IsStory) LundunStory.Write();
+        Wear(o.id);
+    }
+
+    /// The character for the mode being played now.
+    public static Def Current { get { return SavedCharacter(LundunGame.Current); } }
+
+    /// LundunStoryUI, when a mode starts (and Free Roam's PLAY when it doesn't reload): the mode's character and outfit
+    /// on the player. James is already the player in the city, so his character needs no change. Another character's
+    /// model goes in here when the first one is approved; until then anything else plays as James.
+    public static void Apply()
+    {
+        Def d = Current;
         if (!d.IsSceneJames)
         {
-            Debug.LogWarning("[Lundun] Story character '" + d.id + "': swapping models arrives with the first approved character. Playing as James.");
+            Debug.LogWarning("[Lundun] Character '" + d.id + "': swapping models arrives with the first approved character. Playing as James.");
             d = Default;
         }
-        Debug.Log("[Lundun] Story character: " + d.name);
+        LundunOutfits.Outfit o = SavedOutfit(LundunGame.Current);
+        string worn = Wear(o.id);
+        Debug.Log("[Lundun] " + LundunGame.Current + " character: " + d.name + ", outfit: " + worn);
+    }
+
+    /// Put an outfit on the player now. Returns the one actually worn (Midnight if his outfits aren't built yet).
+    static string Wear(string outfitId)
+    {
+        LundunOutfitSet set = LundunOutfitSet.OnPlayer;
+        if (set == null)
+        {
+            if (outfitId != LundunOutfits.DefaultId)
+                Debug.LogWarning("[Lundun] Outfits aren't built yet: Lundun → 35 Build Outfits, then Cmd+S. Wearing Midnight.");
+            return LundunOutfits.DefaultId;
+        }
+        set.Wear(outfitId);
+        return set.Wearing;
     }
 }

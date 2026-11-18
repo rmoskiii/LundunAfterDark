@@ -1401126,6 +1401126,7 @@ GameObject:
   - component: {fileID: 2127824356}
   - component: {fileID: 2127824357}
   - component: {fileID: 2127824358}
+  - component: {fileID: 2127824359}
   m_Layer: 6
   m_Name: James
   m_TagString: Untagged
@@ -1401403,6 +1401404,46 @@ MonoBehaviour:
   - Ch06
   hipFov: 58
   aimFov: 48
+--- !u!114 &2127824359
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2127824345}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f92d3577ef13740159a919a1104b71ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LundunOutfitSet
+  ids:
+  - midnight
+  - greymarl
+  - blackout
+  - olive
+  - claret
+  slots:
+  - original: {fileID: 2100000, guid: 71656020d3e964608a4bb797c904455c, type: 2}
+    byOutfit:
+    - {fileID: 0}
+    - {fileID: 2100000, guid: 909bd98232f214e678cd9cd73c078745, type: 2}
+    - {fileID: 2100000, guid: fd07efe18a63246dba05503509586d81, type: 2}
+    - {fileID: 2100000, guid: a5301b5bedaab406197cc897bc7881a1, type: 2}
+    - {fileID: 2100000, guid: 5ebf0dbd8985b4ca1ac48de1c2b82c4a, type: 2}
+  - original: {fileID: 2100000, guid: 97e2710f7a40b4973ad269ae9d9a32ad, type: 2}
+    byOutfit:
+    - {fileID: 0}
+    - {fileID: 2100000, guid: 23acd12eb2f6647cf8d78cd7fd03f950, type: 2}
+    - {fileID: 2100000, guid: 24a4674a31fa049a289404c670277229, type: 2}
+    - {fileID: 2100000, guid: d476989cb60604fc29fcee3fecbcf6be, type: 2}
+    - {fileID: 2100000, guid: 18b3a8564b6e14b59802b7e3d3d538a5, type: 2}
+  - original: {fileID: 2100000, guid: d374e701179824a07aa49ddd9d045781, type: 2}
+    byOutfit:
+    - {fileID: 0}
+    - {fileID: 2100000, guid: 1d7809ea7b38b4272b1ba4fd12dc0b80, type: 2}
+    - {fileID: 2100000, guid: a4df2b2fe53be412fa4a0da913bff9eb, type: 2}
+    - {fileID: 2100000, guid: 26845ace2072d4ecca8b302269272be2, type: 2}
+    - {fileID: 2100000, guid: 102bc617551ba4515bef32ec68d4ee8a, type: 2}
 --- !u!1 &2128013230
 GameObject:
   m_ObjectHideFlags: 0

@@ -9,7 +9,8 @@ using UnityEngine.UI;
 ///   money       top right, under the weapon panel: "£12,450", with "+£500" in green or "−£100 Hospital bill" in red underneath for a moment
 ///               (editor and development builds: tap the money three times for £500 of test cash)
 ///   autosave    every 30 seconds, when you leave the app, and before switching modes
-///   character   Phase 2: NEW STORY goes through CHOOSE YOUR CHARACTER first (LundunStoryUI.Characters.cs)
+///   character   Phase 2: NEW STORY goes through CHOOSE YOUR CHARACTER first (LundunStoryUI.Characters.cs); Phase 3:
+///               so does FREE ROAM, every time, with its own saved choice; both pick an outfit too
 [DefaultExecutionOrder(310)]
 public partial class LundunStoryUI : MonoBehaviour
 {
@@ -30,9 +31,10 @@ public partial class LundunStoryUI : MonoBehaviour
     {
         yield return null;                                  // the HUD (and its font) builds itself first
         LundunTrain.StoryRules = LundunGame.IsStory;                       // S3: board the train while wanted (Story only)
+        LundunCharacters.Apply();                                                                   // Phase 2/3: who you play as, and what he wears (each mode its own)
+        if (GetComponent<LundunWardrobe>() == null) gameObject.AddComponent<LundunWardrobe>();      // Phase 3: WARDROBE at the safehouse doors (both modes)
         if (LundunGame.IsStory)
         {
-            LundunCharacters.ApplyStory();                                                          // Phase 2: who this story is played as
             BuildMoney();
             if (GetComponent<LundunCrew>() == null) gameObject.AddComponent<LundunCrew>();          // S2 the crew
             if (GetComponent<LundunRobbery>() == null) gameObject.AddComponent<LundunRobbery>();    // S3 robbing tills
@@ -130,10 +132,10 @@ public partial class LundunStoryUI : MonoBehaviour
             y -= 150f;
         }
         Choice(root, "NEW STORY", "Start a new journey through Lundun", y,
-               !hasStory && last == LundunGame.Mode.Story, () => { if (hasStory) Confirm(); else OpenCharacterSelect(); });
+               !hasStory && last == LundunGame.Mode.Story, () => { if (hasStory) Confirm(); else OpenCharacterSelect(LundunGame.Mode.Story); });
         y -= 150f;
         Choice(root, "FREE ROAM", "Explore the city. No missions. No limits.", y, last == LundunGame.Mode.FreeRoam,
-               () => Pick(LundunGame.Mode.FreeRoam, false));
+               () => OpenCharacterSelect(LundunGame.Mode.FreeRoam));     // Phase 3: Free Roam picks its own, every time
     }
 
     void Confirm()
@@ -155,7 +157,7 @@ public partial class LundunStoryUI : MonoBehaviour
                                   27f, Dim, TextAlignmentOptions.Center);
         w.textWrappingMode = TextWrappingModes.Normal;
         Place(w.rectTransform, new Vector2(0f, 50f), new Vector2(860f, 100f));
-        Button(panel, "START AGAIN", new Vector2(-220f, -130f), new Vector2(400f, 96f), Accent, OpenCharacterSelect);   // Phase 2: pick who first; the wipe happens on START STORY
+        Button(panel, "START AGAIN", new Vector2(-220f, -130f), new Vector2(400f, 96f), Accent, () => OpenCharacterSelect(LundunGame.Mode.Story));   // Phase 2: pick who first; the wipe happens on START STORY
         Button(panel, "BACK", new Vector2(220f, -130f), new Vector2(400f, 96f), new Color(1f, 1f, 1f, 0.12f), () => confirm.SetActive(false));
     }
 
