@@ -17,6 +17,8 @@ public static class LundunHudArt
     /// Rounded rectangle for 9-slicing (pills, panels).
     public static Sprite Pill => Get("pill", 96, p => RBox(p, C, new Vector2(0.48f, 0.48f), 0.3f), new Vector4(32, 32, 32, 32));
     public static Sprite Panel => Get("panel", 64, p => RBox(p, C, new Vector2(0.48f, 0.48f), 0.2f), new Vector4(16, 16, 16, 16));
+    /// Phase 2: just the edge of Panel (a thin rounded rim, 9-sliced the same way).
+    public static Sprite PanelRim => Get("panelRim", 64, p => Mathf.Abs(RBox(p, C, new Vector2(0.465f, 0.465f), 0.19f)) - 0.014f, new Vector4(16, 16, 16, 16));
 
     public static Sprite Crosshair => Get("i_cross", 128, p => Min(
         RingD(p, C, 0.26f, 0.06f),
@@ -75,6 +77,17 @@ public static class LundunHudArt
         Seg(p, V(0.36f, 0.5f), V(0.36f, 0.78f), 0.09f), Seg(p, V(0.47f, 0.52f), V(0.47f, 0.86f), 0.09f),
         Seg(p, V(0.58f, 0.52f), V(0.58f, 0.82f), 0.09f), Seg(p, V(0.68f, 0.48f), V(0.68f, 0.7f), 0.09f),
         Seg(p, V(0.3f, 0.4f), V(0.2f, 0.56f), 0.09f)));
+
+    // Phase 2: the character select screen (a plain standing figure for "coming soon", and a padlock)
+    public static Sprite Person => Get("i_person", 256, p => Min(
+        Circle(p, V(0.5f, 0.85f), 0.085f),
+        RBox(p, V(0.5f, 0.6f), V(0.13f, 0.15f), 0.06f),
+        Seg(p, V(0.35f, 0.7f), V(0.29f, 0.43f), 0.07f), Seg(p, V(0.65f, 0.7f), V(0.71f, 0.43f), 0.07f),
+        Seg(p, V(0.44f, 0.44f), V(0.43f, 0.07f), 0.085f), Seg(p, V(0.56f, 0.44f), V(0.57f, 0.07f), 0.085f)));
+    public static Sprite Lock => Get("i_lock", 128, p => Min(
+        RBox(p, V(0.5f, 0.36f), V(0.24f, 0.19f), 0.05f),
+        Mathf.Max(RingD(p, V(0.5f, 0.58f), 0.15f, 0.07f), 0.58f - p.y),
+        Seg(p, V(0.35f, 0.58f), V(0.35f, 0.5f), 0.07f), Seg(p, V(0.65f, 0.58f), V(0.65f, 0.5f), 0.07f)));
 
     // V2b: full map
     public static Sprite Close => Get("i_close", 128, p => Min(

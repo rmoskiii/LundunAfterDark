@@ -152,6 +152,7 @@ public static class LundunStory
     public static void Reset()
     {
         data = new LundunStoryData();
+        LundunCharacters.SeedNewStory();                   // Phase 2: the character picked for it (James if none)
         dirty = true;
         WriteFile();
     }
