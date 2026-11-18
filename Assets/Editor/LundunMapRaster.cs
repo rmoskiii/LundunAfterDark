@@ -82,8 +82,10 @@ namespace LundunGreybox
 
         // V3: the full map's simple picture: the buildings only as a faint built-up tone (no outlines, no plot colours),
         // so zoomed out the map reads as land, water, parks and roads
-        static readonly byte[] BuiltUp = { 46, 52, 49 };
-        static readonly byte[] PavedQuiet = { 62, 67, 66 };         // squares, car parks, the depot: quiet, not bright
+        static readonly byte[] BuiltUp = { 38, 44, 42 };            // (V3b: a faint lift on the outer boroughs' ground)
+        static readonly byte[] PavedQuiet = { 52, 57, 56 };         // squares, car parks: quiet, not bright
+        static readonly byte[] DepotQuiet = { 42, 47, 46 };         // the freight depot: barely there
+        static readonly byte[] WasteQuiet = { 33, 38, 35 };         // the retail park's wasteland: almost the ground
 
         /// V3: simple = the full map's zoomed-out picture (see BuiltUp).
         public static MapImage Render(LundunWorldData W, GreyboxResult R, double metresPerPixel, List<MapArea> areas, bool simple)
@@ -106,21 +108,38 @@ namespace LundunGreybox
             img.height = (int)Math.Ceiling((b.wallMaxZ + 30 - img.minZ) / metresPerPixel);
             img.rgba = new byte[img.width * img.height * 4];
             Outer outer = new Outer(W);
+            // V3b: on the simple picture Greater Lundun's faint streets and parks carry on under the city, fading out
+            // near its roads, so the city sits in the map rather than on it
+            RoadDistance near = simple ? new RoadDistance(allRoads, img.minX, img.minZ, img.width * metresPerPixel, img.height * metresPerPixel) : null;
             for (int y = 0; y < img.height; y++)
                 for (int x = 0; x < img.width; x++)
                 {
                     double wx = img.minX + (x + 0.5) * metresPerPixel, wz = img.minZ + (y + 0.5) * metresPerPixel;
-                    byte[] col = outer.InsideWalls(wx, wz) ? Land : outer.Colour(wx, wz, metresPerPixel);
+                    if (simple)
+                    {
+                        double t = Math.Max(0, Math.Min(1, (near.At(wx, wz) - 45) / 90));
+                        byte[] o = outer.Colour(wx, wz, metresPerPixel);
+                        int j = (y * img.width + x) * 4;
+                        for (int k = 0; k < 3; k++) img.rgba[j + k] = (byte)Math.Round(OuterLand[k] + (o[k] - OuterLand[k]) * (outer.InsideWalls(wx, wz) ? t : 1));
+                        img.rgba[j + 3] = 255;
+                        continue;
+                    }
+                    // V3b: on the simple picture the city's ground is the outer boroughs' ground, so it's one map, not a
+                    // box laid on Greater Lundun
+                    byte[] col = outer.InsideWalls(wx, wz) ? (simple ? OuterLand : Land) : outer.Colour(wx, wz, metresPerPixel);
                     int i = (y * img.width + x) * 4;
                     img.rgba[i] = col[0]; img.rgba[i + 1] = col[1]; img.rgba[i + 2] = col[2]; img.rgba[i + 3] = 255;
                 }
 
             // E8: the hedge round the edge of the world, then the river (the same course as on the backdrop: on past the
             // world's edge, widening downstream), which cuts through it
-            Capsule(new V2(b.wallMinX, b.wallMinZ), new V2(b.wallMaxX, b.wallMinZ), 1.6, Hedge);
-            Capsule(new V2(b.wallMaxX, b.wallMinZ), new V2(b.wallMaxX, b.wallMaxZ), 1.6, Hedge);
-            Capsule(new V2(b.wallMaxX, b.wallMaxZ), new V2(b.wallMinX, b.wallMaxZ), 1.6, Hedge);
-            Capsule(new V2(b.wallMinX, b.wallMaxZ), new V2(b.wallMinX, b.wallMinZ), 1.6, Hedge);
+            if (!simple)                // V3b: no hedge line on the simple picture (it drew a box round the city)
+            {
+                Capsule(new V2(b.wallMinX, b.wallMinZ), new V2(b.wallMaxX, b.wallMinZ), 1.6, Hedge);
+                Capsule(new V2(b.wallMaxX, b.wallMinZ), new V2(b.wallMaxX, b.wallMaxZ), 1.6, Hedge);
+                Capsule(new V2(b.wallMaxX, b.wallMaxZ), new V2(b.wallMinX, b.wallMaxZ), 1.6, Hedge);
+                Capsule(new V2(b.wallMinX, b.wallMaxZ), new V2(b.wallMinX, b.wallMinZ), 1.6, Hedge);
+            }
             DrawRiver(outer);
 
             foreach (LwPoly park in allParks)
@@ -131,7 +150,7 @@ namespace LundunGreybox
             }
 
             // V2a: the city plan's open spaces: Rye Common and Loughborough Rec (green), the freight depot (paved)
-            foreach (KeyValuePair<List<V2>, bool> z in Generator.PlanMapZones(areas.Count > 0)) Polygon(z.Key, z.Value ? Park : (simple ? PavedQuiet : Service));
+            foreach (KeyValuePair<List<V2>, bool> z in Generator.PlanMapZones(areas.Count > 0)) Polygon(z.Key, z.Value ? Park : (simple ? DepotQuiet : Service));
 
             foreach (BuildingInfo bd in allBuildings)
             {
@@ -147,7 +166,7 @@ namespace LundunGreybox
                 foreach (MapArea a in areas)
                     if (a != null && a.shapes != null)
                         foreach (Generator.RetailMapPoly rmp in a.shapes)
-                            if (rmp.kind == k) Polygon(rmp.poly, simple && k == 1 ? BuiltUp : simple && k == 0 ? PavedQuiet : ShapeColour(k));
+                            if (rmp.kind == k) Polygon(rmp.poly, simple && k == 1 ? BuiltUp : simple && k == 0 ? PavedQuiet : simple && k == 2 ? WasteQuiet : ShapeColour(k));
 
             // V2b: hospitals, police stations and safehouses (their plots), tinted so they read on the map (not on the
             // simple picture: their icons say it)
@@ -218,6 +237,62 @@ namespace LundunGreybox
                 Capsule(Generator.WheelToWorld(0, -Generator.WheelAxleHalf), Generator.WheelToWorld(0, Generator.WheelAxleHalf), 1.6, WheelRim);
             }
             return img;
+        }
+
+        /// V3b: roughly how far a point is from the nearest playable road (metres; 8 m cells, a chamfer distance).
+        class RoadDistance
+        {
+            const double Cell = 8;
+            readonly int nx, nz; readonly double x0, z0; readonly float[] d;
+            public RoadDistance(List<LwRoad> roads, double minX, double minZ, double w, double h)
+            {
+                x0 = minX; z0 = minZ; nx = (int)Math.Ceiling(w / Cell) + 1; nz = (int)Math.Ceiling(h / Cell) + 1;
+                d = new float[nx * nz];
+                for (int i = 0; i < d.Length; i++) d[i] = 1e6f;
+                foreach (LwRoad r in roads)
+                {
+                    if (r.points == null) continue;
+                    for (int i = 0; i + 1 < r.points.Length; i++)
+                    {
+                        double ax = r.points[i].x, az = r.points[i].z, bx = r.points[i + 1].x, bz = r.points[i + 1].z;
+                        double len = Math.Sqrt((bx - ax) * (bx - ax) + (bz - az) * (bz - az));
+                        int steps = Math.Max(1, (int)(len / 3));
+                        for (int s = 0; s <= steps; s++)
+                        {
+                            double t = s / (double)steps;
+                            int cx = (int)((ax + (bx - ax) * t - x0) / Cell), cz = (int)((az + (bz - az) * t - z0) / Cell);
+                            if (cx >= 0 && cz >= 0 && cx < nx && cz < nz) d[cz * nx + cx] = 0;
+                        }
+                    }
+                }
+                float a = (float)Cell, b = (float)(Cell * 1.4142);
+                for (int z = 0; z < nz; z++)
+                    for (int x = 0; x < nx; x++)
+                    {
+                        int i = z * nx + x; float v = d[i];
+                        if (x > 0) v = Math.Min(v, d[i - 1] + a);
+                        if (z > 0) { v = Math.Min(v, d[i - nx] + a); if (x > 0) v = Math.Min(v, d[i - nx - 1] + b); if (x + 1 < nx) v = Math.Min(v, d[i - nx + 1] + b); }
+                        d[i] = v;
+                    }
+                for (int z = nz - 1; z >= 0; z--)
+                    for (int x = nx - 1; x >= 0; x--)
+                    {
+                        int i = z * nx + x; float v = d[i];
+                        if (x + 1 < nx) v = Math.Min(v, d[i + 1] + a);
+                        if (z + 1 < nz) { v = Math.Min(v, d[i + nx] + a); if (x + 1 < nx) v = Math.Min(v, d[i + nx + 1] + b); if (x > 0) v = Math.Min(v, d[i + nx - 1] + b); }
+                        d[i] = v;
+                    }
+            }
+            /// Bilinear between the cells, so the fade is smooth.
+            public double At(double x, double z)
+            {
+                double fx = (x - x0) / Cell - 0.5, fz = (z - z0) / Cell - 0.5;
+                int ix = Math.Max(0, Math.Min(nx - 2, (int)Math.Floor(fx))), iz = Math.Max(0, Math.Min(nz - 2, (int)Math.Floor(fz)));
+                double tx = Math.Max(0, Math.Min(1, fx - ix)), tz = Math.Max(0, Math.Min(1, fz - iz));
+                double a = d[iz * nx + ix] + (d[iz * nx + ix + 1] - d[iz * nx + ix]) * tx;
+                double b = d[(iz + 1) * nx + ix] + (d[(iz + 1) * nx + ix + 1] - d[(iz + 1) * nx + ix]) * tx;
+                return a + (b - a) * tz;
+            }
         }
 
         static byte[] ShapeColour(int kind)
