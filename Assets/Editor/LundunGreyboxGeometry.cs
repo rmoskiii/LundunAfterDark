@@ -116,7 +116,6 @@ namespace LundunGreybox
     }
 
     public class Marker { public string id, group, kind; public double x, y, z, yaw; }
-    public class Beacon { public string id, kind; public double x, z, radius, height; }
     public class ColliderBox { public string name; public double cx, cy, cz, sx, sy, sz; }
     public class BuildingInfo { public string district; public V2 c, dir; public double len, dep, h; }
     public class LampInfo { public double x, y, z; public int style; }   // L5 style: 0 sodium, 1 sodium (estate concrete), 2 heritage, 3 LED
@@ -125,7 +124,6 @@ namespace LundunGreybox
     {
         public List<MeshData> meshes = new List<MeshData>();
         public List<Marker> markers = new List<Marker>();
-        public List<Beacon> beacons = new List<Beacon>();
         public List<ColliderBox> walls = new List<ColliderBox>();
         public List<BuildingInfo> buildings = new List<BuildingInfo>();
         public List<LampInfo> lamps = new List<LampInfo>();
@@ -1137,8 +1135,7 @@ namespace LundunGreybox
             foreach (LwPoi p in W.pois)
             {
                 R.markers.Add(new Marker { id = p.id, group = "POIs", kind = p.kind, x = p.x, y = 0, z = p.z, yaw = p.yaw });
-                bool lm = p.id.StartsWith("LM_");
-                R.beacons.Add(new Beacon { id = p.id, kind = p.kind, x = p.x, z = p.z, radius = lm ? 3 : 1.2, height = lm ? 160 : 45 });
+                // (Phase 1: no more tall coloured beacon columns over the POIs: they were greybox development markers)
             }
 
             // Extra police spawn points: every ~150 m on the left lane, away from junctions

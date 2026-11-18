@@ -105,20 +105,6 @@ public static class LundunGreyboxBuilder
                 g.transform.SetPositionAndRotation(new Vector3((float)m.x, (float)m.y, (float)m.z), Quaternion.Euler(0, (float)m.yaw, 0));
             }
 
-            foreach (Beacon b in r.beacons)
-            {
-                GameObject cyl = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                Object.DestroyImmediate(cyl.GetComponent<Collider>());
-                cyl.name = "Beacon_" + b.id;
-                cyl.transform.SetParent(Group(root, groups, "Beacons"), false);
-                cyl.transform.position = new Vector3((float)b.x, (float)b.height / 2f, (float)b.z);
-                cyl.transform.localScale = new Vector3((float)b.radius * 2f, (float)b.height / 2f, (float)b.radius * 2f);
-                MeshRenderer mr = cyl.GetComponent<MeshRenderer>();
-                mr.sharedMaterial = GetMaterial(mats, BeaconMaterial(b.kind));
-                mr.shadowCastingMode = ShadowCastingMode.Off;
-                AddNavModifier(cyl, true, -1);
-            }
-
             foreach (ColliderBox c in r.walls)
             {
                 GameObject g = new GameObject(c.name);
@@ -606,18 +592,6 @@ public static class LundunGreyboxBuilder
     }
 
     // ----- materials (created once; edit the colours in Assets/World/Materials freely)
-    static string BeaconMaterial(string kind)
-    {
-        switch (kind)
-        {
-            case "safehouse": return "Beacon_Safehouse";
-            case "police": return "Beacon_Police";
-            case "hospital": return "Beacon_Hospital";
-            case "landmark": return "Beacon_Landmark";
-            default: return "Beacon_Mission";
-        }
-    }
-
     /// L5: the shared world materials (made the same way as menu 1 makes them), for other builders.
     public static Material WorldMaterial(string name) { return GetMaterial(new Dictionary<string, Material>(), name); }
 

@@ -47,6 +47,7 @@ public class LundunNavigation : MonoBehaviour
             foreach (LwPoi p in World.pois)
             {
                 if (places != null && (p.id == "POI_SAFEHOUSE" || p.id == "POI_HOSPITAL" || p.id == "POI_POLICE")) continue;   // replaced by R7 places
+                if (p.kind == "mission") continue;   // Phase 1: the old prototype mission spots (M1–M4), not the real missions
                 Destinations.Add(new Destination { id = p.id, name = p.name, kind = p.kind, position = new Vector3(p.x, 0f, p.z) });
             }
             LundunDressing dressing = FindAnyObjectByType<LundunDressing>();

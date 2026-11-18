@@ -109,7 +109,8 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
                 if (id == "POI_SAFEHOUSE") AddStatic(t, new Color(0.25f, 0.9f, 0.45f), "S", 30, true, 1f);
                 else if (id == "POI_HOSPITAL") AddStatic(t, new Color(0.95f, 0.25f, 0.3f), "H", 26, false, 1f);
                 else if (id == "POI_POLICE") AddStatic(t, new Color(0.25f, 0.5f, 1f), "P", 26, false, 1f);
-                else if (id.Length >= 2 && id[0] == 'M' && char.IsDigit(id[1])) AddStatic(t, new Color(1f, 0.82f, 0.2f), id.Substring(1, 1), 26, true, 0.45f);   // M1_ONFOOT, M2… greyed until missions exist
+                // (Phase 1: the old prototype mission spots M1_ONFOOT, M2–M4 no longer get greyed blips: the real
+                //  missions show their own markers through LundunMissions)
             }
         waypointBlip = NewBlip(new Color(0.72f, 0.36f, 1f, 1f), "", 22);
         waypointBlip.clampToEdge = true;
