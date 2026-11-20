@@ -670,7 +670,7 @@ public partial class LundunCrew : MonoBehaviour
 
     static readonly string[] Ouch = { "Oi! It's me!", "James! What was that for?", "Are you mad? Watch it!", "Alright, alright! Calm down!" };
     static readonly string[] Swerve = { "Watch the road!", "Oi! You nearly hit me!", "James! Brakes!" };
-    static readonly string[] Police = { "Feds! Lose them!", "Police, James. Police!", "Oh, no no no. That's the feds.", "Blue lights behind us. Go, go!" };
+    static readonly string[] Police = { "Feds! Lose them!", "Old Bill, James. Old Bill!", "Oh, no no no. That's the feds.", "Blue lights behind us. Go, go!" };
     static readonly string[] TooFast = { "Slow down!", "James! You'll kill us both!", "Easy, easy! This isn't a race.", "We'll get there alive or not at all, yeah?" };
 
     static readonly Dictionary<string, string[]> Banter = new Dictionary<string, string[]>
@@ -679,8 +679,8 @@ public partial class LundunCrew : MonoBehaviour
             "Uncle Femi's going to ask why we took so long.",
             "Your music is still terrible, by the way.",
             "Left here's quicker. Trust me.",
-            "When did you last clean this car?",
-            "Leah asked me where you were tonight. I said I don't know.",
+            "When did you last clean this car? Actually, don't tell me.",
+            "Leah asked where you were tonight. I said I don't know. I'm a terrible liar, James.",
             "Don't tell Marcus I was out this late." } },
         { "MARCUS", new[] {
             "You drive like Dad.",
@@ -689,17 +689,17 @@ public partial class LundunCrew : MonoBehaviour
             "You eaten? There's jollof at home.",
             "Keep your head down this week. I mean it." } },
         { "TAYO", new[] {
-            "Bro, this is the best night we've had in months.",
-            "Put the aux on. Please.",
+            "Bro, this is the best night we've had in months. Swear down.",
+            "Put the aux on. Please. I'm begging.",
             "Remember when they kicked us out of the Peckam Plex?",
             "If we see the Kings, we keep driving. Yeah?",
-            "I'm starving. Chicken shop after?" } },
+            "I'm starving. Chicken shop after? Your treat, you've got bread now." } },
         { "UNCLE FEMI", new[] {
             "In Lagos, we would call this driving slowly.",
-            "Indicate! The indicator is there for a reason.",
+            "Indicate! The indicator is there for a reason, my son.",
             "The shop does not open itself, James.",
             "I have yams to deliver tomorrow. Remind me.",
-            "You young people. Always in a hurry." } },
+            "You young people. Always in a hurry, never on time." } },
         { "LEAH", new[] {
             "I'm on a twelve-hour shift tomorrow. Gently, please.",
             "You're quiet tonight. What's going on?",

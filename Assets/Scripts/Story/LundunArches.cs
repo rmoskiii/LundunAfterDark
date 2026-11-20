@@ -325,7 +325,7 @@ public class LundunArches : MonoBehaviour
                 Set((shut ? "CLOSED" : "GO IN") + "\n<size=60%>" + offerBay.name + (mission ? " · not now" : wanted ? " · not with the police after you" : "") + "</size>", shut ? grey : go);
                 break;
             case Offer.Leave: Set("LEAVE\n<size=60%>" + inBay.name + "</size>", blue); break;
-            case Offer.Browse: Set("WHAT HAVE YOU GOT?\n<size=60%>guns · ammo · body armour</size>", new Color(0.55f, 0.36f, 0.06f, 0.92f)); break;
+            case Offer.Browse: Set("WHAT YOU GOT?\n<size=60%>guns · ammo · body armour</size>", new Color(0.55f, 0.36f, 0.06f, 0.92f)); break;
             case Offer.Rest: Set("REST\n<size=60%>full health · six hours pass</size>", blue); break;
             case Offer.Ammo:
                 bool taken = LundunDay.DoneToday("lockup-ammo");
@@ -518,7 +518,7 @@ public class LundunArches : MonoBehaviour
     void DealerRows()
     {
         panelTitle.text = "ARMS DEALER";
-        panelNote.text = "Cash only. No questions. You've got " + LundunWallet.Format(LundunWallet.Cash) + ".";
+        panelNote.text = "Cash only. No questions, no receipts. You've got " + LundunWallet.Format(LundunWallet.Cash) + ".";
         LundunWeapons w = LundunWeapons.Instance;
         if (w == null) return;
         Gun(w, LundunWeapons.Kind.Smg, "SMG", "fast, light, thirsty", SmgPrice);
@@ -584,7 +584,7 @@ public class LundunArches : MonoBehaviour
         int stars = ws != null ? ws.Stars : 0;
         bool seen = ws != null && ws.Seen;
         bool police = car.GetComponent<PoliceAI>() != null || car.GetComponentInChildren<PoliceOfficer>() != null;
-        panelNote.text = police ? "\"That's a police car. Get it away from my arch.\"" : seen ? "\"Not with them watching. Lose them first.\"" : "You've got " + LundunWallet.Format(LundunWallet.Cash) + ".";
+        panelNote.text = police ? "\"That's a police car. Get it away from my arch, you mad?\"" : seen ? "\"Not with the Old Bill watching. Lose them first.\"" : "You've got " + LundunWallet.Format(LundunWallet.Cash) + ".";
         if (police) return;
 
         LundunCarPaint paint = car.GetComponentInChildren<LundunCarPaint>();

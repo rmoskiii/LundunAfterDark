@@ -16,7 +16,7 @@ public class M07HomeTurf : LundunMission
 
     public override string Id { get { return "m07_home_turf"; } }
     public override string Title { get { return "Home Turf"; } }
-    public override string Teaser { get { return "Kemi's on the phone. Electric Youth are shaking down Brixtun market."; } }
+    public override string Teaser { get { return "Kemi's on the phone. Electric Youth are taxing the stalls at Brixtun market, and they're using Kingsley's name."; } }
     public override string Giver { get { return "MARCUS"; } }
     public override long Reward { get { return 2000; } }
     public override string MedalNote { get { return "under 6 minutes"; } }
@@ -35,8 +35,8 @@ public class M07HomeTurf : LundunMission
         run.Add(new LundunDo(r => { if (!resolved) { fight = false; hot = false; first = LundunTone.Firm; second = LundunTone.Calm; } }));
         run.Add(new LundunJoin("MARCUS"));
         run.Add(new LundunTalk("",
-            new LundunLine("KEMI", "(phone) James? Are you with Marcus? Electric Youth are at the market, going stall to stall."),
-            new LundunLine("KEMI", "(phone) They're taking money. Kingsley's money, they're saying. Mrs Okafor's in tears."),
+            new LundunLine("KEMI", "(phone) James? You with Marcus? Electric Youth are at the market, going stall to stall."),
+            new LundunLine("KEMI", "(phone) Taking money. Kingsley's tax, they're calling it. Mrs Okafor's in tears."),
             new LundunLine("MARCUS", "Brixtun market. That's our people, bro. Get the car."),
             new LundunLine("JAMES", "We go, we talk. Yeah? We just talk.")));
         run.Add(new LundunGoTo(LundunMarket.EastEnd, 12f, "Get to Brixtun market"));
@@ -71,24 +71,24 @@ public class M07HomeTurf : LundunMission
         }).Mark(stall, 3f, false)).Checkpoint(LundunCheckpoint.Major);
         run.Add(new LundunNow(r => Face()));
         run.Add(new LundunTalk("",
-            new LundunLine("ELECTRIC YOUTH", "Look who it is. Uncle Femi's boys. Come to pay for your stall?"),
+            new LundunLine("ELECTRIC YOUTH", "Look who it is. Femi's nephew, the one whose name's ringing. Come to pay for your stall?"),
             new LundunLine("MARCUS", "Put her money back.")));
 
         // round one: the right word is the calm one
-        run.Add(new LundunReplies("ELECTRIC YOUTH", "Kingsley says this market pays now. You got a problem with Kingsley?",
+        run.Add(new LundunReplies("ELECTRIC YOUTH", "Kingsley says this market pays now. Same as his corners. You got a problem with Kingsley?",
             new[]
             {
                 new LundunReply(LundunTone.Firm, "Yeah. I've got a problem with you taking from pensioners."),
                 new LundunReply(LundunTone.Calm, "No problem. Nobody needs a scene in front of all these people."),
-                new LundunReply(LundunTone.Hot, "Kingsley can come and say it himself, you little errand boy."),
+                new LundunReply(LundunTone.Hot, "Kingsley can come and say it himself, you little runner."),
             }, t => { if (t == LundunReplies.Fight || t == (int)LundunTone.Hot) fight = hot = true; else first = (LundunTone)t; }));
         run.Add(new LundunTalkPick(() => fight
-            ? new[] { new LundunLine("ELECTRIC YOUTH", "Errand boy? Yeah? Come on then!") }
+            ? new[] { new LundunLine("ELECTRIC YOUTH", "Runner? Yeah? Come on then!") }
             : first == LundunTone.Calm
                 ? new[] { new LundunLine("ELECTRIC YOUTH", "...Scene. Yeah. Everyone's watching, innit."), new LundunLine("MARCUS", "They are. Phones out and everything.") }
                 : new[] { new LundunLine("ELECTRIC YOUTH", "Pensioners pay like everyone else, bruv."), new LundunLine("MARCUS", "James. Easy.") }));
         // round two: the right word is the firm one
-        run.Add(new LundunIf(() => !fight, new LundunReplies("ELECTRIC YOUTH", "So what, we just walk off? What do I tell Kingsley?",
+        run.Add(new LundunIf(() => !fight, new LundunReplies("ELECTRIC YOUTH", "So what, we just bounce? What do I tell Kingsley?",
             new[]
             {
                 new LundunReply(LundunTone.Hot, "Tell him I'll break his jaw next. Then yours."),
@@ -136,21 +136,21 @@ public class M07HomeTurf : LundunMission
         })));
         // either way: one of them lets slip who's been talking to Hollis
         run.Add(new LundunTalkPick(() => Talked
-            ? new[] { new LundunLine("ELECTRIC YOUTH", "(walking off) Ask your mate Tayo who's been talking. He's been at Hollis's yard all week."),
+            ? new[] { new LundunLine("ELECTRIC YOUTH", "(walking off) Ask your boy Tayo who's been chatting. He's been at Hollis's yard all week."),
                       new LundunLine("JAMES", "...What did he say?"),
                       new LundunLine("MARCUS", "Tayo. At Hollis's.") }
             : new[] { new LundunLine("ELECTRIC YOUTH", "(on the floor) Alright! ALRIGHT! It weren't us that grassed you up!"),
-                      new LundunLine("ELECTRIC YOUTH", "It's Tayo! Tayo's been telling Hollis everything!"),
+                      new LundunLine("ELECTRIC YOUTH", "It's Tayo! Tayo's been singing to Hollis, all of it!"),
                       new LundunLine("MARCUS", "Tayo.") }));
         run.Add(new LundunNow(r => resolved = true));
         run.Add(new LundunTalk("",
             new LundunLine("JAMES", "He wouldn't. Not Tayo."),
             new LundunLine("MARCUS", "Basketful was his idea. Hollis knew by morning. Think about it, James."),
-            new LundunLine("KEMI", "(text) Mrs Okafor says thank you. Are you both okay?"))).Checkpoint(LundunCheckpoint.Minor);
+            new LundunLine("KEMI", "(text) Mrs Okafor says thank you and she's saving you both a plate. You ok??"))).Checkpoint(LundunCheckpoint.Minor);
         run.Add(new LundunEscape("Lose the police"));
         run.Add(new LundunGoTo(LundunStoryPlaces.Home, 6f, "Take Marcus home"));
         run.Add(new LundunTalkPick(() => Talked
-            ? new[] { new LundunLine("MARCUS", "You talked them down. Kemi'll be telling everyone."),
+            ? new[] { new LundunLine("MARCUS", "You talked them down. Kemi's going to tell the whole of Rye Lane."),
                       new LundunLine("MARCUS", "Me, I'd have flattened him. Maybe that's why it worked.") }
             : new[] { new LundunLine("MARCUS", "You held your own back there. Proper."),
                       new LundunLine("MARCUS", "Kemi's going to kill us. Worth it.") }));
@@ -195,7 +195,7 @@ public class M08BloodIsThicker : LundunMission
 
     public override string Id { get { return "m08_blood_is_thicker"; } }
     public override string Title { get { return "Blood Is Thicker"; } }
-    public override string Teaser { get { return "Marcus has found Tayo at Knightsbury Circus. He wants answers."; } }
+    public override string Teaser { get { return "Marcus has found Tayo at Knightsbury Circus. He wants answers, and he isn't asking nicely."; } }
     public override string Giver { get { return "MARCUS"; } }
     public override long Reward { get { return 1500; } }
     public override string MedalNote { get { return "under 7 minutes"; } }
@@ -274,10 +274,10 @@ public class M08BloodIsThicker : LundunMission
         run.Add(new LundunTalk("",
             new LundunLine("TAYO", "Alright! Alright. I'm done. I'm done running."),
             new LundunLine("JAMES", "Hollis. Was it you?"),
-            new LundunLine("TAYO", "After Basketful he found me. Said that was his money and I owed him. Said he knew where my mum lives."),
+            new LundunLine("TAYO", "After Basketful he found me. Said that was his bread and I owed him. Said he knew where my mum lives."),
             new LundunLine("TAYO", "So I told him things. Where you'd be. What Uncle Femi was saying. I'm sorry, bro."),
             new LundunLine("JAMES", "Sorry. Everyone's sorry."),
-            new LundunLine("MARCUS", "(phone) I'm two minutes away. Have you got him?")));
+            new LundunLine("MARCUS", "(phone) I'm two minutes out. Have you got him?")));
         run.Add(new LundunChoice("What happens to Tayo?", "HAND HIM TO MARCUS", 0, "LET HIM GO", Key));
         run.Add(new LundunNow(r =>
         {
@@ -315,7 +315,7 @@ public class M08BloodIsThicker : LundunMission
             LundunMissions.Toast("LATER THAT NIGHT");
         }));
         run.Add(new LundunTalk("",
-            new LundunLine("KEMI", "(phone) James. It's the shop. Somebody's smashed Uncle's shop to pieces."),
+            new LundunLine("KEMI", "(phone) James. It's the shop. Someone's smashed Uncle's shop to pieces."),
             new LundunLine("KEMI", "(phone) He's alright. He's shaking, but he's alright. Come. Please.")));
         run.Add(new LundunDo(r =>
         {
@@ -325,11 +325,11 @@ public class M08BloodIsThicker : LundunMission
         }));
         run.Add(new LundunGoTo(LundunStoryPlaces.LagosDoor, 4f, "Get to LAGOS FOODS")).Checkpoint(LundunCheckpoint.Minor);
         run.Add(new LundunTalkPick(() => LundunChoice.Chose(Key, true)
-            ? new[] { new LundunLine("KEMI", "Glass everywhere. They took nothing. They just wanted him to see it."),
+            ? new[] { new LundunLine("KEMI", "Glass everywhere. They didn't take a thing. They just wanted him to see it."),
                       new LundunLine("KEMI", "Hollis's men. Uncle says it's because Tayo stopped talking."),
                       new LundunLine("JAMES", "Where is he?"),
                       new LundunLine("KEMI", "At yours. Leah's with him. He wouldn't stay here.") }
-            : new[] { new LundunLine("KEMI", "Glass everywhere. They took nothing. They just wanted him to see it."),
+            : new[] { new LundunLine("KEMI", "Glass everywhere. They didn't take a thing. They just wanted him to see it."),
                       new LundunLine("KEMI", "An hour after you let Tayo go. Think about that, James."),
                       new LundunLine("JAMES", "Where is he?"),
                       new LundunLine("KEMI", "At yours. Leah's with him. He wouldn't stay here.") }));

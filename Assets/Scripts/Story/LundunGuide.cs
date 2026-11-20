@@ -20,21 +20,21 @@ public class LundunGuide : MonoBehaviour
     // where each mission's giver is, and what they say when they ring (by mission id)
     static readonly System.Collections.Generic.Dictionary<string, string[]> Calls = new System.Collections.Generic.Dictionary<string, string[]>
     {
-        { "m01_one_last_favour",   new[] { "your front door", "(phone) James, I'm outside yours. Uncle wants everybody at the shop." } },
-        { "m02_easy_money",        new[] { "FADEZ BARBERS, Rye Lane", "(phone) Bro! Come to Fadez on Rye Lane. I've got a way to fix your money." } },
+        { "m01_one_last_favour",   new[] { "your front door", "(phone) James, I'm outside yours. Uncle wants everybody at the shop. Now, not now-now." } },
+        { "m02_easy_money",        new[] { "FADEZ BARBERS, Rye Lane", "(phone) Bro! Come Fadez on Rye Lane. I've got a way to fix your money. Trust." } },
         { "m03_no_way_home",       new[] { "the lock-up by Brixtun station", "(phone) James... I'm at the lock-up by Brixtun station. Come quick." } },
         { "m04_estate_business",   new[] { "your front door", "(phone) I'm outside yours. Kingsley wants a word. Don't keep him waiting." } },
-        { "m05_uncles_rules",      new[] { "LAGOS FOODS, Rye Lane", "(phone) James. Come to the shop. We need to talk." } },
+        { "m05_uncles_rules",      new[] { "LAGOS FOODS, Rye Lane", "(phone) James. Come to the shop. We need to talk, you and I." } },
         { "m06_passenger_problems",new[] { "Knightsbury Circus", "(phone) Finished on the door. Pick me up at Knightsbury Circus?" } },
-        { "m07_home_turf",         new[] { "your front door", "(phone) I'm at yours. Kemi's been ringing. Get here." } },
+        { "m07_home_turf",         new[] { "your front door", "(phone) I'm at yours. Kemi's been ringing off the hook. Get here." } },
         { "m08_blood_is_thicker",  new[] { "Knightsbury Circus", "(phone) I've found Tayo. Knightsbury Circus. Come now." } },
         { "m09_paper_trail",       new[] { "your front door", "(phone) Come home, James. I have a job for you. A quiet one." } },
         { "m10_open_for_business", new[] { "your front door", "(phone) Come home. Today the shop opens again." } },
-        { "m11_family_meeting",    new[] { "your front door", "(phone) James. Come home. The whole family needs to talk. Tonight we plan." } },
-        { "m12_lundun_after_dark", new[] { "Kingsmere, by the palace", "(phone) It's gala night. Everyone's in position. Come to Kingsmere. Tonight we end it." } },
+        { "m11_family_meeting",    new[] { "your front door", "(phone) James. Come home. The whole family needs to talk. Tonight you make the plan." } },
+        { "m12_lundun_after_dark", new[] { "Kingsmere, by the palace", "(phone) It's gala night. Everyone's in position, waiting on you. Come to Kingsmere." } },
         { "m13_kemis_deliveries",  new[] { "the bike dock off Rye Lane", "(phone) James! I've got parcels and no rider. Bike dock off Rye Lane?" } },
         { "m14_prove_yourself",    new[] { "Gilmore Green", "(phone) Gilmore Green. Come and show me what you've got." } },
-        { "m15_warehouse_9",       new[] { "Warehouse Lane, Canary Quay", "(phone) Warehouse Lane, tonight. I've got a job. A big one. Trust me." } },
+        { "m15_warehouse_9",       new[] { "Warehouse Lane, Canary Quay", "(phone) Warehouse Lane, tonight. I've got a lick for you. A big one. Trust me." } },
     };
 
     public static string Where(LundunMission m)

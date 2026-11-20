@@ -24,7 +24,7 @@ public class M11FamilyMeeting : LundunMission
 
     public override string Id { get { return MissionId; } }
     public override string Title { get { return "Family Meeting"; } }
-    public override string Teaser { get { return "Hollis's leverage is in the palace strongroom. The family meets at the top of the Wheel."; } }
+    public override string Teaser { get { return "Hollis's leverage sits in the palace strongroom. The family meets at the top of the Wheel, and James runs the plan."; } }
     public override string Giver { get { return "UNCLE FEMI"; } }
     public override long Reward { get { return 2000; } }
     public override string MedalNote { get { return "under 9 minutes, the getaway car not badly damaged"; } }
@@ -91,7 +91,7 @@ public class M11FamilyMeeting : LundunMission
             resolved = true;
             VehicleHealth vh = car != null ? car.GetComponent<VehicleHealth>() : null;
             carStart = vh != null ? vh.Current : 0f;
-            LundunMissions.Say("JAMES", "(phone) Got it. She's quick. On my way to the Wheel.", 3f);
+            LundunMissions.Say("JAMES", "(phone) Got it. She's quick. Tell everyone the Wheel, ten minutes.", 3f);
         }));
         run.Add(new LundunGoTo(park, 7f, "Drive the getaway car to the Lundun Wheel", true, true)).Checkpoint(LundunCheckpoint.Minor);
         run.Add(new LundunDo(r =>                                               // (again on a retry from the platform)
@@ -112,14 +112,14 @@ public class M11FamilyMeeting : LundunMission
         run.Add(new LundunTalkPick(() => CapsuleTalk(family, favour)));
         run.Add(new LundunWhen("Up to the top", r => wheel == null || Mathf.Abs(wheel.RideDelta) > 172f));
         run.Add(new LundunNow(r => { LundunWheel.SpeedScale = 0f; }));
-        run.Add(new LundunTalk("", new LundunLine("UNCLE FEMI", "There. Kingsmere Palace. Take the binoculars, James. Find us a way in.")));
+        run.Add(new LundunTalk("", new LundunLine("UNCLE FEMI", "There. Kingsmere Palace. Take the binoculars, James. You find the way in, we follow.")));
         run.Add(new LundunScout("Find the palace's three weak points", family));
         run.Add(new LundunWayIn(favour, LundunChoice.Chose("choice:m08", false)));
         run.Add(new LundunNow(r => { LundunWheel.SpeedScale = 4f; }));
         run.Add(new LundunTalkPick(() => WayTalk(WayIn, family)));
         run.Add(new LundunWhen("Ride back down", r => wheel == null || !wheel.Riding));
         run.Add(new LundunTalk("", new LundunLine("UNCLE FEMI", "Two nights. Rest, all of you. Then we finish this."),
-                                   new LundunLine("JAMES", "Then we finish it.")));
+                                   new LundunLine("JAMES", "Then we finish it. My way.")));
     }
 
     static LundunLine[] CapsuleTalk(List<string> family, bool favour)
@@ -128,7 +128,7 @@ public class M11FamilyMeeting : LundunMission
         l.Add(new LundunLine("UNCLE FEMI", "All of us, in one little glass box. Your father would laugh."));
         if (family.Contains("KEMI")) l.Add(new LundunLine("KEMI", "You talked those boys down at the market. Didn't think you had it in you."));
         if (family.Contains("MARCUS")) l.Add(new LundunLine("MARCUS", "Whatever this is, I'm in. Somebody has to keep you breathing."));
-        if (family.Contains("TAYO")) l.Add(new LundunLine("TAYO", "I owe you all. Let me pay it back. I've got something for this, trust me."));
+        if (family.Contains("TAYO")) l.Add(new LundunLine("TAYO", "I owe you all. Let me pay it back. I've got a link for this, trust me."));
         if (favour) l.Add(new LundunLine("UNCLE FEMI", "And no more favours to that man. Ever."));
         else l.Add(new LundunLine("UNCLE FEMI", "We paid. We kept our word. Now he keeps nothing."));
         return l.ToArray();
@@ -140,9 +140,9 @@ public class M11FamilyMeeting : LundunMission
         switch (way)
         {
             case 0: return new[] { new LundunLine(helper, "Up Hollis's own scaffolding. Onto the roof, in through the top. I like it.") };
-            case 1: return new[] { new LundunLine(helper, "The trades entrance. In with the deliveries, through the kitchens.") };
+            case 1: return new[] { new LundunLine(helper, "The trades entrance. In with the deliveries, through the kitchens. Nobody checks the man with the crate.") };
             case 2: return new[] { new LundunLine(helper, "Through the railings and across the forecourt in the dark. Bold.") };
-            default: return new[] { new LundunLine("TAYO", "Staff passes. You walk in the front door in a waiter's jacket. Nobody looks at the waiters.") };
+            default: return new[] { new LundunLine("TAYO", "Staff passes. My cousin does the catering. You walk in the front in a waiter's jacket. Nobody looks at the waiters.") };
         }
     }
 

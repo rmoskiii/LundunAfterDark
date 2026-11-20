@@ -23,7 +23,7 @@ public class M09PaperTrail : LundunMission
 
     public override string Id { get { return "m09_paper_trail"; } }
     public override string Title { get { return "Paper Trail"; } }
-    public override string Teaser { get { return "Uncle Femi wants Hollis's ledger. It's in a cabin at his yard. Tonight."; } }
+    public override string Teaser { get { return "Hollis keeps every debt in one book, in a cabin at his yard. Uncle Femi wants it. Tonight, and quietly."; } }
     public override string Giver { get { return "UNCLE FEMI"; } }
     public override long Reward { get { return 3000; } }
     public override string MedalNote { get { return "never seen, under 8 minutes"; } }
@@ -52,8 +52,8 @@ public class M09PaperTrail : LundunMission
             : new[] { new LundunLine("UNCLE FEMI", "That man keeps a book. Every debt, every favour, every shop he squeezes."),
                       new LundunLine("UNCLE FEMI", "It's in a cabin at his yard off Windmill Row. Bring it to me.") }));
         run.Add(new LundunTalkPick(() => ally == "KEMI"
-            ? new[] { new LundunLine("JAMES", "And then?"), new LundunLine("UNCLE FEMI", "Then we stop being afraid. Take Kemi. She has the sense you don't.") }
-            : new[] { new LundunLine("JAMES", "And then?"), new LundunLine("UNCLE FEMI", "Then we stop being afraid. Take Marcus. Quietly, mind. Both of you.") }));
+            ? new[] { new LundunLine("JAMES", "I'll plan it. And after?"), new LundunLine("UNCLE FEMI", "Then we stop being afraid. Take Kemi. She has the sense you don't.") }
+            : new[] { new LundunLine("JAMES", "I'll plan it. And after?"), new LundunLine("UNCLE FEMI", "Then we stop being afraid. Take Marcus. Quietly, mind. Both of you.") }));
         run.Add(new LundunJoin(ally));
         run.Add(new LundunGoTo(park, 12f, "Drive to Hollis's yard on Windmill Row"));
         // the yard: guards, the cabin, the ledger
@@ -69,9 +69,9 @@ public class M09PaperTrail : LundunMission
             }
         }));
         run.Add(new LundunTalkPick(() => ally == "KEMI"
-            ? new[] { new LundunLine("KEMI", "I'll stay with the car. Torches mean guards. Stay out of the light."),
+            ? new[] { new LundunLine("KEMI", "Your plan, your call. I'll stay with the car. Torches mean guards, so stay out of the light."),
                       new LundunLine("KEMI", "Find a gap in the fence. And James? Walk. Don't run.") }
-            : new[] { new LundunLine("MARCUS", "Guards. Torches. Keep out of their light and nobody gets hurt."),
+            : new[] { new LundunLine("MARCUS", "Guards. Torches. Your call, James. Keep out of their light and nobody gets hurt."),
                       new LundunLine("MARCUS", "There's a gap in the fence somewhere. Walk, don't run. They'll hear you.") }));
         run.Add(new LundunWhen("Find the gap in the fence", r =>
         {
@@ -107,8 +107,8 @@ public class M09PaperTrail : LundunMission
                 ? new[] { new LundunLine("KEMI", "I heard the shouting from here! Get in, GET IN!") }
                 : new[] { new LundunLine("MARCUS", "So much for quiet. Car. Now.") })
             : (ally == "KEMI"
-                ? new[] { new LundunLine("KEMI", "You've got it? You actually got it. Drive. Slowly.") }
-                : new[] { new LundunLine("MARCUS", "In and out. Dad would've been impressed. Let's go.") }))).Checkpoint(LundunCheckpoint.Minor);
+                ? new[] { new LundunLine("KEMI", "You've got it? You actually got it. Drive. Slowly. Like a nobody.") }
+                : new[] { new LundunLine("MARCUS", "In and out, like a ghost. Dad would've been impressed. Let's go.") }))).Checkpoint(LundunCheckpoint.Minor);
         run.Add(new LundunIf(() => alarm, new LundunChase(2, "Hollis's men are after you: lose them")));
         run.Add(new LundunEscape("Lose the police"));
         run.Add(new LundunDo(r =>
@@ -312,7 +312,7 @@ public class M10OpenForBusiness : LundunMission
 
     public override string Id { get { return "m10_open_for_business"; } }
     public override string Title { get { return "Open For Business"; } }
-    public override string Teaser { get { return "Glass, shelves, stock. Uncle Femi's shop opens again today."; } }
+    public override string Teaser { get { return "Glass, shelves, stock. James is running the rebuild, and LAGOS FOODS opens again today."; } }
     public override string Giver { get { return "UNCLE FEMI"; } }
     public override long Reward { get { return 4000; } }
     public override string MedalNote { get { return "under 9 minutes, van not badly damaged"; } }
@@ -380,7 +380,7 @@ public class M10OpenForBusiness : LundunMission
                 new LundunLine("KEMI", "Look at all this! Leah, grab the other end."),
                 new LundunLine("LEAH", "Mind your backs. Glass coming through."),
             };
-            if (tayo) { l.Add(new LundunLine("TAYO", "I said I'd make it right. Where do you want me?")); l.Add(new LundunLine("MARCUS", "...Shelves. Don't make me regret it.")); }
+            if (tayo) { l.Add(new LundunLine("TAYO", "I said I'd make it right. Where do you want me, boss?")); l.Add(new LundunLine("MARCUS", "...Shelves. Don't make me regret it.")); }
             else l.Add(new LundunLine("MARCUS", "Tayo's mum sent jollof. Don't ask how I know."));
             l.Add(new LundunLine("UNCLE FEMI", "Everybody, inside. We have a shop to open."));
             return l.ToArray();
@@ -395,7 +395,7 @@ public class M10OpenForBusiness : LundunMission
         }));
         run.Add(new LundunTalk("",
             new LundunLine("UNCLE FEMI", "Look at her. Better than before."),
-            new LundunLine("MARCUS", "Company. Hollis's lot, coming up the street.")));
+            new LundunLine("MARCUS", "Company. Hollis's lot, coming up the street. Your call, James.")));
         run.Add(new LundunFight(LundunStoryPlaces.LagosDoor + Quaternion.Euler(0f, (LundunStoryShop.Instance != null ? LundunStoryShop.Instance.OutYaw : 90f) + 90f, 0f) * Vector3.forward * 16f,
                                 4, false, "Hollis's men are here. Defend LAGOS FOODS", "Street", 30f) { harder = 1.3f }).Checkpoint(LundunCheckpoint.Major);
         run.Add(new LundunEscape("Lose the police"));

@@ -23,7 +23,7 @@ public class M13KemisDeliveries : LundunMission
 
     public override string Id { get { return MissionId; } }
     public override string Title { get { return "Kemi's Deliveries"; } }
-    public override string Teaser { get { return Level == 0 ? "Kemi's got parcels to drop round the city. Beat the clock." : "Another run for Kemi: " + (3 + Level) + " drops, less time."; } }
+    public override string Teaser { get { return Level == 0 ? "Kemi's delivery hustle needs a rider. Parcels all over the city, and the clock's ticking." : "Another run for Kemi: " + (3 + Level) + " drops, less time."; } }
     public override string Giver { get { return "KEMI"; } }
     public override long Reward { get { return 150 + 325 * Level; } }
     public override string MedalNote { get { return "a third of the time to spare, no police"; } }
@@ -260,7 +260,7 @@ public class M14ProveYourself : LundunMission
 
     public override string Id { get { return MissionId; } }
     public override string Title { get { return "Prove Yourself"; } }
-    public override string Teaser { get { return "Marcus wants to see what you can do. Four trials. Don't embarrass him."; } }
+    public override string Teaser { get { return "Marcus wants to see what you're made of before he puts his name next to yours. Four trials."; } }
     public override string Giver { get { return "MARCUS"; } }
     public override long Reward { get { return LundunMissionBook.Done(LundunStory.Data, Id) ? 250 : 1000; } }
     public override string MedalNote { get { return "all four trials in time (silver+ unlocks Marcus's backup)"; } }
@@ -280,18 +280,18 @@ public class M14ProveYourself : LundunMission
 
         run.Add(new LundunTalk("",
             new LundunLine("MARCUS", "You want me watching your back? Then show me you can watch your own."),
-            new LundunLine("MARCUS", "Four trials. A scrap, an ambush, the police, and a drive. Each one's on the clock."),
+            new LundunLine("MARCUS", "Four trials. A scrap, an ambush, the Old Bill, and a drive. Each one's on the clock."),
             new LundunLine("JAMES", "And if I'm slow?"),
             new LundunLine("MARCUS", "Then you're slow, and I'll know about it. Go.")));
         // 1: a street fight
         run.Add(new LundunClocked(new LundunFight(fightAt, 2, false, "Trial 1 of 4: win a street fight", "Street", 30f), 45f, ok => Score(ok, "Trial 1")))
            .Checkpoint(LundunCheckpoint.Major);
-        run.Add(new LundunTalk("", new LundunLine("MARCUS", "Not bad. Now they're armed. Keep moving, use cover.")));
+        run.Add(new LundunTalk("", new LundunLine("MARCUS", "Not bad. Now they're strapped. Keep moving, use cover.")));
         // 2: an ambush
         run.Add(new LundunClocked(new LundunFight(ambushAt, 3, true, "Trial 2 of 4: survive the ambush", "Street", 40f) { harder = 0.8f }, 60f, ok => Score(ok, "Trial 2")))
            .Checkpoint(LundunCheckpoint.Major);
         // 3: the police
-        run.Add(new LundunTalk("", new LundunLine("MARCUS", "All that noise? The police are on their way. Three stars. Lose them, quick.")));
+        run.Add(new LundunTalk("", new LundunLine("MARCUS", "All that noise? Feds are on their way. Three stars. Lose them, quick.")));
         run.Add(new LundunNow(r =>
         {
             WantedSystem w = WantedSystem.Instance;
@@ -356,7 +356,7 @@ public class M15Warehouse9 : LundunMission
 
     public override string Id { get { return MissionId; } }
     public override string Title { get { return "Warehouse 9"; } }
-    public override string Teaser { get { return "Hollis's gala money sits in Warehouse 9 tonight. And his helicopter's parked next door."; } }
+    public override string Teaser { get { return "Hollis's gala money sits in Warehouse 9 tonight: a bag of bribes. And his helicopter's parked next door."; } }
     public override string Giver { get { return Planner; } }
     public override long Reward { get { return 6000; } }
     public override string MedalNote { get { return "never seen, helicopter in good shape, under 10 minutes"; } }
@@ -387,7 +387,7 @@ public class M15Warehouse9 : LundunMission
             heli = LundunFlyHeli.Spawn(padAt, 0f);
         }));
         run.Add(new LundunTalkPick(() => who == "TAYO"
-            ? new[] { new LundunLine("TAYO", "Warehouse 9. Hollis keeps the gala money in there tonight. Bribes. A whole bag of them."),
+            ? new[] { new LundunLine("TAYO", "Warehouse 9. Hollis keeps the gala money in there tonight. Bribes. A whole bag of bread."),
                       new LundunLine("TAYO", "Side door's open, guards have torches. Office at the back. And bro, his helicopter's on a pad in Quay Gardens."),
                       new LundunLine("JAMES", "I can't fly a helicopter."),
                       new LundunLine("TAYO", "Nobody can, till they do. Go!") }
@@ -442,8 +442,8 @@ public class M15Warehouse9 : LundunMission
         }));
         run.Add(new LundunIf(() => alarm, new LundunFight(door - inward * 9f, 3, true, "Hollis's men saw it all: get past them", "Street", 40f) { harder = 1.1f }));
         run.Add(new LundunTalkPick(() => new[] { new LundunLine(who, who == "TAYO"
-            ? "(phone) Police everywhere! The helicopter, James! Quay Gardens! GO GO GO!"
-            : "(phone) Police all over. Get to that helicopter in Quay Gardens. Now.") }));
+            ? "(phone) Feds everywhere! The helicopter, James! Quay Gardens! GO GO GO!"
+            : "(phone) Old Bill all over. Get to that helicopter in Quay Gardens. Now.") }));
         run.Add(new LundunWhen("Get to the helicopter in Quay Gardens", r =>
         {
             if (heli == null || heli.Wrecked) { r.Fail("The helicopter's been wrecked"); return false; }
@@ -464,9 +464,9 @@ public class M15Warehouse9 : LundunMission
         }));
         run.Add(new LundunTalkPick(() => new[]
         {
-            new LundunLine(who, who == "TAYO" ? "(phone) You FLEW it?! Bro. BRO. I'm telling everyone." : "(phone) You flew it. Dad would never believe this."),
+            new LundunLine(who, who == "TAYO" ? "(phone) You FLEW it?! Bro. BRO. I'm telling the whole ends." : "(phone) You flew it. Dad would never believe this."),
             new LundunLine("JAMES", "Hollis is going to be furious."),
-            new LundunLine(who, who == "TAYO" ? "(phone) Good. Let him come to his gala without his bribes." : "(phone) Good. He can go to his gala empty-handed."),
+            new LundunLine(who, who == "TAYO" ? "(phone) Good. Let him turn up to his gala with empty pockets." : "(phone) Good. He can go to his gala empty-handed."),
         }));
     }
 

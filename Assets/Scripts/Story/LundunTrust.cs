@@ -116,13 +116,13 @@ public static class LundunTrust
         {
             case "MARCUS":
                 if (Chose("choice:m07", false)) more.Add("The way you handled them at the market. Proper. Dad would've been proud.");
-                if (Chose("choice:m07", true)) more.Add("Talking. At the market. They were taking the stalls' money, James.");
+                if (Chose("choice:m07", true)) more.Add("Talking. At the market. They were taxing the stalls, James.");
                 if (Chose("choice:m08", false)) more.Add("You let him walk. After everything. I'm still not over it.");
                 if (Chose("choice:m08", true)) more.Add("Tayo's safe where he is. Don't ask where.");
-                if (Has(HollisFavour)) more.Add("A favour. To Hollis. You know what that means round here?");
+                if (Has(HollisFavour)) more.Add("A favour. To Hollis. You know what that means round these ends?");
                 break;
             case "KEMI":
-                if (Chose("choice:m07", true)) more.Add("Mrs Okafor gave me free plantain. Because of you. At the market.");
+                if (Chose("choice:m07", true)) more.Add("Mrs Okafor gave me free plantain. Because of you. I'm not complaining.");
                 if (Chose("choice:m07", false)) more.Add("The market's still talking about that fight. Not in a good way.");
                 if (Has(LundunStoryShop.SmashedFlag)) more.Add("I keep seeing the shop. All that glass.");
                 if (t >= Most) more.Add("You know I've got your back. Whatever this turns into.");
@@ -133,10 +133,10 @@ public static class LundunTrust
                 if (Has(LundunStoryShop.SmashedFlag)) more.Add("Eight years I kept that shop. Eight years.");
                 break;
             case "TAYO":
-                if (Chose("choice:m08", false)) more.Add("I owe you, bro. For real. I'll make it right.");
+                if (Chose("choice:m08", false)) more.Add("I owe you, bro. On my life. I'll make it right.");
                 break;
             case "LEAH":
-                if (Has(LundunStoryShop.SmashedFlag)) more.Add("Your uncle's sleeping on your sofa. Is everyone alright, actually?");
+                if (Has(LundunStoryShop.SmashedFlag)) more.Add("Your uncle's sleeping on your sofa. Is everyone actually alright?");
                 if (Chose("choice:m07", false)) more.Add("Kemi said you were in a fight at the market. Let me see your hands.");
                 break;
         }

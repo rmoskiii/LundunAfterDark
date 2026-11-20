@@ -151,7 +151,7 @@ public class LundunRobbery : MonoBehaviour
         Vector3 me = ph.Body.position;
         if (crowd != null) crowd.HoldUp(me, 45f, till, 2.5f);                  // everyone runs but the cashier
         Alarm(1);
-        LundunMissions.Say("CASHIER", Random.value < 0.5f ? "Okay! Okay! Don't shoot, take it!" : "Alright, alright! It's all yours!", 3f);
+        LundunMissions.Say("CASHIER", Random.value < 0.5f ? "Okay! Okay! Don't shoot, take it!" : "Alright, alright! Take it, it's not my money!", 3f);
         LundunHaptics.Medium();
     }
 

@@ -784,15 +784,18 @@ public class LundunMissions : MonoBehaviour
         Place(panel, Vector2.zero, new Vector2(1100f, 700f));
         Image pi = panel.gameObject.AddComponent<Image>();
         pi.sprite = LundunHudArt.Panel; pi.type = Image.Type.Sliced; pi.pixelsPerUnitMultiplier = 0.35f; pi.color = Ink;
+        // Phase 4: the chapter of the climb (or SIDE JOB), above who's giving it
+        TextMeshProUGUI chapter = Label(panel, LundunChapters.For(m), 22f, new Color(Dim.r, Dim.g, Dim.b, 0.85f)); chapter.characterSpacing = 12f;
+        Place(chapter.rectTransform, new Vector2(0f, 312f), new Vector2(1000f, 32f));
         Color gc; if (!Colours.TryGetValue(m.Giver, out gc)) gc = Accent;
         TextMeshProUGUI giver = Label(panel, m.Giver, 28f, gc); giver.characterSpacing = 10f;
-        Place(giver.rectTransform, new Vector2(0f, 290f), new Vector2(1000f, 40f));
+        Place(giver.rectTransform, new Vector2(0f, 274f), new Vector2(1000f, 40f));
         TextMeshProUGUI title = Label(panel, m.Title, 58f, Color.white);
-        Place(title.rectTransform, new Vector2(0f, 230f), new Vector2(1040f, 76f));
+        Place(title.rectTransform, new Vector2(0f, 218f), new Vector2(1040f, 76f));
         TextMeshProUGUI teaser = Label(panel, m.Teaser, 28f, Dim); teaser.textWrappingMode = TextWrappingModes.Normal;
-        Place(teaser.rectTransform, new Vector2(0f, 150f), new Vector2(980f, 90f));
+        Place(teaser.rectTransform, new Vector2(0f, 140f), new Vector2(980f, 84f));
         TextMeshProUGUI pay = Label(panel, "PAYS " + LundunWallet.Format(m.Reward) + (string.IsNullOrEmpty(m.MedalNote) ? "" : "   ·   GOLD: " + m.MedalNote), 26f, new Color(0.35f, 0.95f, 0.45f));
-        Place(pay.rectTransform, new Vector2(0f, 82f), new Vector2(1040f, 40f));
+        Place(pay.rectTransform, new Vector2(0f, 78f), new Vector2(1040f, 40f));
         TextMeshProUGUI dl = Label(panel, "DIFFICULTY", 24f, Dim); dl.characterSpacing = 8f;
         Place(dl.rectTransform, new Vector2(0f, 26f), new Vector2(600f, 36f));
         diffButtons.Clear();

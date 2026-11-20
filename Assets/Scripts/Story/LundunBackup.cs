@@ -50,7 +50,7 @@ public class LundunBackup : MonoBehaviour
         {
             until = -1f;
             if (!LundunMissions.Running) { LundunCrew.Leave("MARCUS"); LundunCrew.Arm("MARCUS", false); }
-            LundunMissions.Say("MARCUS", "Right, I'm off. Stay out of trouble. For once.", 3f);
+            LundunMissions.Say("MARCUS", "Right, I'm off. Stay out of trouble. For once in your life.", 3f);
         }
         wasActive = Active;
         if (buttonGo == null || Time.time < nextCheck) return;

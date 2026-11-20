@@ -35,7 +35,7 @@ public class M12LundunAfterDark : LundunMission
 
     public override string Id { get { return MissionId; } }
     public override string Title { get { return "Lundun After Dark"; } }
-    public override string Teaser { get { return "The gala. The strongroom. Hollis's ledger. Tonight it ends."; } }
+    public override string Teaser { get { return "The gala. The strongroom. Hollis's ledger. Tonight James decides how it ends."; } }
     public override string Giver { get { List<string> f = M11FamilyMeeting.Family(); return f.Count > 1 ? f[1] : "UNCLE FEMI"; } }
     public override long Reward { get { return 25000; } }
     public override string MedalNote { get { return "never seen inside, the helicopter in good shape, under 15 minutes"; } }
@@ -101,7 +101,7 @@ public class M12LundunAfterDark : LundunMission
             new LundunLine(lead, "This is it. The gala's started. Every rich face in Lundun is in there, and Hollis's ledger is in the strongroom."),
             new LundunLine(lead, way == 3 ? "Tayo's passes will get you in the front. Keep your head down and your tray up."
                                : way == 0 ? "His own scaffolding. Up and over. Poetic." : way == 1 ? "Trades entrance. Deliveries never stop at a gala." : "The railings. Quick and quiet, yeah?"),
-            new LundunLine("JAMES", "In, ledger, out."),
+            new LundunLine("JAMES", "In, ledger, out. Everyone knows their job."),
             new LundunLine(lead, marcus ? "And if it goes loud, I'll be in the gardens. I've got you." : "And if it goes loud? Run. Don't be a hero."),
         }));
         run.Add(new LundunGoTo(approach, 2.6f, WayGoal[way])).Checkpoint(LundunCheckpoint.Major);
@@ -152,7 +152,7 @@ public class M12LundunAfterDark : LundunMission
         {
             LundunFlash.Black(1f);
             M15Warehouse9.Put(roofAt + new Vector3(-9f, 0.2f, 0f), Quaternion.Euler(0f, 90f, 0f));
-            LundunMissions.Toast("Hollis's helicopter. On the roof.");
+            LundunMissions.Toast("Hollis's helicopter. On the roof. Rude not to.");
         }));
         run.Add(new LundunWhen("Get in Hollis's helicopter", r =>
         {
@@ -173,7 +173,7 @@ public class M12LundunAfterDark : LundunMission
             LundunCrew.Stage("HOLLIS", LundunMissionRun.Ground(landAt + toward * 11f), Quaternion.LookRotation(-toward).eulerAngles.y);
             if (kemi) LundunCrew.Stage("KEMI", LundunMissionRun.Ground(landAt - toward * 12f + side * 4f), Quaternion.LookRotation(toward).eulerAngles.y);
             LundunCrew.ShowUpNow();
-            LundunMissions.Toast("The police have gone quiet. Somebody called them off.");
+            LundunMissions.Toast("The Old Bill have gone quiet. Somebody called them off.");
         }));
         run.Add(new LundunGoTo(LundunMissionRun.Ground(landAt), 12f, "Face Hollis"));
         run.Add(new LundunTalkPick(() =>
@@ -197,9 +197,9 @@ public class M12LundunAfterDark : LundunMission
             : new[] { new LundunLine("HOLLIS", "Clever boy. So we're partners now, you and I."),
                       new LundunLine("JAMES", "No. You work for me now. Rye Lane's off limits. Forever."),
                       new LundunLine("UNCLE FEMI", "(phone) The debt is gone. He signed it away. I won't ask how, James. I don't want to know.") }));
-        run.Add(new LundunIf(() => tayoHanded, new LundunTalk("", new LundunLine("TAYO", "(phone) Heard you did it. I'm out of the hospital tomorrow. I'm sorry, James. For all of it."))));
+        run.Add(new LundunIf(() => tayoHanded, new LundunTalk("", new LundunLine("TAYO", "(phone) Heard you did it. Everyone's talking. I'm out of the hospital tomorrow. I'm sorry, James. For all of it."))));
         run.Add(new LundunIf(() => kemi, new LundunTalk("", new LundunLine("KEMI", "Get in. I'm driving. Let's go home."))));
-        run.Add(new LundunCard("CHAPTER 2", LundunChoice.Chose(Key, true)
+        run.Add(new LundunCard("TO BE CONTINUED", LundunChoice.Chose(Key, true)
             ? "Hollis is in a cell. The ledger is in the papers.\nBut page 41 is missing from what they printed.\nSomebody paid a lot to keep it that way.\n\nLundun After Dark continues..."
             : "Hollis answers to James now. The ledger is in a safe only James can open.\nOn page 41: names you know from the news. Names with their own Hollises.\nThey'll be coming for it.\n\nLundun After Dark continues..."));
     }
