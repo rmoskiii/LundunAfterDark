@@ -83,18 +83,34 @@ public class LundunSuppressor : MonoBehaviour
     void LateUpdate()
     {
         LundunWeaponRig rig = LundunWeaponRig.Instance;
-        Transform muzzle = rig != null ? rig.Muzzle : null;
-        bool want = Quiet && muzzle != null;
-        if (!want) { if (part != null) part.gameObject.SetActive(false); return; }
+        Transform muzzle = rig != null ? rig.GunMuzzle : null;
+        // on the pistol's barrel whenever the pistol's out and showing (in the hand, third or first person)
+        bool want = Quiet && muzzle != null && muzzle.gameObject.activeInHierarchy;
+        if (!want) { if (part != null && part.gameObject.activeSelf) part.gameObject.SetActive(false); return; }
         if (part == null || onMuzzle != muzzle)
         {
             if (part != null) Destroy(part.gameObject);
             part = Build(muzzle).transform;
             onMuzzle = muzzle;
+            if (!logged) { logged = true; Debug.Log("[Lundun] Suppressor fitted to the pistol (" + muzzle.parent.name + ")."); }
         }
         if (!part.gameObject.activeSelf) part.gameObject.SetActive(true);
+        Fit(part, muzzle);
         int layer = muzzle.gameObject.layer;                         // first person draws the gun on its own layer
         if (part.gameObject.layer != layer) part.gameObject.layer = layer;
+    }
+
+    private bool logged;
+
+    /// The same real size on the barrel whatever the gun's been scaled by (the hand bones of an imported character can
+    /// carry a scale): 16 cm long and 4 cm across, starting just past the muzzle point, along the barrel.
+    static void Fit(Transform part, Transform muzzle)
+    {
+        part.position = muzzle.position + muzzle.forward * 0.075f;
+        part.rotation = muzzle.rotation * Quaternion.Euler(90f, 0f, 0f);  // the cylinder's length along the barrel
+        Vector3 ls = muzzle.lossyScale;
+        Vector3 want = new Vector3(0.042f, 0.08f, 0.042f);
+        part.localScale = new Vector3(want.x / Mathf.Max(1e-4f, Mathf.Abs(ls.x)), want.y / Mathf.Max(1e-4f, Mathf.Abs(ls.z)), want.z / Mathf.Max(1e-4f, Mathf.Abs(ls.y)));
     }
 
     static GameObject Build(Transform muzzle)
@@ -103,9 +119,7 @@ public class LundunSuppressor : MonoBehaviour
         g.name = "Suppressor";
         Collider c = g.GetComponent<Collider>(); if (c != null) Destroy(c);
         g.transform.SetParent(muzzle, false);
-        g.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);    // the cylinder's length along the barrel
-        g.transform.localPosition = new Vector3(0f, 0f, 0.075f);
-        g.transform.localScale = new Vector3(0.042f, 0.08f, 0.042f);  // 16 cm long, 4 cm across
+        Fit(g.transform, muzzle);
         Renderer r = g.GetComponent<Renderer>();
         r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         r.sharedMaterial = Mat();

@@ -61,6 +61,8 @@ public class LundunWeaponRig : MonoBehaviour
     private int aimMask;
 
     public Transform Muzzle => gun != null && weight > 0.01f ? gun.muzzle : null;
+    /// The equipped gun's muzzle point whatever the arms are doing (the suppressor sits on it; null with no gun).
+    public Transform GunMuzzle => gun != null ? gun.muzzle : null;
     public Transform EjectPoint => gun != null ? gun.eject : null;
     public bool Ready => anim != null && rHand != null;
 

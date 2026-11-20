@@ -4,7 +4,7 @@
 //                                    60 s) and a recorder (wipe it). Spotted / shot-out / wiped show in the Console
 //     CCTV footage                   the new black-and-white CCTV cut, from a camera up high looking at James, with
 //                                    a tracking box (SUBJECT, or his car's PLATE if he's driving) and a caption
-//     Suppressor on/off              pretend it's bought (works in Free Roam too, for the test only)
+//     Suppressor on/off/ON/OFF       pretend it's bought (Free Roam too, test only); stays on across Play until switched off
 //     Clear                          removes the test props
 using System.Collections.Generic;
 using UnityEditor;
@@ -82,14 +82,40 @@ public static class LundunGateBTest
             driving ? "LK19 XRT" : "SUBJECT 01"));
     }
 
-    [MenuItem("Lundun/Test: Phase 5 gate B/Suppressor on or off", false, 62)]
-    static void Suppressor()
+    // The test suppressor stays on across Play sessions until it's switched off (it used to reset every Play).
+    const string SuppressorPref = "Lundun.Test.Suppressor";
+
+    [InitializeOnLoadMethod]
+    static void HookPlayMode()
     {
-        if (!Playing()) return;
-        LundunSuppressor.TestOverride = !LundunSuppressor.TestOverride;
-        LundunSuppressor.Ensure();
-        LundunMissions.Toast("TEST: suppressor " + (LundunSuppressor.TestOverride ? "ON\nEquip the pistol" : "OFF"));
+        EditorApplication.playModeStateChanged -= OnPlayMode;
+        EditorApplication.playModeStateChanged += OnPlayMode;
     }
+
+    static void OnPlayMode(PlayModeStateChange s)
+    {
+        if (s != PlayModeStateChange.EnteredPlayMode) return;
+        LundunSuppressor.TestOverride = EditorPrefs.GetBool(SuppressorPref, false);
+        if (LundunSuppressor.TestOverride) { LundunSuppressor.Ensure(); Debug.Log("[Lundun] TEST suppressor is ON (Lundun > Test: Phase 5 gate B to switch it off)."); }
+    }
+
+    static void SetSuppressor(bool on)
+    {
+        EditorPrefs.SetBool(SuppressorPref, on);
+        if (!Application.isPlaying) { Debug.Log("[Lundun] TEST suppressor " + (on ? "ON" : "OFF") + " from the next Play."); return; }
+        LundunSuppressor.TestOverride = on;
+        LundunSuppressor.Ensure();
+        LundunMissions.Toast("TEST: suppressor " + (on ? "ON\nEquip the pistol" : "OFF"));
+    }
+
+    [MenuItem("Lundun/Test: Phase 5 gate B/Suppressor on or off", false, 62)]
+    static void Suppressor() { SetSuppressor(!EditorPrefs.GetBool(SuppressorPref, false)); }
+
+    [MenuItem("Lundun/Test: Phase 5 gate B/Suppressor ON", false, 62)]
+    static void SuppressorOn() { SetSuppressor(true); }
+
+    [MenuItem("Lundun/Test: Phase 5 gate B/Suppressor OFF", false, 62)]
+    static void SuppressorOff() { SetSuppressor(false); }
 
     [MenuItem("Lundun/Test: Phase 5 gate B/Clear test props", false, 63)]
     static void Clear()
