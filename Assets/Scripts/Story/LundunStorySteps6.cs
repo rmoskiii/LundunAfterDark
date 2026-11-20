@@ -169,6 +169,8 @@ public class LundunSneak : LundunStep
     GameObject ui;
     Image fill;
     TextMeshProUGUI label;
+    float loudAt = -99f; Vector3 loudPos;                // Phase 5 (C3): an unsuppressed shot: every guard nearby hears it
+    void Loud(Vector3 at) { loudAt = Time.time; loudPos = at; }
 
     public LundunSneak(Func<List<LundunGuard>> who, Func<bool> done, Action onAlarm, string objectiveText)
     {
@@ -182,6 +184,8 @@ public class LundunSneak : LundunStep
     public override void Begin(LundunMissionRun run)
     {
         meter = 0f; Build();
+        loudAt = -99f;
+        PlayerCombat.GunshotFired -= Loud; PlayerCombat.GunshotFired += Loud;
         List<LundunMissionCam> cs = cameras != null ? cameras() : null;
         if (cs != null) foreach (LundunMissionCam c in cs) if (c != null) c.judgeSelf = false;
     }
@@ -205,6 +209,7 @@ public class LundunSneak : LundunStep
                 if (speed > 4.2f && d < 7f) s = Mathf.Max(s, 0.45f);                  // heard him running
                 if (LundunSuppressor.HeardNear(g.transform.position, LundunSuppressor.HeardWithin)) s = Mathf.Max(s, 0.7f);   // Phase 5: a suppressed shot, right by them
                 if (driving && d < 25f) s = Mathf.Max(s, 0.8f);                       // a car in the yard
+                if (Time.time - loudAt < 0.3f && LundunMissionRun.FlatDistance(g.transform.position, loudPos) < 45f) s = 9f;   // a gunshot: that's it
                 g.Suspicious = s > 0f && meter > 0.25f;
                 rate = Mathf.Max(rate, s * 1.15f);
             }
@@ -228,6 +233,7 @@ public class LundunSneak : LundunStep
 
     public override void End(LundunMissionRun run)
     {
+        PlayerCombat.GunshotFired -= Loud;
         if (ui != null) Object.Destroy(ui);
         List<LundunGuard> gs = guards();
         if (gs != null) foreach (LundunGuard g in gs) if (g != null) g.Suspicious = false;

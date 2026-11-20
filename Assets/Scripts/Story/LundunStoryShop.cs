@@ -102,6 +102,8 @@ public class LundunStoryShop : MonoBehaviour
             bool femi = want && LundunGame.IsStory && !MissionOpen && !LundunMissions.Running;
             bool smashed = Smashed;
             if (smashed != debrisShown) ShowDebris(smashed);
+            bool cam = FrontCameraUp;                                           // Phase 5 (C3): Uncle's own camera, from M10 on
+            if (cam != (frontCam != null)) FrontCamera(cam);
             if (femi && !smashed) LundunCrew.Resident("UNCLE FEMI", SpotPos(LundunShopLayout.Behind(W)), SpotYaw(LundunShopLayout.Behind(W)), true);   // there, not "when nobody's looking" (fix: he never turned up)
             else if (smashed && LundunGame.IsStory && !LundunMissions.Running && !LundunMissions.StartWhere(Inside))   // (not while a replay waits in here)
             {
@@ -119,6 +121,49 @@ public class LundunStoryShop : MonoBehaviour
             Roll();
         }
     }
+
+    // ------------------------------------------------------------------ Phase 5 (C3): the shop's own camera
+    public const string CameraFlag = "lagos:camera";
+    /// Uncle Femi's camera over the new shop front: up from mission 10 (while it's on, and for good after).
+    public static bool FrontCameraUp { get { LundunStoryData d = LundunGame.IsStory ? LundunStory.Data : null; return d != null && d.flags.Contains(CameraFlag); } }
+    private GameObject frontCam;
+    /// Where its lens is, and where it's looking (down the street): for the feed.
+    public Vector3 FrontLens { get { return Point(LundunShopLayout.DoorX(W) + 1.25, -0.32) + Vector3.up * ((float)LundunShopLayout.WindowY1 + 0.42f); } }
+    public Vector3 FrontLook { get { return LundunMissionRun.Ground(StreetSpot) + Vector3.up * 1f; } }
+    /// Up Rye Lane from the door (where trouble comes from, in M10).
+    public Vector3 StreetSpot { get { return DoorOutside + Quaternion.Euler(0f, OutYaw + 90f, 0f) * Vector3.forward * 16f; } }
+
+    void FrontCamera(bool on)
+    {
+        if (!on) { if (frontCam != null) Destroy(frontCam); frontCam = null; return; }
+        frontCam = new GameObject("LagosFrontCamera");
+        frontCam.transform.SetParent(transform, false);
+        Vector3 lens = FrontLens;
+        Vector3 dir = FrontLook - lens;
+        frontCam.transform.position = lens;
+        frontCam.transform.rotation = Quaternion.LookRotation(dir);
+        Shader lit = Shader.Find("Universal Render Pipeline/Lit");
+        Material body = new Material(lit != null ? lit : Shader.Find("Standard")); Tint(body, new Color(0.9f, 0.9f, 0.88f));
+        Material dark = new Material(lit != null ? lit : Shader.Find("Standard")); Tint(dark, new Color(0.04f, 0.04f, 0.05f));
+        Shader unlit = Shader.Find("Universal Render Pipeline/Unlit");
+        Material red = new Material(unlit != null ? unlit : lit); Tint(red, new Color(1f, 0.1f, 0.08f));
+        Bit(frontCam.transform, PrimitiveType.Cube, new Vector3(0f, 0.05f, -0.22f), new Vector3(0.06f, 0.06f, 0.3f), body);           // bracket
+        Bit(frontCam.transform, PrimitiveType.Cube, Vector3.zero, new Vector3(0.15f, 0.13f, 0.32f), body);                             // housing
+        Bit(frontCam.transform, PrimitiveType.Cube, new Vector3(0f, 0.08f, 0.04f), new Vector3(0.18f, 0.025f, 0.38f), body);           // hood
+        Bit(frontCam.transform, PrimitiveType.Sphere, new Vector3(0f, 0f, 0.165f), new Vector3(0.08f, 0.08f, 0.02f), dark);            // lens
+        Bit(frontCam.transform, PrimitiveType.Sphere, new Vector3(0.05f, 0.04f, 0.165f), new Vector3(0.02f, 0.02f, 0.02f), red);       // REC light
+    }
+
+    static void Bit(Transform parent, PrimitiveType t, Vector3 at, Vector3 size, Material m)
+    {
+        GameObject g = GameObject.CreatePrimitive(t);
+        Destroy(g.GetComponent<Collider>());
+        g.transform.SetParent(parent, false);
+        g.transform.localPosition = at; g.transform.localScale = size;
+        Renderer r = g.GetComponent<Renderer>(); r.sharedMaterial = m; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+    }
+
+    static void Tint(Material m, Color c) { if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c); m.color = c; }
 
     // ------------------------------------------------------------------ S5: smashed up
     public static bool Smashed { get { LundunStoryData d = LundunGame.IsStory ? LundunStory.Data : null; return d != null && d.flags.Contains(SmashedFlag); } }

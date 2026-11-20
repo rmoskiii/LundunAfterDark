@@ -34,6 +34,9 @@ public class LundunChaseCar : MonoBehaviour
     private static readonly RaycastHit[] hits = new RaycastHit[8];
     private static readonly LundunDriver.Profile driver = LundunDriver.For(LundunDriver.Style.Reckless);
 
+    /// Phase 5 (C3): a spotter (M10): sits 30–40 m back and follows; never closes in, rams or shoots.
+    public bool tailOnly;
+
     public bool Wrecked { get { return vh != null && vh.IsWrecked; } }
     public bool Lost { get; private set; }
     public VehicleHealth Health { get { return vh; } }
@@ -80,7 +83,7 @@ public class LundunChaseCar : MonoBehaviour
         if (dist > 220f || (dist > 140f && unseenFor > 5f)) { Lost = true; LundunMissions.Toast("Lost one of them"); return; }
 
         Drive(james, dist);
-        if (dist < 32f && sees && Time.time >= nextShot) Shoot(james);
+        if (!tailOnly && dist < 32f && sees && Time.time >= nextShot) Shoot(james);
     }
 
     // ------------------------------------------------------------------ driving
@@ -93,7 +96,15 @@ public class LundunChaseCar : MonoBehaviour
         Rigidbody jrb = jc != null ? jc.GetComponent<Rigidbody>() : null;
         Vector3 jv = jrb != null ? jrb.linearVelocity : Vector3.zero; jv.y = 0f;
         float want; Vector3 aim; bool ramming = false;
-        if (dist < 40f)
+        if (tailOnly && dist < 60f)
+        {
+            // hanging back: matching his speed, closing only if he gets away
+            Vector3 jf0 = james.forward; jf0.y = 0f; jf0 = jf0.sqrMagnitude > 0.01f ? jf0.normalized : transform.forward;
+            aim = jp + jv * 0.5f;
+            want = Mathf.Clamp(Mathf.Max(0f, Vector3.Dot(jv, jf0)) + (dist - 34f) * 0.5f, 0f, 24f);
+            if (dist < 22f) want = 0f;
+        }
+        else if (dist < 40f)
         {
             // on his tail; now and then alongside and into his back wheel
             Vector3 jf = james.forward; jf.y = 0f; jf = jf.sqrMagnitude > 0.01f ? jf.normalized : transform.forward;
