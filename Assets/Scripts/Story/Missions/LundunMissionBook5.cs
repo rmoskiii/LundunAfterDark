@@ -7,10 +7,15 @@ using UnityEngine.AI;
 /// James goes with Marcus. Two rounds of what to say (calm, firm, hot-headed, or FIGHT): the right word both times and
 /// they back off (Kemi +1, Marcus −1: "choice:m07:a"); a hot-headed word or FIGHT and it's a fight in the crowd, which
 /// scatters (Marcus +1: "choice:m07:b"). Either way one of them lets slip who's been talking to Hollis: Tayo.
+/// Phase 5 (C2): the answers are labelled CALM, FIRM or HOT. The market has a camera on a pole over the stalls: talk
+/// them down and nothing happened, as far as anyone can prove. A fight and it's filmed: the CCTV cut from the market
+/// camera (a still kept: LundunEvidence "market_fight"), phones out all round, and the police told (2★).
 public class M07HomeTurf : LundunMission
 {
     public const string Key = "choice:m07";
+    public const string Evidence = "market_fight";
     readonly List<Health> youth = new List<Health>();
+    LundunMissionCam marketCam;
     LundunTone first, second;
     bool fight, hot, resolved;                         // resolved: past the standoff (a retry from later doesn't redo it)
 
@@ -40,6 +45,16 @@ public class M07HomeTurf : LundunMission
             new LundunLine("MARCUS", "Brixtun market. That's our people, bro. Get the car."),
             new LundunLine("JAMES", "We go, we talk. Yeah? We just talk.")));
         run.Add(new LundunGoTo(LundunMarket.EastEnd, 12f, "Get to Brixtun market"));
+        // Phase 5: the market's camera, on a pole across from the stall, watching it
+        run.Add(new LundunDo(r =>
+        {
+            Vector3 side = Vector3.Cross(Vector3.up, stallDir);
+            Vector3 p = stall + stallDir * 9f + side * 6f;
+            if (!NavMesh.SamplePosition(LundunMissionRun.Ground(p) + Vector3.up, out NavMeshHit hit, 6f, NavMesh.AllAreas)) return;
+            Vector3 look = stall - hit.position; look.y = 0f;
+            marketCam = LundunMissionCam.CreateOnPole(r, Evidence, hit.position, 4.6f, Quaternion.LookRotation(look.sqrMagnitude > 0.01f ? look : -stallDir).eulerAngles.y, 0f, 18f, 30f, -22f);
+            marketCam.judgeSelf = false;                                        // it records; it doesn't call anyone
+        }));
         // Electric Youth round a stall
         run.Add(new LundunDo(r =>
         {
@@ -122,6 +137,7 @@ public class M07HomeTurf : LundunMission
             Transform j = LundunMissionRun.James();
             LundunMarket.Scatter(j != null ? j.position : stall);
         })));
+        run.Add(new LundunIf(() => fight, new LundunNow(r => Filmed())));
         run.Add(new LundunIf(() => fight, new LundunFight(() => youth, "Fight off the Electric Youth. Keep Marcus up") { harder = 1.2f }));
         // talked down: off they go
         run.Add(new LundunIf(() => !fight, new LundunNow(r =>
@@ -145,8 +161,12 @@ public class M07HomeTurf : LundunMission
         run.Add(new LundunNow(r => resolved = true));
         run.Add(new LundunTalk("",
             new LundunLine("JAMES", "He wouldn't. Not Tayo."),
-            new LundunLine("MARCUS", "Basketful was his idea. Hollis knew by morning. Think about it, James."),
-            new LundunLine("KEMI", "(text) Mrs Okafor says thank you and she's saving you both a plate. You ok??"))).Checkpoint(LundunCheckpoint.Minor);
+            new LundunLine("MARCUS", "Basketful was his idea. Hollis knew by morning. Think about it, James."))).Checkpoint(LundunCheckpoint.Minor);
+        run.Add(new LundunTalkPick(() => Talked
+            ? new[] { new LundunLine("KEMI", "(text) Mrs Okafor says thank you and she's saving you both a plate."),
+                      new LundunLine("KEMI", "(text) And nobody even got their phone out. Nothing to see. That's how you do it.") }
+            : new[] { new LundunLine("KEMI", "(text) Mrs Okafor says thank you and she's saving you both a plate. You ok??"),
+                      new LundunLine("KEMI", "(text) It's on everyone's phones, James. And the market camera. Police were there in minutes.") }));
         run.Add(new LundunEscape("Lose the police"));
         run.Add(new LundunGoTo(LundunStoryPlaces.Home, 6f, "Take Marcus home"));
         run.Add(new LundunTalkPick(() => Talked
@@ -155,6 +175,29 @@ public class M07HomeTurf : LundunMission
             : new[] { new LundunLine("MARCUS", "You held your own back there. Proper."),
                       new LundunLine("MARCUS", "Kemi's going to kill us. Worth it.") }));
         run.Add(new LundunLeave("MARCUS", () => LundunStoryPlaces.Home));
+    }
+
+    /// Phase 5: the fight's on camera (unless James shot the market's camera first) and on everyone's phones.
+    void Filmed()
+    {
+        Transform j = LundunMissionRun.James();
+        Vector3 at = j != null ? j.position : LundunMarket.Middle;
+        WantedSystem w = WantedSystem.Instance;
+        if (w != null) w.RaiseTo(2, at, true);
+        if (marketCam != null && marketCam.Working)
+        {
+            LundunEvidence.Recorded(Evidence);
+            LundunMissions.Toast("FILMED\nThe market camera, and half the market's phones");
+            if (LundunCctvFeed.Instance != null)
+                LundunCctvFeed.Instance.StartCoroutine(LundunCctvFeed.Scripted(marketCam.Lens, () => { Transform jj = LundunMissionRun.James(); return (jj != null ? jj.position : at) + Vector3.up * 1.1f; },
+                    "BRIXTUN MARKET  ·  CAM 03", "DISTURBANCE  ·  MARKET STALLS", 2.5f, LundunCctvFeed.Mark.Subject,
+                    () => { Transform jj = LundunMissionRun.James(); return (jj != null ? jj.position : at) + Vector3.up * 1f; }, "SUBJECT 01", Evidence));
+        }
+        else
+        {
+            if (marketCam != null) LundunEvidence.Destroyed(Evidence);
+            LundunMissions.Toast("FILMED\nPhones out all over the market");
+        }
     }
 
     /// The Electric Youth turn to James.
@@ -171,7 +214,7 @@ public class M07HomeTurf : LundunMission
     }
 
     public override int Medal(LundunMissionRun run) { return run.Elapsed < 360f ? 3 : run.Elapsed < 540f ? 2 : 1; }
-    public override void Tidy() { youth.Clear(); resolved = false; }
+    public override void Tidy() { youth.Clear(); resolved = false; marketCam = null; }
 }
 
 // ======================================================================================================================
@@ -181,6 +224,9 @@ public class M07HomeTurf : LundunMission
 /// of the steps. Then the choice: HAND HIM TO MARCUS ("choice:m08:a": Marcus +1, Tayo's gone till the end) or LET HIM GO
 /// (":b": Tayo +2, Marcus −1). That night Hollis's men smash up LAGOS FOODS (it stays smashed until mission 10); Uncle
 /// Femi's staying at James's.
+/// Phase 5 (C2): Leah's eyes. Lose Tayo once and it isn't over: Leah, in the control room, finds him on a camera (the
+/// game holds while the CCTV cut shows him, boxed, "TAYO"), and the count starts again. Lose him a second time and he's
+/// gone. That night, the shop's own camera: three men in masks smashing LAGOS FOODS (no faces), before Kemi rings.
 public class M08BloodIsThicker : LundunMission
 {
     public const string Key = "choice:m08";
@@ -249,7 +295,7 @@ public class M08BloodIsThicker : LundunMission
         run.Add(new LundunKeepUp(() => TayoNow,
             () => cyclist != null && cyclist.Arrived,
             () => { if (cyclist != null && cyclist.Crashed && cyclist.RiderUp) cameOff = true; return cameOff; },
-            15f, "Keep up with Tayo", "You lost Tayo"));
+            15f, "Keep up with Tayo", "You lost Tayo") { lostOnce = r => LeahFindsHim() });
         // he's down the Underground (unless he came off the bike first: then he's there, dazed)
         run.Add(new LundunIf(() => cameOff && runner == null, new LundunNow(r =>
         {
@@ -314,6 +360,8 @@ public class M08BloodIsThicker : LundunMission
             if (LundunStoryShop.Instance != null) LundunStoryShop.Instance.Refresh();
             LundunMissions.Toast("LATER THAT NIGHT");
         }));
+        // Phase 5: LAGOS FOODS' own camera, as it happened
+        run.Add(new LundunShopCam());
         run.Add(new LundunTalk("",
             new LundunLine("KEMI", "(phone) James. It's the shop. Someone's smashed Uncle's shop to pieces."),
             new LundunLine("KEMI", "(phone) He's alright. He's shaking, but he's alright. Come. Please.")));
@@ -344,6 +392,32 @@ public class M08BloodIsThicker : LundunMission
             new LundunLine("UNCLE FEMI", "Eight years, James. Eight years I swept that floor."),
             new LundunLine("JAMES", "We'll fix it, Uncle. All of it."),
             new LundunLine("UNCLE FEMI", "You cannot fix Hollis with a broom.")));
+    }
+
+    // ------------------------------------------------------------------ Phase 5: Leah's eyes
+    /// Lost him: Leah finds him on a council camera. The game holds while it's shown; his dot's back on the map.
+    bool LeahFindsHim()
+    {
+        Transform t = TayoNow;
+        LundunCctvFeed f = LundunCctvFeed.Instance;
+        if (t == null || f == null) return false;
+        LundunMissions.Say("LEAH", "(text) Lost him? Hang on. I've got the cameras up... There. Got him.", 4f);
+        Vector3 back = -t.forward; back.y = 0f; back = back.sqrMagnitude > 0.01f ? back.normalized : Vector3.back;
+        Vector3 lens = t.position + back * 14f + Vector3.Cross(Vector3.up, back) * 5f + Vector3.up * 7f;
+        f.StartCoroutine(Held(LundunCctvFeed.Scripted(lens, () => (t != null ? t.position : lens) + Vector3.up * 1.1f,
+            "LUNDUN CCTV  ·  CAM " + Mathf.Abs(Mathf.RoundToInt(t.position.x * 3f + t.position.z)) % 9000 + 1000, "LEAH  ·  CONTROL ROOM  ·  FOUND HIM", 3f,
+            LundunCctvFeed.Mark.Subject, () => (t != null ? t.position : lens) + Vector3.up * 1f, "TAYO")));
+        LundunMissions.Toast("LEAH FOUND HIM\nShe won't be able to twice");
+        return true;
+    }
+
+    /// The game holds while the cut plays (it runs on real time).
+    static System.Collections.IEnumerator Held(System.Collections.IEnumerator cut)
+    {
+        float before = Time.timeScale > 0f ? Time.timeScale : 1f;
+        Time.timeScale = 0f;
+        yield return cut;
+        if (Time.timeScale == 0f) Time.timeScale = before;
     }
 
     // ------------------------------------------------------------------ the chase

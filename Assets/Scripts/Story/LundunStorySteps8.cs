@@ -563,3 +563,122 @@ public class LundunHollisPhone : LundunStep
 
     public override bool Tick(LundunMissionRun run) { return done; }
 }
+
+/// Phase 5 (gate C2): M08's smashed shop, on LAGOS FOODS' own camera (up behind the counter, looking down the shop to
+/// the door): three men in masks, no faces, walking out through the glass they've just made. A few seconds, then
+/// they're gone (they only exist for the footage). The shop's already smashed (LundunStoryShop.SmashedFlag).
+public class LundunShopCam : LundunStep
+{
+    readonly List<GameObject> men = new List<GameObject>();
+    readonly List<Vector3> from = new List<Vector3>();
+    Vector3 door;
+    float started;
+    bool done;
+
+    public LundunShopCam() { objective = ""; }
+
+    public override void Begin(LundunMissionRun run)
+    {
+        done = false; started = Time.time;
+        men.Clear(); from.Clear();
+        double w = LundunStoryPlaces.LagosWidth;
+        float y;
+        Vector3 behind = LundunStoryPlaces.Lagos(LundunShopLayout.Behind(w), out y);
+        Vector3 inside = LundunStoryPlaces.Lagos(LundunShopLayout.Inside(w), out y);
+        door = LundunStoryPlaces.LagosDoor;
+        Vector3[] spots = { LundunStoryPlaces.Lagos(LundunShopLayout.InAisle(w), out y), LundunStoryPlaces.Lagos(LundunShopLayout.ByFridge(w), out y), inside };
+        LundunPopulation pop = LundunPopulation.Instance;
+        for (int i = 0; i < spots.Length && pop != null; i++)
+        {
+            GameObject g = pop.NewPerson(null, "Street");
+            if (g == null) continue;
+            NPCBrain b = g.GetComponent<NPCBrain>(); if (b != null) Object.Destroy(b);
+            NavMeshAgent ag = g.GetComponent<NavMeshAgent>(); if (ag != null) ag.enabled = false;
+            foreach (Collider c in g.GetComponentsInChildren<Collider>()) c.enabled = false;
+            Vector3 to = door - spots[i]; to.y = 0f;
+            g.transform.SetPositionAndRotation(spots[i], Quaternion.LookRotation(to.sqrMagnitude > 0.01f ? to : Vector3.forward));
+            Darken(g);
+            g.SetActive(true);
+            Animator a = g.GetComponentInChildren<Animator>();
+            if (a != null) a.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            Mask(g, a);
+            run.Spawn(g);
+            men.Add(g); from.Add(spots[i]);
+        }
+        // the one strip light they didn't smash, flickering
+        Light strip = new GameObject("ShopStripLight").AddComponent<Light>();
+        strip.transform.position = inside + Vector3.up * 2.5f;
+        strip.type = LightType.Point; strip.range = 10f; strip.intensity = 2.6f; strip.color = new Color(0.85f, 0.92f, 1f); strip.shadows = LightShadows.None;
+        run.Spawn(strip.gameObject);
+        men.Add(strip.gameObject); from.Add(strip.transform.position);
+        Vector3 lens = behind + Vector3.up * 2.6f;
+        LundunCctvFeed f = LundunCctvFeed.Instance;
+        if (f == null) { done = true; return; }
+        f.StartCoroutine(Play(lens, inside + Vector3.up * 1f));
+    }
+
+    System.Collections.IEnumerator Play(Vector3 lens, Vector3 look)
+    {
+        yield return LundunCctvFeed.Scripted(lens, () => look, "LAGOS FOODS  ·  CAM 01  ·  SHOP FLOOR", "23:12  ·  THREE MEN  ·  FACES COVERED", 4.5f);
+        done = true;
+    }
+
+    public override bool Tick(LundunMissionRun run)
+    {
+        float k = (Time.time - started) / 4.5f;
+        for (int i = 0; i < men.Count; i++)
+        {
+            if (men[i] == null) continue;
+            Light l = men[i].GetComponent<Light>();
+            if (l != null) { l.enabled = Mathf.PerlinNoise(Time.time * 9f, 0.3f) > 0.28f; continue; }
+            float s = Mathf.Clamp01((k - i * 0.12f) * 1.3f);                    // one after the other, out of the door
+            men[i].transform.position = Vector3.Lerp(from[i], door, s);
+            LundunAnim.Float(men[i].GetComponentInChildren<Animator>(), "Speed", s > 0f && s < 1f ? 2.4f : 0f, 0.1f);
+        }
+        if (!done) return false;
+        foreach (GameObject g in men) if (g != null) Object.Destroy(g);
+        men.Clear();
+        return true;
+    }
+
+    public override void End(LundunMissionRun run)
+    {
+        foreach (GameObject g in men) if (g != null) Object.Destroy(g);
+        men.Clear();
+    }
+
+    /// Dark clothes head to foot.
+    static void Darken(GameObject g)
+    {
+        foreach (Renderer r in g.GetComponentsInChildren<Renderer>(true))
+            foreach (Material m in r.materials)
+            {
+                if (m == null) continue;
+                Color c = new Color(0.08f, 0.08f, 0.09f);
+                if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+                m.color = c;
+            }
+    }
+
+    /// A balaclava: the head covered, no face.
+    static void Mask(GameObject g, Animator a)
+    {
+        Transform head = a != null && a.isHuman ? a.GetBoneTransform(HumanBodyBones.Head) : null;
+        if (head == null) foreach (Transform t in g.GetComponentsInChildren<Transform>(true)) if (t.name == "mixamorig:Head") { head = t; break; }
+        if (head == null) return;
+        GameObject m = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        m.name = "Mask";
+        Object.Destroy(m.GetComponent<Collider>());
+        m.transform.SetParent(head, false);
+        m.transform.position = head.position + g.transform.up * 0.09f + g.transform.forward * 0.02f;
+        m.transform.rotation = g.transform.rotation;
+        Vector3 hs = head.lossyScale;
+        m.transform.localScale = new Vector3(0.24f / Mathf.Max(0.001f, hs.x), 0.28f / Mathf.Max(0.001f, hs.y), 0.26f / Mathf.Max(0.001f, hs.z));
+        Shader s = Shader.Find("Universal Render Pipeline/Lit");
+        Material mat = new Material(s != null ? s : Shader.Find("Standard"));
+        Color c = new Color(0.03f, 0.03f, 0.035f);
+        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", c);
+        mat.color = c;
+        m.GetComponent<Renderer>().sharedMaterial = mat;
+    }
+}

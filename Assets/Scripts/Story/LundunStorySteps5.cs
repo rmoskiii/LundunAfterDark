@@ -120,11 +120,22 @@ public class LundunReplies : LundunStep
         for (int i = 0; i < replies.Length; i++)
         {
             int idx = i;
-            LundunUIBits.Button(root, replies[i].text, new Vector2(0f, 110f - i * 132f), new Vector2(1240f, 112f), 32f,
+            LundunUIBits.Button(root, ToneTag(replies[i].tone) + replies[i].text, new Vector2(0f, 110f - i * 132f), new Vector2(1240f, 112f), 32f,
                                 new Color(0.1f, 0.14f, 0.26f, 0.95f), () => Pick(idx));
         }
         LundunUIBits.Button(root, "FIGHT", new Vector2(0f, 110f - replies.Length * 132f - 20f), new Vector2(420f, 100f), 36f,
                             new Color(0.62f, 0.12f, 0.1f, 0.95f), () => Pick(-1));
+    }
+
+    /// Phase 5 (C2): a small tone label in front of each answer (CALM, FIRM, HOT), so the player learns that tone matters.
+    static string ToneTag(LundunTone t)
+    {
+        switch (t)
+        {
+            case LundunTone.Calm: return "<size=62%><color=#8FD3FF>CALM</color></size>   ";
+            case LundunTone.Firm: return "<size=62%><color=#FFB347>FIRM</color></size>   ";
+            default: return "<size=62%><color=#FF6B5E>HOT</color></size>   ";
+        }
     }
 }
 
@@ -235,6 +246,10 @@ public class LundunKeepUp : LundunStep
 {
     readonly Func<Transform> who; readonly Func<bool> arrived, fell; readonly float loseAfter; readonly string text, failText;
     float lostFor;
+    /// Phase 5 (C2): once per attempt, losing him isn't the end: this is asked first (M08: Leah finds Tayo on a camera).
+    /// True = found him again (the count starts over); false, or the second time, = failed.
+    public Func<LundunMissionRun, bool> lostOnce;
+    bool rescued;
     public override Transform Follow { get { return who(); } }
     public LundunKeepUp(Func<Transform> target, Func<bool> gotThere, Func<bool> cameOff, float seconds, string objectiveText, string ifLost)
     {
@@ -243,7 +258,7 @@ public class LundunKeepUp : LundunStep
 
     public override void Begin(LundunMissionRun run)
     {
-        lostFor = 0f;
+        lostFor = 0f; rescued = false;
         Transform t = who();
         LundunMinimap mm = Object.FindAnyObjectByType<LundunMinimap>();
         if (t != null && mm != null) mm.Track(t, new Color(0.4f, 0.9f, 0.45f), "", 16f, true);
@@ -262,7 +277,11 @@ public class LundunKeepUp : LundunStep
         bool lost = d > 95f || (d > 45f && !seen);
         lostFor = lost ? lostFor + Time.deltaTime : Mathf.Max(0f, lostFor - Time.deltaTime * 2f);
         objective = lostFor > 0.5f ? text + "  ·  losing him: " + Mathf.CeilToInt(loseAfter - lostFor) : text;
-        if (lostFor >= loseAfter) run.Fail(failText);
+        if (lostFor >= loseAfter)
+        {
+            if (lostOnce != null && !rescued && lostOnce(run)) { rescued = true; lostFor = 0f; }
+            else run.Fail(failText);
+        }
         return false;
     }
 
