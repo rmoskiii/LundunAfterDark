@@ -11,12 +11,13 @@ using Random = UnityEngine.Random;
 /// one is wrecked or lost (LundunChaseCar). His passengers shoot at them.
 public class LundunChase : LundunStep
 {
-    readonly int count;
+    readonly int count, bikes;                         // Phase 5 (C1): the last 'bikes' of them are motorbikes (LundunMotorbike)
     readonly List<LundunChaseCar> cars = new List<LundunChaseCar>();
     readonly System.Random rng = new System.Random();
     bool spawned;
     float begun;
     public LundunChase(int howMany, string objectiveText) { count = howMany; objective = objectiveText; }
+    public LundunChase(int howMany, string objectiveText, int motorbikes) { count = howMany; objective = objectiveText; bikes = motorbikes; }
 
     public override void Begin(LundunMissionRun run) { spawned = false; begun = Time.time; cars.Clear(); }
 
@@ -70,6 +71,7 @@ public class LundunChase : LundunStep
             if (!found) continue;
             GameObject g = pop.NewCar(LundunMissions.Instance != null ? LundunMissions.Instance.transform : null, pos, Quaternion.LookRotation(along), 11 + i * 3);
             if (g == null) continue;
+            if (i >= count - bikes) LundunMotorbike.Dress(g);
             LundunChaseCar cc = g.AddComponent<LundunChaseCar>();
             cc.Begin(run.EnemyDamage);
             cars.Add(cc);

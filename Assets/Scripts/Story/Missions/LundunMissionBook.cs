@@ -105,7 +105,7 @@ public class M01OneLastFavour : LundunMission
             new LundunLine("UNCLE FEMI", "Listen. A man on the Gilmore Estate is holding a parcel for me. Spices, from home. You collect it, you bring it here. Simple."),
             new LundunLine("JAMES", "Why can't Marcus go?"),
             new LundunLine("MARCUS", "Because I've got work in the morning. A real job, with a payslip.")));
-        // Leah drops in from her shift
+        // Leah drops in from her shift (Phase 5: she watches the council's CCTV for a living)
         run.Add(new LundunDo(r =>
         {
             float fy; Vector3 inside = LundunStoryPlaces.Lagos(LundunShopLayout.Inside(W), out fy);
@@ -114,9 +114,9 @@ public class M01OneLastFavour : LundunMission
         }));
         run.Add(new LundunWait(1.5f));
         run.Add(new LundunTalk("",
-            new LundunLine("LEAH", "Sorry, sorry, my shift ran over. Did I miss the drama?"),
+            new LundunLine("LEAH", "Sorry, sorry, my shift in the control room ran over. Did I miss the drama?"),
             new LundunLine("KEMI", "James is doing a pickup for Uncle."),
-            new LundunLine("LEAH", "Be careful, yeah? Text me when you're back."),
+            new LundunLine("LEAH", "Be careful, yeah? Text me when you're back. And stay off my cameras."),
             new LundunLine("UNCLE FEMI", "Take your car. And James: be polite. Polite costs nothing.")));
 
         // the estate: every camera there's been seen to (set dressing: this one has no CCTV)
@@ -762,8 +762,12 @@ public class M05UnclesRules : LundunMission
 
 // ======================================================================================================================
 /// 06 Passenger Problems. James picks Marcus up after a night on the door at Knightsbury Circus; on the way home the
-/// Rye Lane Riders come after them in two cars. James drives, Marcus shoots out of the window: lose them, or let him take
-/// them out. Home, and Marcus hands over body armour and ammo (v50: the SMG came in 04).
+/// Rye Lane Riders come after them. Phase 5 (C1): Leah, on shift in the council's CCTV control room, texts first: she's
+/// just watched their cars go past on her cameras. Three cars, and when they're dealt with, a Rider on a motorbike
+/// (LundunMotorbike). James drives, Marcus shoots out of the window: lose them, or let him take them out. Marcus:
+/// "stay off the main roads, there's a camera on every light". OFF CAMERA (optional, +£400): no street camera sees
+/// the shooting (LundunOffCamera; seen: 2★ and the footage cut). Home, and Marcus hands over body armour and ammo.
+/// Then the arms dealer rings: he has a suppressor for James's pistol now.
 public class M06PassengerProblems : LundunMission
 {
     static readonly Vector3 Circus = new Vector3(560f, 0f, 945f);
@@ -773,7 +777,7 @@ public class M06PassengerProblems : LundunMission
     public override string Teaser { get { return "Marcus is off the door in Knightsbury and needs a lift. The Riders have been asking about you."; } }
     public override string Giver { get { return "MARCUS"; } }
     public override long Reward { get { return 2500; } }
-    public override string MedalNote { get { return "under 6 minutes"; } }
+    public override string MedalNote { get { return "off camera, under 8 minutes"; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m05_uncles_rules") && !LundunMissionBook.Done(d, Id); }
     public override Vector3 StartAt { get { return LundunMissionRun.Ground(Circus); } }
     public override Vector3 GiverFacing { get { return Vector3.back; } }
@@ -795,10 +799,28 @@ public class M06PassengerProblems : LundunMission
             return j != null && LundunMissionRun.Driving() && LundunMissionRun.FlatDistance(j.position, start) > 180f;
         }).Mark(LundunStoryPlaces.Home, 6f, true));
         run.Add(new LundunTalk("",
-            new LundunLine("MARCUS", "Two cars on us. Rye Lane Riders."),
+            new LundunLine("LEAH", "(text) James. I'm on shift. Three Riders' cars just went past my camera on Knightsbury Road. Heading your way."),
+            new LundunLine("MARCUS", "There they are. Rye Lane Riders."),
             new LundunLine("JAMES", "What do they want with us?"),
-            new LundunLine("MARCUS", "Kingsley's lent them out. Your name's ringing now, James. Just drive, I'll do the rest.")));
-        run.Add(new LundunChase(2, "Lose the Rye Lane Riders, or let Marcus take them out")).Checkpoint(LundunCheckpoint.Major);
+            new LundunLine("MARCUS", "Kingsley's lent them out. Your name's ringing now, James. Just drive, I'll do the rest."),
+            new LundunLine("MARCUS", "And stay off the main roads. There's a camera on every light.")));
+        // Phase 5 (C1): OFF CAMERA, watched for the whole chase
+        run.Add(new LundunDo(r =>
+        {
+            offCamera = LundunOffCamera.Watch(r);
+            r.AddOptional("off_camera", "OFF CAMERA: no street camera sees the shooting", 400);
+        }));
+        run.Add(new LundunChase(3, "Lose the Rye Lane Riders, or let Marcus take them out")).Checkpoint(LundunCheckpoint.Major);
+        run.Add(new LundunTalk("",
+            new LundunLine("MARCUS", "Is that all of them?"),
+            new LundunLine("LEAH", "(text) One more. A bike. He's coming up behind you fast."),
+            new LundunLine("MARCUS", "Bike! On a bike, behind us!")));
+        run.Add(new LundunChase(1, "Lose the Rider on the bike, or let Marcus take him off it", 1)).Checkpoint(LundunCheckpoint.Minor);
+        run.Add(new LundunNow(r =>
+        {
+            if (offCamera != null && !offCamera.Caught) r.CompleteOptional("off_camera");
+            if (offCamera != null) Object.Destroy(offCamera.gameObject);
+        }));
         run.Add(new LundunTalk("", new LundunLine("MARCUS", "That's them done. Breathe, bro. Breathe.")));
         run.Add(new LundunEscape("Lose the police"));
         run.Add(new LundunGoTo(LundunStoryPlaces.Home, 6f, "Take Marcus home"));
@@ -817,7 +839,23 @@ public class M06PassengerProblems : LundunMission
             LundunMissions.Toast("BODY ARMOUR + AMMO\nThe blue bar soaks up hits");
         }));
         run.Add(new LundunLeave("MARCUS", () => LundunStoryPlaces.Home));
+        // the suppressor's on sale from now on (LundunSuppressor.OnSale: this mission done)
+        run.Add(new LundunTalk("",
+            new LundunLine("ARMS DEALER", "(phone) Mr Adeyemi. I hear the Riders had a bad night. Loud, though. Very loud."),
+            new LundunLine("ARMS DEALER", "(phone) I've something new in. A suppressor for that pistol. Quiet enough for a camera, quiet enough for a guard."),
+            new LundunLine("JAMES", "How much?"),
+            new LundunLine("ARMS DEALER", "(phone) Come and see me. Under the arches.")));
+        run.Add(new LundunNow(r => LundunMissions.Toast("SUPPRESSOR\nAt the arms dealer, under the arches")));
     }
 
-    public override int Medal(LundunMissionRun run) { return run.Elapsed < 360f ? 3 : run.Elapsed < 540f ? 2 : 1; }
+    LundunOffCamera offCamera;
+
+    public override int Medal(LundunMissionRun run)
+    {
+        int m = run.Elapsed < 480f ? 3 : run.Elapsed < 660f ? 2 : 1;
+        if (!run.OptionalDone("off_camera")) m = Mathf.Min(m, 2);               // gold: off camera
+        return m;
+    }
+
+    public override void Tidy() { offCamera = null; }
 }

@@ -24,6 +24,9 @@ public class LundunLook
     public LundunLook Hide(string match) { parts.Add(new Part { match = match.ToLowerInvariant(), hide = true }); return this; }
     public LundunLook Build(float h, float w) { height = h; width = w; return this; }
     public LundunLook Fighter(float punchDamage, float toughness) { fighter = true; punch = punchDamage; health = toughness; return this; }
+    /// Phase 5 (C1): a work pass on a lanyard round the neck (Leah's council pass).
+    public bool lanyard;
+    public LundunLook Lanyard() { lanyard = true; return this; }
 
     static Color Hex(string h) { Color c; return ColorUtility.TryParseHtmlString("#" + h.TrimStart('#'), out c) ? c : Color.white; }
 }
@@ -51,9 +54,10 @@ public static class LundunCast
             // owns LAGOS FOODS: dark brown skin, greying hair, an ochre shirt, brown trousers. Short and stocky.
             Add(new LundunLook("UNCLE FEMI", "Work_1").Build(0.96f, 1.2f)
                 .Hide("Helmet").Paint("Vest", "b5762b").Paint("Shirt", "b5762b").Tint("Body", "86705f").Paint("Pants", "3b3029").Tint("Hair", "555555"));
-            // James's girlfriend, a nurse: light brown skin, dark hair, blue scrubs.
-            Add(new LundunLook("LEAH", "Suit_2").Build(0.98f, 0.97f)
-                .Tint("Body", "e1d1c3").Paint("Coat", "3a7fa8").Paint("Shirt", "3a7fa8").Paint("Pants", "3a7fa8").Tint("Hair", "2a1d18"));
+            // James's girlfriend. Phase 5 (C1): she works in the council's CCTV control room: light brown skin, dark hair,
+            // a navy work jacket over a pale grey top, charcoal trousers, and her council pass on a red lanyard.
+            Add(new LundunLook("LEAH", "Suit_2").Build(0.98f, 0.97f).Lanyard()
+                .Tint("Body", "e1d1c3").Paint("Coat", "24314a").Paint("Shirt", "c9cdd3").Paint("Pants", "2b2c31").Tint("Hair", "2a1d18"));
             // (later passes) Canary Quay money: a charcoal suit, a burgundy tie. Tall and lean.
             Add(new LundunLook("HOLLIS", "Suit_1").Build(1.05f, 0.97f)
                 .Paint("Suit", "2a2c30").Paint("Pants", "2a2c30").Paint("Tie", "6b1424"));
@@ -86,10 +90,49 @@ public static class LundunCast
         Health h = go.GetComponent<Health>();
         if (h != null) h.Invulnerable = true;
         Dress(go, look);
+        if (look.lanyard) Pass(go);
         Vector3 s = go.transform.localScale;
         go.transform.localScale = new Vector3(s.x * look.width, s.y * look.height, s.z * look.width);
         foreach (Animator a in go.GetComponentsInChildren<Animator>(true)) a.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
         return go;
+    }
+
+    /// Phase 5 (C1): a red lanyard from the neck and a white pass on the chest, on the chest bone so it moves with her.
+    static void Pass(GameObject go)
+    {
+        Animator a = go.GetComponentInChildren<Animator>(true);
+        Transform chest = a != null && a.isHuman ? a.GetBoneTransform(HumanBodyBones.UpperChest) : null;
+        if (chest == null && a != null && a.isHuman) chest = a.GetBoneTransform(HumanBodyBones.Chest);
+        if (chest == null) foreach (Transform t in go.GetComponentsInChildren<Transform>(true)) if (t.name == "mixamorig:Spine2") { chest = t; break; }
+        if (chest == null) return;
+        Transform root = go.transform;
+        Vector3 fwd = root.forward, up = root.up;
+        Material red = Flat(new Color(0.7f, 0.08f, 0.08f)), white = Flat(new Color(0.92f, 0.93f, 0.95f));
+        // two strap halves from either side of the neck down to the pass, and the pass
+        for (int s = -1; s <= 1; s += 2)
+            Bit(chest, root, chest.position + up * 0.12f + fwd * 0.09f + root.right * (0.05f * s), Quaternion.LookRotation(fwd, up) * Quaternion.Euler(0f, 0f, -14f * s), new Vector3(0.012f, 0.2f, 0.004f), red);
+        Bit(chest, root, chest.position - up * 0.02f + fwd * 0.13f, Quaternion.LookRotation(fwd, up), new Vector3(0.055f, 0.08f, 0.004f), white);
+    }
+
+    static void Bit(Transform bone, Transform root, Vector3 at, Quaternion rot, Vector3 size, Material m)
+    {
+        GameObject g = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        g.name = "Lanyard";
+        Object.Destroy(g.GetComponent<Collider>());
+        g.transform.SetPositionAndRotation(at, rot);
+        g.transform.localScale = size;
+        g.transform.SetParent(bone, true);
+        Renderer r = g.GetComponent<Renderer>();
+        r.sharedMaterial = m; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+    }
+
+    static Material Flat(Color c)
+    {
+        Shader s = Shader.Find("Universal Render Pipeline/Lit");
+        Material m = new Material(s != null ? s : Shader.Find("Standard")) { name = "Lanyard" };
+        if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+        m.color = c;
+        return m;
     }
 
     /// Recolour each part (its own copies of the materials, so nobody else's change).

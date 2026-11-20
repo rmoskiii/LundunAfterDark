@@ -163,6 +163,7 @@ public partial class LundunCrew
     /// One shot from 'from' at a person (who) or a car (car): a hit now and then (damage), otherwise past them.
     void Fire(Member m, Vector3 from, Transform target, Health who, VehicleHealth car, float chance, float damage)
     {
+        LundunChaseCar.LastShotAt = Time.time;                                      // Phase 5 (C1): a shot in the open
         Vector3 aim = target.position + Vector3.up * (car != null ? 0.9f : 1.3f);
         Vector3 end = aim;
         bool clear = !Physics.Linecast(from, aim, SightMask, QueryTriggerInteraction.Ignore);

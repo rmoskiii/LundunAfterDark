@@ -15,6 +15,8 @@ public class LundunChaseCar : MonoBehaviour
     public static readonly List<LundunChaseCar> Active = new List<LundunChaseCar>();
     /// A passenger's hit on one of these cars (LundunCrew's drive-bys).
     public const float HitDamage = 9f;
+    /// Phase 5 (C1): when the last shot in a chase was fired (theirs, or Marcus's from the window): M06's OFF CAMERA.
+    public static float LastShotAt = -99f;
 
     private CarController car;
     private Rigidbody body;
@@ -206,6 +208,7 @@ public class LundunChaseCar : MonoBehaviour
     void Shoot(Transform james)
     {
         nextShot = Time.time + Random.Range(0.8f, 1.4f);
+        LastShotAt = Time.time;
         bool left = Vector3.Dot(james.position - transform.position, transform.right) < 0f;
         Vector3 from = transform.position + Vector3.up * 1.3f + transform.right * (left ? -1f : 1f) + transform.forward * 0.2f;
         float d = Flat(james.position - transform.position);

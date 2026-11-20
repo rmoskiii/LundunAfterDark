@@ -701,9 +701,9 @@ public partial class LundunCrew : MonoBehaviour
             "I have yams to deliver tomorrow. Remind me.",
             "You young people. Always in a hurry, never on time." } },
         { "LEAH", new[] {
-            "I'm on a twelve-hour shift tomorrow. Gently, please.",
+            "I'm on a twelve-hour shift in the control room tomorrow. Gently, please.",
             "You're quiet tonight. What's going on?",
-            "I spend all day patching up people who drive like this.",
+            "I spend all day watching people drive like this. On camera.",
             "Text me when you're home safe, yeah?",
             "My mum keeps asking when you're coming for Sunday dinner." } },
     };
