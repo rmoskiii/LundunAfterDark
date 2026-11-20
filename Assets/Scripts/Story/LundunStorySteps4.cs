@@ -88,15 +88,17 @@ public class LundunChase : LundunStep
 public class LundunAmbush : LundunStep
 {
     readonly Vector3 at; readonly int count; readonly float escape;
+    readonly Func<int> countNow;                       // Phase 5 (A2): how many decided when it starts (M04: did the Kings' cameras see you?)
     readonly List<Health> men = new List<Health>();
     public LundunAmbush(Vector3 where, int gunmen, float escapeMetres, string objectiveText) { at = where; count = gunmen; escape = escapeMetres; objective = objectiveText; }
+    public LundunAmbush(Vector3 where, Func<int> gunmen, float escapeMetres, string objectiveText) { at = where; countNow = gunmen; escape = escapeMetres; objective = objectiveText; }
 
     public override void Begin(LundunMissionRun run)
     {
         men.Clear();
         LundunMissions.LendGun();                          // v50
         LundunPopulation pop = LundunPopulation.Instance;
-        int n = count + run.ExtraEnemies;
+        int n = (countNow != null ? countNow() : count) + run.ExtraEnemies;
         Vector3 c = LundunMissionRun.Ground(at);
         for (int i = 0; i < n && pop != null; i++)
         {

@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
@@ -19,6 +21,11 @@ using UnityEngine.UI;
 ///   scripted     missions can cut to any spot as a CCTV camera for a few seconds (Scripted / LundunFeedCut): a
 ///                caption ("PLATE READ  ·  LK19 XRT") and a tracking box round someone or something (SUBJECT, a
 ///                plate), for the M03 plate read, Hollis's footage, Leah's help, the shop camera...
+/// Phase 5 (gate A2):
+///   stills      a scripted cut can keep a still of what the camera saw (keepAs: the evidence id), saved with the story
+///               (where the subject was in the picture, and the time on the clock), so a later mission can play it
+///               back: Hollis showing James the Basketful tills on his phone in M05 (Playback)
+///   phone       a cut or a playback can be shown as a phone held up to James (the picture smaller, the world behind)
 /// Costs: one small extra camera that only draws on the frames it's needed (12 a second during a cut, 4 a second while
 /// recording), no shadows, no post-processing, no anti-aliasing.
 public class LundunCctvFeed : MonoBehaviour
@@ -43,6 +50,9 @@ public class LundunCctvFeed : MonoBehaviour
     private Canvas canvas;
     private RawImage screen;
     private RectTransform picture, box;
+    private Image back, bezel;
+    private AspectRatioFitter fit;
+    private Vector3 lastMarkV;                // where the tracking box last was in the picture (viewport x, y, distance)
     private TextMeshProUGUI camLabel, clockLabel, tagLabel, captionLabel, boxLabel;
     private GameObject captionBar;
     private Image recDot;
@@ -93,12 +103,15 @@ public class LundunCctvFeed : MonoBehaviour
     /// A mission's cut to a CCTV view: from 'lens' looking at look() (each frame), for 'seconds' (real time), named
     /// camName, with a caption (or none) and a tracking box round markAt() (or none). Yield on it to wait.
     public static IEnumerator Scripted(Vector3 lens, Func<Vector3> look, string camName, string caption, float seconds,
-                                       Mark mark = Mark.None, Func<Vector3> markAt = null, string markLabel = null)
+                                       Mark mark = Mark.None, Func<Vector3> markAt = null, string markLabel = null,
+                                       string keepAs = null, bool phone = false)
     {
         LundunCctvFeed f = Instance;
         if (f == null || !f.Ready()) yield break;
         while (f.replaying) yield return null;
         f.scripted = true;
+        f.Phone(phone);
+        int drawn = 0; bool kept = keepAs == null;
         f.showUntil = -1f;
         f.screen.texture = f.live;
         f.tagLabel.text = "LIVE";
@@ -112,8 +125,14 @@ public class LundunCctvFeed : MonoBehaviour
         while (Time.unscaledTime < end && f != null)
         {
             bool frame = Time.unscaledTime >= next;                          // a choppy 12 a second
+            if (frame && !kept && drawn >= 6)                                // half a second in: what it's got is kept
+            {
+                kept = true;
+                f.Keep(keepAs, mark != Mark.None ? f.lastMarkV : Vector3.zero, LundunClock.Instance != null ? LundunClock.Instance.Hour : 22f);
+            }
             if (frame)
             {
+                drawn++;
                 next = Time.unscaledTime + LiveGap;
                 Vector3 target = look != null ? look() : lens + Vector3.forward;
                 Vector3 d = target - lens;
@@ -132,8 +151,116 @@ public class LundunCctvFeed : MonoBehaviour
             f.canvas.enabled = false;
             f.captionBar.SetActive(false);
             f.box.gameObject.SetActive(false);
+            f.Phone(false);
             f.scripted = false;
         }
+    }
+
+    // ------------------------------------------------------------------ Phase 5 (gate A2): stills of James, played back later
+    static string StillPath(string id) { return Path.Combine(Application.persistentDataPath, "evidence_" + id + ".png"); }
+    const string StillKey = "evidence_still:";
+
+    /// A still of this evidence is on file (the camera recorded him, and the picture was kept).
+    public static bool HasStill(string id)
+    {
+        if (!LundunEvidence.Exists(id)) return false;
+        try { return File.Exists(StillPath(id)); } catch { return false; }
+    }
+
+    /// The live picture, as it is now, kept as the still for 'id' (with where the subject was, and the time).
+    void Keep(string id, Vector3 markV, float hour)
+    {
+        if (!LundunGame.IsStory || string.IsNullOrEmpty(id) || live == null) return;
+        Texture2D tex = null;
+        RenderTexture was = RenderTexture.active;
+        try
+        {
+            RenderTexture.active = live;
+            tex = new Texture2D(W, H, TextureFormat.RGB24, false);
+            tex.ReadPixels(new Rect(0, 0, W, H), 0, 0);
+            tex.Apply();
+            File.WriteAllBytes(StillPath(id), tex.EncodeToPNG());
+            CultureInfo c = CultureInfo.InvariantCulture;
+            LundunStory.Set(StillKey + id, markV.x.ToString("F3", c) + "," + markV.y.ToString("F3", c) + "," + markV.z.ToString("F2", c) + "," + hour.ToString("F3", c));
+            Debug.Log("[Lundun] Evidence still kept: " + id);
+        }
+        catch (Exception e) { Debug.LogWarning("[Lundun] Couldn't keep the evidence still " + id + ": " + e.Message); }
+        finally
+        {
+            RenderTexture.active = was;
+            if (tex != null) Destroy(tex);
+        }
+    }
+
+    /// A kept still played back as CCTV footage ("<< PLAYBACK", the time it was taken, the box round him): on a phone
+    /// held up to James if 'phone'. Nothing (and no wait) if there's no still on file. Yield on it to wait.
+    public static IEnumerator Playback(string id, string camName, string caption, float seconds, string markLabel, bool phone)
+    {
+        LundunCctvFeed f = Instance;
+        if (f == null || !HasStill(id) || !f.Ready()) yield break;
+        while (f.replaying || f.scripted) yield return null;
+        Texture2D tex = new Texture2D(2, 2, TextureFormat.RGB24, false);
+        bool ok;
+        try { ok = tex.LoadImage(File.ReadAllBytes(StillPath(id))); } catch { ok = false; }
+        if (!ok) { Destroy(tex); yield break; }
+        Vector3 markV = Vector3.zero; float hour = 21.2f;
+        string v;
+        if (LundunStory.TryGet(StillKey + id, out v))
+        {
+            string[] bits = v.Split(',');
+            CultureInfo c = CultureInfo.InvariantCulture;
+            if (bits.Length >= 4)
+            {
+                float.TryParse(bits[0], NumberStyles.Float, c, out markV.x); float.TryParse(bits[1], NumberStyles.Float, c, out markV.y);
+                float.TryParse(bits[2], NumberStyles.Float, c, out markV.z); float.TryParse(bits[3], NumberStyles.Float, c, out hour);
+            }
+        }
+        f.scripted = true;
+        f.eye.enabled = false;
+        f.Phone(phone);
+        f.screen.texture = tex;
+        f.tagLabel.text = "<< PLAYBACK";
+        f.camLabel.text = camName;
+        f.captionBar.SetActive(!string.IsNullOrEmpty(caption));
+        f.captionLabel.text = caption ?? "";
+        f.box.gameObject.SetActive(false);
+        f.canvas.enabled = true;
+        LundunHaptics.Light();
+        float start = Time.unscaledTime, end = start + seconds;
+        while (Time.unscaledTime < end && f != null)
+        {
+            float k = Time.unscaledTime - start;
+            if (markV.z > 0.2f && k > 0.6f) f.PlaceBox(markV, Mark.Subject, markLabel);   // the operator boxes him a moment in
+            f.Clock(hour + k / 3600f);
+            yield return null;
+        }
+        if (f != null)
+        {
+            f.canvas.enabled = false;
+            f.captionBar.SetActive(false);
+            f.box.gameObject.SetActive(false);
+            f.screen.texture = f.live;
+            f.Phone(false);
+            f.scripted = false;
+        }
+        Destroy(tex);
+    }
+
+    /// The picture as a phone held up to James (smaller, a bezel round it, the world dimmed behind), or full screen.
+    void Phone(bool on)
+    {
+        if (picture == null) return;
+        if (back != null) back.color = on ? new Color(0f, 0f, 0f, 0.55f) : Color.black;
+        if (bezel != null) bezel.gameObject.SetActive(on);
+        if (fit != null) fit.enabled = !on;
+        if (on)
+        {
+            picture.anchorMin = picture.anchorMax = new Vector2(0.5f, 0.5f);
+            picture.pivot = new Vector2(0.5f, 0.5f);
+            picture.sizeDelta = new Vector2(1120f, 630f);
+            picture.anchoredPosition = new Vector2(0f, 40f);
+        }
+        else Stretch(picture);
     }
 
     /// The tracking box: round where markAt() is in the picture (hidden if it's off screen).
@@ -142,6 +269,13 @@ public class LundunCctvFeed : MonoBehaviour
         if (mark == Mark.None || markAt == null) { box.gameObject.SetActive(false); return; }
         Vector3 p = markAt();
         Vector3 v = eye.WorldToViewportPoint(p);
+        lastMarkV = v;
+        PlaceBox(v, mark, markLabel);
+    }
+
+    /// The tracking box round viewport point v (x, y in the picture, z its distance).
+    void PlaceBox(Vector3 v, Mark mark, string markLabel)
+    {
         if (v.z <= 0.2f || v.x < 0.02f || v.x > 0.98f || v.y < 0.02f || v.y > 0.98f) { box.gameObject.SetActive(false); return; }
         Rect r = picture.rect;
         float size = Mathf.Clamp((mark == Mark.Plate ? 2.2f : 4.5f) * r.height / Mathf.Max(1f, v.z), 60f, 420f);
@@ -309,8 +443,14 @@ public class LundunCctvFeed : MonoBehaviour
         canvas.enabled = false;
 
         // black behind (the picture is 16:9; phones are wider)
-        Image back = NewImage("Back", cg.transform, Color.black);
+        back = NewImage("Back", cg.transform, Color.black);
         Stretch(back.rectTransform);
+        // Phase 5 (A2): a phone's body round the picture (shown only when it's a phone held up)
+        bezel = NewImage("PhoneBezel", cg.transform, new Color(0.035f, 0.035f, 0.04f, 1f));
+        if (LundunHudArt.Pill != null) { bezel.sprite = LundunHudArt.Pill; bezel.type = Image.Type.Sliced; bezel.pixelsPerUnitMultiplier = 0.35f; }
+        RectTransform bz = bezel.rectTransform;
+        bz.anchorMin = bz.anchorMax = new Vector2(0.5f, 0.5f); bz.sizeDelta = new Vector2(1250f, 710f); bz.anchoredPosition = new Vector2(0f, 40f);
+        bezel.gameObject.SetActive(false);
 
         GameObject sg = new GameObject("Picture", typeof(RectTransform));
         sg.transform.SetParent(cg.transform, false);
@@ -318,7 +458,7 @@ public class LundunCctvFeed : MonoBehaviour
         screen.raycastTarget = false;
         picture = screen.rectTransform;
         Stretch(picture);
-        AspectRatioFitter fit = sg.AddComponent<AspectRatioFitter>();
+        fit = sg.AddComponent<AspectRatioFitter>();
         fit.aspectMode = AspectRatioFitter.AspectMode.FitInParent;          // all of the picture shows; black bars on wide phones
         fit.aspectRatio = W / (float)H;
         Shader feed = Resources.Load<Shader>("LundunCctvFeed");
@@ -444,13 +584,16 @@ public class LundunFeedCut : LundunStep
     readonly float seconds;
     readonly LundunCctvFeed.Mark mark;
     readonly Action after;
+    readonly string keepAs;
+    readonly bool phone;
     bool done;
 
     public LundunFeedCut(Func<Vector3> lensAt, Func<Vector3> lookAt, string cam, string captionText, float secs,
-                         LundunCctvFeed.Mark marked = LundunCctvFeed.Mark.None, Func<Vector3> marker = null, string markText = null, Action then = null)
+                         LundunCctvFeed.Mark marked = LundunCctvFeed.Mark.None, Func<Vector3> marker = null, string markText = null, Action then = null,
+                         string keepStillAs = null, bool onPhone = false)
     {
         lens = lensAt; look = lookAt; camName = cam; caption = captionText; seconds = secs;
-        mark = marked; markAt = marker; markLabel = markText; after = then;
+        mark = marked; markAt = marker; markLabel = markText; after = then; keepAs = keepStillAs; phone = onPhone;
     }
 
     public override void Begin(LundunMissionRun run)
@@ -462,7 +605,7 @@ public class LundunFeedCut : LundunStep
 
     IEnumerator Play()
     {
-        yield return LundunCctvFeed.Scripted(lens(), look, camName, caption, seconds, mark, markAt, markLabel);
+        yield return LundunCctvFeed.Scripted(lens(), look, camName, caption, seconds, mark, markAt, markLabel, keepAs, phone);
         done = true;
         if (after != null) after();
     }

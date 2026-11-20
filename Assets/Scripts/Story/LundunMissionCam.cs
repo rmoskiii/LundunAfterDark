@@ -23,6 +23,9 @@ public class LundunMissionCam : MonoBehaviour
     public float sweepSeconds = 8f;           // one full side-to-side-and-back
     /// Judges for itself (its own meter → Spotted). Off when a LundunSneak step is doing the judging.
     public bool judgeSelf = true;
+    /// Phase 5 (A2): it watches the road too: James driving past is seen (quicker, a car's a big thing to spot). Off by
+    /// default: most cameras only care about people on foot. M04's estate cameras on the way in.
+    public bool seesCars;
 
     public bool Powered { get; private set; } = true;
     public bool Destroyed { get; private set; }
@@ -123,10 +126,12 @@ public class LundunMissionCam : MonoBehaviour
         if (cone != null && head != null) cone.rotation = Quaternion.Euler(0f, head.eulerAngles.y, 0f);
 
         Transform j = LundunMissionRun.James();
-        lookingAt = j != null && !LundunMissionRun.Driving() ? Sees(j.position) : 0f;
+        bool driving = LundunMissionRun.Driving();
+        lookingAt = j != null && (seesCars || !driving) ? Sees(j.position) : 0f;
         if (judgeSelf && Working && !HasSpotted)
         {
-            Meter = lookingAt > 0f ? Meter + lookingAt * 1.6f * Time.deltaTime : Mathf.Max(0f, Meter - 0.5f * Time.deltaTime);
+            float rate = driving ? 4.5f : 1.6f;
+            Meter = lookingAt > 0f ? Meter + lookingAt * rate * Time.deltaTime : Mathf.Max(0f, Meter - 0.5f * Time.deltaTime);
             if (Meter >= 1f)
             {
                 HasSpotted = true; Meter = 1f;

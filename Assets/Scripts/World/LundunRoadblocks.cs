@@ -6,6 +6,8 @@ using UnityEngine.AI;
 /// heading, in a V, and wait; their crews (armed at these levels) only get out once he's close. Drive round them,
 /// turn off before you reach them, or ram through. Once the crews are back in, the cars join the chase.
 /// Old roadblocks left far behind (and out of sight) are cleared away. Added automatically next to the PoliceDirector.
+/// Phase 5 (gate A2): a story mission can put one where it wants it (PlaceAt: M03's roads out of Brixtun being shut,
+/// close enough to see from the lock-up), whether James is driving or not.
 public class LundunRoadblocks : MonoBehaviour
 {
     [SerializeField] private int fromStars = 4;
@@ -26,7 +28,41 @@ public class LundunRoadblocks : MonoBehaviour
     /// S3: while above 0, roadblocks come from this many stars (a mission closing the roads). Story missions only.
     public static int MissionFromStars;
 
+    public static LundunRoadblocks Instance { get; private set; }
+    void Awake() { Instance = this; }
+    void OnDestroy() { if (Instance == this) Instance = null; }
+
     void Start() { vehicles = FindAnyObjectByType<VehicleSystem>(); }
+
+    /// Phase 5: a roadblock on the road nearest 'near' (two cars across it in a V, lights going, crews ready). The way
+    /// it faces doesn't matter: it shuts the road both ways. Returns where it went (false if there's no road there, or
+    /// something's in the way). Story missions only.
+    public static bool PlaceAt(Vector3 near, out Vector3 at)
+    {
+        at = near;
+        LundunRoadblocks rb = Instance;
+        LundunNavigation nav = LundunNavigation.Instance;
+        PoliceAI prefab = PoliceDirector.CarPrefab;
+        if (rb == null || nav == null || nav.Graph == null || prefab == null) return false;
+        NavPoint p = nav.Graph.NearestOnRoad(new NavPoint(near.x, near.z), out int edge, out double t, out double dist);
+        if (edge < 0 || dist > 30.0) return false;
+        nav.Graph.EdgeEnds(edge, out int na, out int nb);
+        NavPoint pa = nav.Graph.NodePosition(na), pb = nav.Graph.NodePosition(nb);
+        nav.Graph.EdgeInfo(na, nb, out double width, out string cls);
+        Vector3 along = new Vector3((float)(pb.x - pa.x), 0f, (float)(pb.z - pa.z));
+        if (along.sqrMagnitude < 1f) return false;
+        along.Normalize();
+        Vector3 centre = LundunMissionRun.Ground(new Vector3((float)p.x, near.y, (float)p.z));
+        if (Physics.CheckSphere(centre + Vector3.up, 5f, LayerMask.GetMask("Vehicle", "Player"), QueryTriggerInteraction.Ignore)) return false;
+        Vector3 right = new Vector3(along.z, 0f, -along.x);
+        float half = Mathf.Clamp((float)width * 0.5f, 3f, 9f);
+        PoliceAI a = rb.Park(prefab, centre + right * half * 0.42f, Quaternion.LookRotation(Quaternion.Euler(0f, 68f, 0f) * along));
+        PoliceAI b = rb.Park(prefab, centre - right * half * 0.42f, Quaternion.LookRotation(Quaternion.Euler(0f, -68f, 0f) * along));
+        if (a == null && b == null) return false;
+        rb.blocks.Add(new Block { a = a, b = b, at = centre });
+        at = centre;
+        return true;
+    }
 
     void Update()
     {

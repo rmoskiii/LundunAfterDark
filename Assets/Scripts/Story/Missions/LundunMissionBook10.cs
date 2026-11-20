@@ -397,11 +397,13 @@ public class M12LundunAfterDark : LundunMission
 public class LundunCard : LundunStep
 {
     readonly string title, body;
+    readonly System.Func<string> bodyNow;            // Phase 5 (A2): words that depend on what happened (M05: paid or promised)
     GameObject ui;
     bool tapped;
     float shown;
 
     public LundunCard(string heading, string text) { title = heading; body = text; objective = ""; }
+    public LundunCard(string heading, System.Func<string> text) { title = heading; bodyNow = text; objective = ""; }
 
     public override void Begin(LundunMissionRun run)
     {
@@ -418,7 +420,7 @@ public class LundunCard : LundunStep
         b.onClick.AddListener(() => { if (Time.unscaledTime - shown > 2f) tapped = true; });
         TextMeshProUGUI t = LundunUIBits.Label(root, title, 96f, new Vector2(0f, 230f), new Vector2(1600f, 130f));
         t.color = new Color(1f, 0.66f, 0.18f); t.characterSpacing = 20f;
-        TextMeshProUGUI m = LundunUIBits.Label(root, body, 36f, new Vector2(0f, -30f), new Vector2(1400f, 380f));
+        TextMeshProUGUI m = LundunUIBits.Label(root, bodyNow != null ? bodyNow() : body, 36f, new Vector2(0f, -30f), new Vector2(1400f, 380f));
         m.fontStyle = FontStyles.Normal; m.color = new Color(1f, 1f, 1f, 0.9f);
         TextMeshProUGUI tap = LundunUIBits.Label(root, "TAP TO CONTINUE", 26f, new Vector2(0f, -400f), new Vector2(800f, 50f));
         tap.color = new Color(1f, 1f, 1f, 0.5f);

@@ -243,6 +243,11 @@ public class LundunFight : LundunStep
     {
         already = group; objective = objectiveText; look = "Street"; engageWithin = 9999f; hasMarker = false;
     }
+    /// Phase 5 (A2): the same, armed (M05: Kingsley's boys out of their cars with guns).
+    public LundunFight(Func<List<Health>> group, string objectiveText, bool withGuns)
+    {
+        already = group; objective = objectiveText; look = "Street"; engageWithin = 9999f; hasMarker = false; guns = withGuns;
+    }
     public LundunFight(Vector3 where, int people, bool withGuns, string objectiveText, string lookName = "Street", float startWithin = 18f)
     {
         at = where; count = people; guns = withGuns; objective = objectiveText; look = lookName; engageWithin = startWithin;

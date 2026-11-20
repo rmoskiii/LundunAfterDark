@@ -57,6 +57,10 @@ public static class LundunCast
             // (later passes) Canary Quay money: a charcoal suit, a burgundy tie. Tall and lean.
             Add(new LundunLook("HOLLIS", "Suit_1").Build(1.05f, 0.97f)
                 .Paint("Suit", "2a2c30").Paint("Pants", "2a2c30").Paint("Tie", "6b1424"));
+            // Phase 5 (A2): runs the Tower Block Kings on the Gilmore Estate: dark brown skin, a black hoodie, the Kings'
+            // red joggers. Tall, unhurried.
+            Add(new LundunLook("KINGSLEY", "Street_1").Build(1.06f, 1.02f)
+                .Tint("Body", "7a5e4e").Paint("Hoody", "141416").Paint("Pants", "8a1c22").Tint("Hair", "141010"));
             return looks;
         }
     }
