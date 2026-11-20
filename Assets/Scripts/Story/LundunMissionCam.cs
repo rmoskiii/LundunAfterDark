@@ -26,6 +26,10 @@ public class LundunMissionCam : MonoBehaviour
     /// Phase 5 (A2): it watches the road too: James driving past is seen (quicker, a car's a big thing to spot). Off by
     /// default: most cameras only care about people on foot. M04's estate cameras on the way in.
     public bool seesCars;
+    /// Phase 5 (D): its cone on the ground can be hidden (M12: a camera you didn't spot from the Wheel in 11 is one you
+    /// don't know the sweep of). It still sees.
+    bool coneHidden;
+    public void ShowCone(bool on) { coneHidden = !on; Colour(); }
 
     public bool Powered { get; private set; } = true;
     public bool Destroyed { get; private set; }
@@ -150,7 +154,7 @@ public class LundunMissionCam : MonoBehaviour
     {
         if (coneMat == null) return;
         bool on = Working;
-        if (coneR.enabled != on) coneR.enabled = on;
+        if (coneR.enabled != (on && !coneHidden)) coneR.enabled = on && !coneHidden;
         if (led != null && led.enabled != on) led.enabled = on;
         float alert = Mathf.Max(lookingAt > 0f ? 0.6f : 0f, judgeSelf ? Meter : 0f);
         Color c = Color.Lerp(new Color(1f, 0.78f, 0.25f, 0.16f), new Color(1f, 0.12f, 0.08f, 0.32f), alert);

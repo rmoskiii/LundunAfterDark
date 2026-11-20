@@ -14,20 +14,32 @@ using Object = UnityEngine.Object;
 /// you promised Hollis in 05). At the top, look across at the palace through the binoculars and find its three weak
 /// points (scaffolding, a service gate, a loose railing): each lights up. Then choose your way in for the finale (the
 /// favour closes the service gate: Hollis's people will be waiting there; Tayo adds his staff passes).
+/// Phase 5 (D): the getaway car is taken from the showroom forecourt at night, under its two cameras: STEAL IT UNSEEN
+/// (optional, +£300; seen: 2★, lose them first). The family meets the next afternoon. From the top, as well as the
+/// weak points, the palace's CCTV: its control room and three key cameras (blinking red lights; bonus, not needed).
+/// Each camera found is known in 12 (its cone shows, it's on the map); the control room found means Leah can loop the
+/// palace's cameras for 45 seconds in 12 ("m11:cam:N", "m11:control").
 public class M11FamilyMeeting : LundunMission
 {
     public const string MissionId = "m11_family_meeting";
     static readonly Vector3 Showroom = new Vector3(690f, 0f, 860f);
     GameObject car;
     float carStart;
-    bool resolved;
+    bool resolved, showroomSaw;
+    /// Phase 5: the palace's CCTV, as seen from the Wheel: the control room's window and three cameras on the front.
+    public static readonly Vector3[] PalaceCctv = { new Vector3(628f, 12f, 1764f), new Vector3(498f, 18f, 1764f), new Vector3(566f, 20f, 1764f), new Vector3(651f, 15f, 1782f) };
+    public static readonly string[] PalaceCctvNames = { "CONTROL ROOM", "CAMERA 1", "CAMERA 2", "CAMERA 3" };
+    /// Spotted from the Wheel in 11: the control room (Leah can loop the cameras in 12)...
+    public static bool ControlRoomFound { get { LundunStoryData d = LundunStory.Data; return d != null && d.flags.Contains("m11:control"); } }
+    /// ...and each of the palace's three key cameras (0–2).
+    public static bool CameraFound(int i) { LundunStoryData d = LundunStory.Data; return d != null && d.flags.Contains("m11:cam:" + i); }
 
     public override string Id { get { return MissionId; } }
     public override string Title { get { return "Family Meeting"; } }
     public override string Teaser { get { return "Hollis's leverage sits in the palace strongroom. The family meets at the top of the Wheel, and James runs the plan."; } }
     public override string Giver { get { return "UNCLE FEMI"; } }
     public override long Reward { get { return 2000; } }
-    public override string MedalNote { get { return "under 9 minutes, the getaway car not badly damaged"; } }
+    public override string MedalNote { get { return "unseen at the showroom, under 11 minutes, the getaway car not badly damaged"; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m10_open_for_business") && !LundunMissionBook.Done(d, Id); }
     public override Vector3 StartAt { get { return FemiAtHome.Marker; } }
     public override Vector3 GiverFacing { get { return FemiAtHome.Facing; } }
@@ -70,8 +82,9 @@ public class M11FamilyMeeting : LundunMission
         run.Add(new LundunDo(r =>
         {
             LundunClock c = LundunClock.Instance;
-            if (c != null && (c.Hour < 9f || c.Hour > 19.5f)) c.SetHour(16.5f);              // the light's good from up there
+            if (c != null && c.Hour > 4f && c.Hour < 22.5f) c.SetHour(0.8f);                   // Phase 5: the showroom, at night
             if (resolved) return;
+            showroomSaw = false;
             if (LundunStoryPlaces.Fine(car)) return;
             LundunPopulation pop = LundunPopulation.Instance;
             int look = pop == null ? 3 : Mathf.Max(0, pop.LookIndex("sport") >= 0 ? pop.LookIndex("sport") : pop.LookIndex("coupe"));
@@ -80,12 +93,44 @@ public class M11FamilyMeeting : LundunMission
         run.Add(new LundunTalkPick(() => favour
             ? new[] { new LundunLine("UNCLE FEMI", "You promised that man a favour. Men like Hollis always collect. So we move first."),
                       new LundunLine("UNCLE FEMI", "His papers, his hold over every shop on Rye Lane, it's all in the palace strongroom. The gala is in two nights."),
-                      new LundunLine("UNCLE FEMI", "Get us a fast car from the Kestrel showroom. Then the Wheel. From the top you can see the whole palace.") }
+                      new LundunLine("UNCLE FEMI", "We need a fast car. The Kestrel showroom, tonight. Not to buy, James. They have cameras, so be clever."),
+                      new LundunLine("UNCLE FEMI", "Tomorrow, the Wheel. From the top you can see the whole palace.") }
             : new[] { new LundunLine("UNCLE FEMI", "We paid him every penny, and still he squeezes. Enough."),
                       new LundunLine("UNCLE FEMI", "His papers, his hold over every shop on Rye Lane, it's all in the palace strongroom. The gala is in two nights."),
-                      new LundunLine("UNCLE FEMI", "Get us a fast car from the Kestrel showroom. Then the Wheel. From the top you can see the whole palace.") }));
-        run.Add(new LundunGoTo(shop, 5f, "Pick up the getaway car at the Kestrel showroom in Knightsbury")).Checkpoint(LundunCheckpoint.Major);
+                      new LundunLine("UNCLE FEMI", "We need a fast car. The Kestrel showroom, tonight. Not to buy, James. They have cameras, so be clever."),
+                      new LundunLine("UNCLE FEMI", "Tomorrow, the Wheel. From the top you can see the whole palace.") }));
+        // Phase 5: the showroom's two cameras on the forecourt, watching the cars
+        run.Add(new LundunDo(r =>
+        {
+            if (resolved) return;
+            Vector3 c0 = car != null ? car.transform.position : shop;
+            Vector3 fwd = car != null ? car.transform.forward : Vector3.forward;
+            Vector3 side = Vector3.Cross(Vector3.up, fwd);
+            for (int i = 0; i < 2; i++)
+            {
+                float sgn = i == 0 ? 1f : -1f;
+                Vector3 p = c0 + fwd * (sgn * 9f) + side * 5f;
+                if (!UnityEngine.AI.NavMesh.SamplePosition(LundunMissionRun.Ground(p) + Vector3.up, out UnityEngine.AI.NavMeshHit hit, 6f, UnityEngine.AI.NavMesh.AllAreas)) continue;
+                Vector3 look = c0 - hit.position; look.y = 0f;
+                LundunMissionCam cam = LundunMissionCam.CreateOnPole(r, "showroom_" + i, hit.position, 4.2f, Quaternion.LookRotation(look.sqrMagnitude > 0.01f ? look : -fwd).eulerAngles.y, 35f, 15f, 28f, -24f);
+                cam.sweepSeconds = 7f + i * 1.5f;
+                cam.Spotted += (cc, clear) =>
+                {
+                    if (showroomSaw) return;
+                    showroomSaw = true;
+                    LundunMissions.Toast("THE SHOWROOM CAMERAS GOT YOU\nLose the police before the Wheel");
+                    WantedSystem w = WantedSystem.Instance;
+                    Transform j = LundunMissionRun.James();
+                    if (w != null && j != null) w.RaiseTo(2, j.position, true);
+                    LundunEvidence.Recorded("showroom_cam");
+                };
+            }
+            r.AddOptional("showroom_unseen", "STEAL IT UNSEEN by the showroom cameras", 300);
+        }));
+        run.Add(new LundunGoTo(shop, 5f, "Take the getaway car from the Kestrel showroom in Knightsbury")).Checkpoint(LundunCheckpoint.Major);
         run.Add(new LundunEnterCar(() => car, "Get in the getaway car", "The getaway car got wrecked"));
+        run.Add(new LundunNow(r => { if (!showroomSaw) r.CompleteOptional("showroom_unseen"); }));
+        run.Add(new LundunEscape("Lose the police"));
         run.Add(new LundunNow(r =>
         {
             resolved = true;
@@ -94,6 +139,9 @@ public class M11FamilyMeeting : LundunMission
             LundunMissions.Say("JAMES", "(phone) Got it. She's quick. Tell everyone the Wheel, ten minutes.", 3f);
         }));
         run.Add(new LundunGoTo(park, 7f, "Drive the getaway car to the Lundun Wheel", true, true)).Checkpoint(LundunCheckpoint.Minor);
+        // Phase 5: the next afternoon (the light's good from up there)
+        run.Add(new LundunDo(r => { LundunClock c = LundunClock.Instance; if (c != null) c.SetHour(16.5f); }));
+        run.Add(new LundunNow(r => { LundunFlash.Black(1.2f); LundunMissions.Toast("THE NEXT AFTERNOON"); }));
         run.Add(new LundunDo(r =>                                               // (again on a retry from the platform)
         {
             Vector3 side = wheel != null ? wheel.transform.right : Vector3.right;
@@ -113,7 +161,18 @@ public class M11FamilyMeeting : LundunMission
         run.Add(new LundunWhen("Up to the top", r => wheel == null || Mathf.Abs(wheel.RideDelta) > 172f));
         run.Add(new LundunNow(r => { LundunWheel.SpeedScale = 0f; }));
         run.Add(new LundunTalk("", new LundunLine("UNCLE FEMI", "There. Kingsmere Palace. Take the binoculars, James. You find the way in, we follow.")));
-        run.Add(new LundunScout("Find the palace's three weak points", family));
+        run.Add(new LundunScout("Find the palace's three weak points", family)
+        {
+            extras = PalaceCctv, extraNames = PalaceCctvNames,
+            onExtra = i =>
+            {
+                LundunStoryData d = LundunStory.Data;
+                if (d == null) return;
+                string flag = i == 0 ? "m11:control" : "m11:cam:" + (i - 1);
+                if (!d.flags.Contains(flag)) { d.flags.Add(flag); LundunStory.MarkDirty(); }
+                if (i == 0) LundunMissions.Say("JAMES", "Their control room. Leah could get into that. For a minute, maybe.", 3.5f);
+            }
+        });
         run.Add(new LundunWayIn(favour, LundunChoice.Chose("choice:m08", false)));
         run.Add(new LundunNow(r => { LundunWheel.SpeedScale = 4f; }));
         run.Add(new LundunTalkPick(() => WayTalk(WayIn, family)));
@@ -151,7 +210,9 @@ public class M11FamilyMeeting : LundunMission
         VehicleHealth vh = car != null ? car.GetComponent<VehicleHealth>() : null;
         bool clean = vh == null || vh.Max <= 0f || (carStart - vh.Current) / vh.Max < 0.25f;
         float t = run.Elapsed;
-        return t < 540f && clean ? 3 : t < 780f ? 2 : 1;
+        int m = t < 660f && clean ? 3 : t < 900f ? 2 : 1;
+        if (!run.OptionalDone("showroom_unseen")) m = Mathf.Min(m, 2);
+        return m;
     }
 
     public override void Tidy()
@@ -172,6 +233,16 @@ public class LundunScout : LundunStep
 {
     readonly List<string> family;
     readonly bool[] found = new bool[3];
+    /// Phase 5 (D): bonus things to spot, as well as the weak points (M11: the palace's CCTV control room and its three
+    /// key cameras, each a blinking red light). Not needed to finish; each one found is reported (onExtra) and saved
+    /// by the mission. Never pointed at by the arrow.
+    public Vector3[] extras;
+    public string[] extraNames;
+    public Action<int> onExtra;
+    bool[] extraFound;
+    readonly List<GameObject> extraProps = new List<GameObject>();
+    float extraHold;
+    int extraOn = -1;
     float hold, doneAt = -1f, yaw, pitch, baseYaw, basePitch, fovWas;
     Camera cam;
     CameraFollow follow;
@@ -186,6 +257,9 @@ public class LundunScout : LundunStep
     {
         for (int i = 0; i < 3; i++) found[i] = false;
         hold = 0f; doneAt = -1f;
+        extraFound = extras != null ? new bool[extras.Length] : new bool[0];
+        extraHold = 0f; extraOn = -1;
+        Lights();
         LundunPalaceWays.Scouting = true;
         cam = Camera.main;
         follow = Object.FindAnyObjectByType<CameraFollow>();
@@ -236,7 +310,24 @@ public class LundunScout : LundunStep
             if (hold >= 1.1f) Found(best);
         }
         else hold = Mathf.Max(0f, hold - Time.deltaTime * 2f);
-        if (ring != null) ring.fillAmount = Mathf.Clamp01(hold / 1.1f);
+        // Phase 5: the bonus ones (the red lights)
+        int eb = -1; float ea = 999f;
+        for (int i = 0; i < extraFound.Length; i++)
+        {
+            if (extraFound[i]) continue;
+            float a = Vector3.Angle(f, extras[i] - eye);
+            if (a < ea) { ea = a; eb = i; }
+        }
+        if (eb >= 0 && ea < 2.4f && !(best >= 0 && bestA < 3.2f))
+        {
+            if (extraOn != eb) { extraOn = eb; extraHold = 0f; }
+            extraHold += Time.deltaTime;
+            if (extraHold >= 1.1f) FoundExtra(eb);
+        }
+        else extraHold = Mathf.Max(0f, extraHold - Time.deltaTime * 2f);
+        for (int i = 0; i < extraProps.Count; i++)
+            if (extraProps[i] != null) extraProps[i].SetActive(extraFound[i] || Mathf.Repeat(Time.time + i * 0.3f, 1f) < 0.55f);
+        if (ring != null) ring.fillAmount = Mathf.Clamp01(Mathf.Max(hold, extraHold) / 1.1f);
         // a nudge towards the nearest one left, when it's well off the view
         if (arrow != null)
         {
@@ -260,7 +351,7 @@ public class LundunScout : LundunStep
         if (LundunPalaceWays.Instance != null) LundunPalaceWays.Instance.Highlight(i, true);
         LundunHaptics.Medium();
         int n = 0; foreach (bool b in found) if (b) n++;
-        if (title != null) title.text = "WEAK POINTS  " + n + " / 3";
+        UpdateTitle();
         string who = family.Count > 1 ? family[(i + 1) % family.Count] : "UNCLE FEMI";
         string[] said = { "Scaffolding up the east wing. Hollis's own firm. It goes right to the roof.",
                           "A trades entrance round the back. That's where the kitchens get their deliveries.",
@@ -270,8 +361,54 @@ public class LundunScout : LundunStep
         if (n >= 3) doneAt = Time.time;
     }
 
+    void FoundExtra(int i)
+    {
+        extraFound[i] = true; extraHold = 0f;
+        LundunHaptics.Medium();
+        if (i < extraProps.Count && extraProps[i] != null)
+            foreach (Renderer r in extraProps[i].GetComponentsInChildren<Renderer>()) { Material m = r.material; Color c = new Color(0.3f, 1f, 0.4f); if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c); m.color = c; if (m.HasProperty("_EmissionColor")) m.SetColor("_EmissionColor", c * 2f); }
+        int n = 0; foreach (bool b in extraFound) if (b) n++;
+        string name = extraNames != null && i < extraNames.Length ? extraNames[i] : "CAMERA";
+        LundunMissions.Toast(name + " spotted\nCCTV  " + n + " / " + extraFound.Length);
+        UpdateTitle();
+        try { onExtra?.Invoke(i); } catch (Exception e) { Debug.LogException(e); }
+    }
+
+    void UpdateTitle()
+    {
+        if (title == null) return;
+        int w = 0; foreach (bool b in found) if (b) w++;
+        int c = 0; if (extraFound != null) foreach (bool b in extraFound) if (b) c++;
+        title.text = "WEAK POINTS  " + w + " / 3" + (extraFound != null && extraFound.Length > 0 ? "\n<size=60%>CCTV  " + c + " / " + extraFound.Length + "</size>" : "");
+    }
+
+    /// A blinking red light on each bonus spot (big enough to see from the Wheel).
+    void Lights()
+    {
+        foreach (GameObject g in extraProps) if (g != null) Object.Destroy(g);
+        extraProps.Clear();
+        if (extras == null) return;
+        Shader s = Shader.Find("Universal Render Pipeline/Unlit");
+        foreach (Vector3 p in extras)
+        {
+            GameObject g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            g.name = "ScoutCctvLight";
+            Object.Destroy(g.GetComponent<Collider>());
+            g.transform.position = p; g.transform.localScale = Vector3.one * 1.6f;
+            Material m = new Material(s != null ? s : Shader.Find("Standard"));
+            Color c = new Color(1f, 0.08f, 0.06f);
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+            m.color = c;
+            g.GetComponent<Renderer>().sharedMaterial = m;
+            Light l = g.AddComponent<Light>(); l.type = LightType.Point; l.range = 7f; l.intensity = 3f; l.color = c; l.shadows = LightShadows.None;
+            extraProps.Add(g);
+        }
+    }
+
     public override void End(LundunMissionRun run)
     {
+        foreach (GameObject g in extraProps) if (g != null) Object.Destroy(g);
+        extraProps.Clear();
         LundunPalaceWays.Scouting = false;
         if (cam != null) cam.fieldOfView = fovWas > 1f ? fovWas : 60f;
         if (follow != null) follow.enabled = true;
@@ -301,9 +438,12 @@ public class LundunScout : LundunStep
         LundunUIBits.Box(root, "CrossV", Vector2.zero, new Vector2(3f, 60f), new Color(0f, 0f, 0f, 0.8f)).raycastTarget = false;
         arrow = LundunUIBits.Box(root, "Arrow", Vector2.zero, new Vector2(46f, 64f), new Color(1f, 0.72f, 0.2f, 0.9f));
         arrow.raycastTarget = false; arrow.gameObject.SetActive(false);
-        title = LundunUIBits.Label(root, "WEAK POINTS  0 / 3", 40f, new Vector2(0f, 420f), new Vector2(900f, 60f));
+        title = LundunUIBits.Label(root, "WEAK POINTS  0 / 3", 40f, new Vector2(0f, 405f), new Vector2(900f, 110f));
         title.color = new Color(1f, 0.72f, 0.2f);
-        TextMeshProUGUI tip = LundunUIBits.Label(root, "Drag to look around. Hold the middle on a weak point:\nscaffolding, a service gate, a loose railing", 26f, new Vector2(0f, -430f), new Vector2(1300f, 90f));
+        UpdateTitle();
+        TextMeshProUGUI tip = LundunUIBits.Label(root, extras != null && extras.Length > 0
+            ? "Drag to look around. Hold the middle on a weak point: scaffolding, a service gate, a loose railing.\nBonus: the red lights are their CCTV (the control room and its cameras)"
+            : "Drag to look around. Hold the middle on a weak point:\nscaffolding, a service gate, a loose railing", 26f, new Vector2(0f, -430f), new Vector2(1500f, 90f));
         tip.color = new Color(1f, 1f, 1f, 0.85f);
     }
 

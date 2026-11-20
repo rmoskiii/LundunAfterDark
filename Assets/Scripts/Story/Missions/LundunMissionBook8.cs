@@ -11,6 +11,8 @@ using Object = UnityEngine.Object;
 /// hire-bike dock nearest LAGOS FOODS: take her parcels round the city against the clock, on a hire bike or in a car.
 /// Each run is bigger than the last (3 drops, then 4, then 5 every time after), with less time per metre; it pays
 /// £150, £475, then £800. Gold: lots of time to spare and no police. Opens after mission 03.
+/// Phase 5 (D): from the second run on, the last parcel's a hot one: on the way to that drop, two seconds in sight of
+/// the council's cameras and it's clocked (the drop, and the run, are off). Plan a back-street route.
 public class M13KemisDeliveries : LundunMission
 {
     public const string MissionId = "m13_kemis_deliveries";
@@ -64,8 +66,9 @@ public class M13KemisDeliveries : LundunMission
                       new LundunLine("KEMI", "Grab a bike off the rack, or take a car. Addresses are on your phone. Don't be late, they rate me."),
                       new LundunLine("JAMES", "How hard can it be?") }
             : new[] { new LundunLine("KEMI", "Back for more? " + n + " drops this time, and they want them quicker."),
-                      new LundunLine("KEMI", "Bike's quickest through the traffic. Go, go!") }));
-        drops = new LundunDrops(spots, limit, "Deliver Kemi's parcels");
+                      new LundunLine("KEMI", "Bike's quickest through the traffic. Go, go!"),
+                      new LundunLine("KEMI", "Oh, and the last one's... sensitive. Keep it off the cameras. Back streets.") }));
+        drops = new LundunDrops(spots, limit, "Deliver Kemi's parcels") { hotFrom = level >= 1 ? n - 1 : -1 };
         run.Add(drops);
         run.Add(new LundunNow(r => { LundunSave.SetInt(RunsKey, Runs + 1); LundunStory.MarkDirty(); }));
         run.Add(new LundunTalkPick(() => new[] { new LundunLine("KEMI", drops.Spare > 0.33f
@@ -120,6 +123,9 @@ public class LundunDrops : LundunStep
     readonly string text;
     int at;
     float started;
+    /// Phase 5 (D): from this drop on, the parcel's hot: the council's cameras mustn't see it for long (-1: none).
+    public int hotFrom = -1;
+    float seenFor, nextLook;
     GameObject ui;
     TextMeshProUGUI clock;
     /// How much of the time was left at the end (0..1).
@@ -129,7 +135,7 @@ public class LundunDrops : LundunStep
 
     public override void Begin(LundunMissionRun run)
     {
-        at = 0; started = Time.time; Spare = 0f;
+        at = 0; started = Time.time; Spare = 0f; seenFor = 0f;
         Aim();
         BuildUI();
     }
@@ -137,7 +143,7 @@ public class LundunDrops : LundunStep
     void Aim()
     {
         hasMarker = true; marker = spots[at]; markerRadius = 4.5f; route = true;
-        objective = text + " (" + (at + 1) + " of " + spots.Count + ")";
+        objective = text + " (" + (at + 1) + " of " + spots.Count + ")" + (hotFrom >= 0 && at >= hotFrom ? "  ·  HOT: keep off the cameras" : "");
     }
 
     public override bool Tick(LundunMissionRun run)
@@ -150,6 +156,14 @@ public class LundunDrops : LundunStep
             clock.color = left < 15f ? new Color(1f, 0.3f, 0.25f) : Color.white;
         }
         if (left <= 0f) { run.Fail("Out of time: the customers cancelled"); return false; }
+        if (hotFrom >= 0 && at >= hotFrom && Time.time >= nextLook)
+        {
+            nextLook = Time.time + 0.25f;
+            bool seen = LundunCctv.Live && LundunCctv.Instance != null && LundunCctv.Instance.OnCamera;
+            seenFor = seen ? seenFor + 0.25f : Mathf.Max(0f, seenFor - 0.1f);
+            if (seen && seenFor < 0.3f) LundunMissions.Toast("ON CAMERA\nGet the hot parcel out of sight");
+            if (seenFor >= 2f) { run.Fail("The hot parcel was clocked on camera"); return false; }
+        }
         Transform j = LundunMissionRun.James();
         if (j == null || LundunMissionRun.FlatDistance(j.position, marker) > markerRadius) return false;
         VehicleSystem vs = Object.FindAnyObjectByType<VehicleSystem>();
@@ -250,6 +264,8 @@ public class LundunClocked : LundunStep
 ///   3  lose 3★ (2 minutes)                    4  a clean drive along the Ring in Marcus's car (70 s, under 15% damage)
 /// Four in time = gold, two or three = silver. Silver or gold unlocks Marcus's backup call (LundunBackup). Pays £1,000 the
 /// first time, £250 after. Opens after mission 05.
+/// Phase 5 (D): a fifth trial, "Blind spot": lose 2★ without a street camera seeing you (LundunBlindSpot). Now five in
+/// time = gold; two or more = silver (the backup call, as before).
 public class M14ProveYourself : LundunMission
 {
     public const string MissionId = "m14_prove_yourself";
@@ -260,10 +276,10 @@ public class M14ProveYourself : LundunMission
 
     public override string Id { get { return MissionId; } }
     public override string Title { get { return "Prove Yourself"; } }
-    public override string Teaser { get { return "Marcus wants to see what you're made of before he puts his name next to yours. Four trials."; } }
+    public override string Teaser { get { return "Marcus wants to see what you're made of before he puts his name next to yours. Five trials."; } }
     public override string Giver { get { return "MARCUS"; } }
     public override long Reward { get { return LundunMissionBook.Done(LundunStory.Data, Id) ? 250 : 1000; } }
-    public override string MedalNote { get { return "all four trials in time (silver+ unlocks Marcus's backup)"; } }
+    public override string MedalNote { get { return "all five trials in time (silver+ unlocks Marcus's backup)"; } }
     public override bool Story { get { return false; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m05_uncles_rules"); }
     public override Vector3 StartAt { get { return LundunMissionRun.Ground(Green + new Vector3(0f, 0f, 30f)); } }
@@ -280,15 +296,15 @@ public class M14ProveYourself : LundunMission
 
         run.Add(new LundunTalk("",
             new LundunLine("MARCUS", "You want me watching your back? Then show me you can watch your own."),
-            new LundunLine("MARCUS", "Four trials. A scrap, an ambush, the Old Bill, and a drive. Each one's on the clock."),
+            new LundunLine("MARCUS", "Five trials. A scrap, an ambush, the Old Bill, a drive, and a disappearing act. Each one's on the clock."),
             new LundunLine("JAMES", "And if I'm slow?"),
             new LundunLine("MARCUS", "Then you're slow, and I'll know about it. Go.")));
         // 1: a street fight
-        run.Add(new LundunClocked(new LundunFight(fightAt, 2, false, "Trial 1 of 4: win a street fight", "Street", 30f), 45f, ok => Score(ok, "Trial 1")))
+        run.Add(new LundunClocked(new LundunFight(fightAt, 2, false, "Trial 1 of 5: win a street fight", "Street", 30f), 45f, ok => Score(ok, "Trial 1")))
            .Checkpoint(LundunCheckpoint.Major);
         run.Add(new LundunTalk("", new LundunLine("MARCUS", "Not bad. Now they're strapped. Keep moving, use cover.")));
         // 2: an ambush
-        run.Add(new LundunClocked(new LundunFight(ambushAt, 3, true, "Trial 2 of 4: survive the ambush", "Street", 40f) { harder = 0.8f }, 60f, ok => Score(ok, "Trial 2")))
+        run.Add(new LundunClocked(new LundunFight(ambushAt, 3, true, "Trial 2 of 5: survive the ambush", "Street", 40f) { harder = 0.8f }, 60f, ok => Score(ok, "Trial 2")))
            .Checkpoint(LundunCheckpoint.Major);
         // 3: the police
         run.Add(new LundunTalk("", new LundunLine("MARCUS", "All that noise? Feds are on their way. Three stars. Lose them, quick.")));
@@ -298,27 +314,39 @@ public class M14ProveYourself : LundunMission
             Transform j = LundunMissionRun.James();
             if (w != null && j != null) w.RaiseTo(3, j.position, true);
         }));
-        run.Add(new LundunClocked(new LundunEscape("Trial 3 of 4: lose the police"), 120f, ok => Score(ok, "Trial 3"))).Checkpoint(LundunCheckpoint.Major);
+        run.Add(new LundunClocked(new LundunEscape("Trial 3 of 5: lose the police"), 120f, ok => Score(ok, "Trial 3"))).Checkpoint(LundunCheckpoint.Major);
         // 4: a clean drive along the Ring
         run.Add(new LundunDo(r =>
         {
             if (car == null || !LundunStoryPlaces.Fine(car)) car = LundunStoryPlaces.ParkCar(ringA, -1);
         }));
         run.Add(new LundunTalk("", new LundunLine("MARCUS", "(phone) Last one. My car's on the Ring by the Westbridge. Get it across town without a scratch.")));
-        run.Add(new LundunEnterCar(() => car, "Trial 4 of 4: get in Marcus's car on the Ring", "Marcus's car got wrecked")).Checkpoint(LundunCheckpoint.Major);
+        run.Add(new LundunEnterCar(() => car, "Trial 4 of 5: get in Marcus's car on the Ring", "Marcus's car got wrecked")).Checkpoint(LundunCheckpoint.Major);
         run.Add(new LundunNow(r => { VehicleHealth vh = car != null ? car.GetComponent<VehicleHealth>() : null; carStart = vh != null ? vh.Current : 0f; }));
-        run.Add(new LundunClocked(new LundunGoTo(ringB, 8f, "Trial 4 of 4: drive along the Ring to the marker. Clean!", true, true), 70f, ok =>
+        run.Add(new LundunClocked(new LundunGoTo(ringB, 8f, "Trial 4 of 5: drive along the Ring to the marker. Clean!", true, true), 70f, ok =>
         {
             VehicleHealth vh = car != null ? car.GetComponent<VehicleHealth>() : null;
             bool clean = vh == null || vh.Max <= 0f || (carStart - vh.Current) / vh.Max < 0.15f;
             if (!clean) LundunMissions.Toast("Trial 4: too many scratches");
             Score(ok && clean, "Trial 4");
         }));
-        run.Add(new LundunTalkPick(() => met >= 4
-            ? new[] { new LundunLine("MARCUS", "(phone) Four from four. Alright. I've got your back. Any time you're in it, ring me.") }
+        // 5: Blind spot
+        run.Add(new LundunTalk("",
+            new LundunLine("MARCUS", "(phone) Last one. I've called it in: a stolen car on the Ring. Two stars."),
+            new LundunLine("MARCUS", "(phone) Lose them, and don't let one camera see you do it. Back streets, under bridges. Where there's no camera, you vanish.")));
+        run.Add(new LundunNow(r =>
+        {
+            WantedSystem w = WantedSystem.Instance;
+            Transform j = LundunMissionRun.James();
+            if (w != null && j != null) w.RaiseTo(2, j.position, true);
+        }));
+        blind = new LundunBlindSpot("Trial 5 of 5: lose the police without a camera seeing you");
+        run.Add(new LundunClocked(blind, 150f, ok => Score(ok && blind.Clean, "Trial 5"))).Checkpoint(LundunCheckpoint.Major);
+        run.Add(new LundunTalkPick(() => met >= 5
+            ? new[] { new LundunLine("MARCUS", "(phone) Five from five. Alright. I've got your back. Any time you're in it, ring me.") }
             : met >= 2
-            ? new[] { new LundunLine("MARCUS", "(phone) " + met + " from four. Good enough. You get in trouble, you ring me. Once a day, mind.") }
-            : new[] { new LundunLine("MARCUS", "(phone) " + met + " from four. Not yet, bro. Try it again when you're sharper.") }));
+            ? new[] { new LundunLine("MARCUS", "(phone) " + met + " from five. Good enough. You get in trouble, you ring me. Once a day, mind.") }
+            : new[] { new LundunLine("MARCUS", "(phone) " + met + " from five. Not yet, bro. Try it again when you're sharper.") }));
     }
 
     void Score(bool ok, string which)
@@ -327,8 +355,10 @@ public class M14ProveYourself : LundunMission
         LundunMissions.Toast(which + (ok ? ": IN TIME" : ": too slow"));
     }
 
-    public override int Medal(LundunMissionRun run) { return met >= 4 ? 3 : met >= 2 ? 2 : 1; }
-    public override void Tidy() { LundunMissions.LetGo(car); car = null; }
+    LundunBlindSpot blind;
+
+    public override int Medal(LundunMissionRun run) { return met >= 5 ? 3 : met >= 2 ? 2 : 1; }
+    public override void Tidy() { LundunMissions.LetGo(car); car = null; blind = null; }
 }
 
 // ======================================================================================================================
@@ -338,6 +368,10 @@ public class M14ProveYourself : LundunMission
 /// 4★. Out (Hollis's men waiting outside if they saw you), through the streets to the helicopter (the prompts lead the
 /// way), and fly it across the city with the police helicopter after you, to land on the pad in Hydemoor Park. Gold:
 /// never seen, the helicopter in good shape, quick. Opens after mission 10.
+/// Phase 5 (D): two cameras high on the warehouse walls sweep the aisles (the same meter as the torches), and the
+/// office has a recorder: WIPE IT (optional, +£500; gold needs it). Out in Quay Gardens a camera on a pole watches
+/// Hollis's helicopter: take it out first (optional, +£300). Let it see you at the helicopter and Hollis knows: 5★
+/// and the police helicopter up before you're off the ground.
 public class M15Warehouse9 : LundunMission
 {
     public const string MissionId = "m15_warehouse_9";
@@ -347,6 +381,11 @@ public class M15Warehouse9 : LundunMission
     const float InY = 300f;
 
     readonly List<LundunGuard> guards = new List<LundunGuard>();
+    readonly List<LundunMissionCam> cams = new List<LundunMissionCam>();
+    public const string Evidence = "warehouse_recorder";
+    LundunRecorder recorder;
+    LundunMissionCam padCam;
+    bool padSaw;
     GameObject room, front, heliPad, landPad;
     LundunFlyHeli heli;
     Vector3 door, inward, padAt, landAt, safeAt, insideOrigin;
@@ -359,7 +398,7 @@ public class M15Warehouse9 : LundunMission
     public override string Teaser { get { return "Hollis's gala money sits in Warehouse 9 tonight: a bag of bribes. And his helicopter's parked next door."; } }
     public override string Giver { get { return Planner; } }
     public override long Reward { get { return 6000; } }
-    public override string MedalNote { get { return "never seen, helicopter in good shape, under 10 minutes"; } }
+    public override string MedalNote { get { return "never seen, recorder wiped, helicopter in good shape, under 11 minutes"; } }
     public override bool Story { get { return false; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m10_open_for_business") && !LundunMissionBook.Done(d, Id); }
     public override Vector3 StartAt { get { Vector3 p; Quaternion q; return LundunStoryPlaces.Kerb(new Vector3(1180f, 0f, 812f), out p, out q) ? LundunMissionRun.Ground(p) : LundunMissionRun.Ground(new Vector3(1180f, 0f, 815f)); } }
@@ -385,6 +424,7 @@ public class M15Warehouse9 : LundunMission
             heliPad = LundunFlyHeli.Pad(padAt, 7f, new Color(1f, 0.8f, 0.2f));
             landPad = LundunFlyHeli.Pad(landAt, 7f, new Color(0.3f, 1f, 0.45f));
             heli = LundunFlyHeli.Spawn(padAt, 0f);
+            Security(r);
         }));
         run.Add(new LundunTalkPick(() => who == "TAYO"
             ? new[] { new LundunLine("TAYO", "Warehouse 9. Hollis keeps the gala money in there tonight. Bribes. A whole bag of bread."),
@@ -404,7 +444,7 @@ public class M15Warehouse9 : LundunMission
             LundunArches.MissionInside = true;
             LundunMissions.Toast("Stay out of the torchlight");
         }));
-        run.Add(new LundunSneak(() => guards, () =>
+        run.Add(new LundunSneak(() => guards, () => cams, () =>
         {
             Transform j = LundunMissionRun.James();
             return j != null && LundunMissionRun.FlatDistance(j.position, safeAt) < 1.6f;
@@ -443,7 +483,9 @@ public class M15Warehouse9 : LundunMission
         run.Add(new LundunIf(() => alarm, new LundunFight(door - inward * 9f, 3, true, "Hollis's men saw it all: get past them", "Street", 40f) { harder = 1.1f }));
         run.Add(new LundunTalkPick(() => new[] { new LundunLine(who, who == "TAYO"
             ? "(phone) Feds everywhere! The helicopter, James! Quay Gardens! GO GO GO!"
-            : "(phone) Old Bill all over. Get to that helicopter in Quay Gardens. Now.") }));
+            : "(phone) Old Bill all over. Get to that helicopter in Quay Gardens. Now."),
+            new LundunLine(who, "(phone) And there's a camera on a pole by that pad. Hollis watches his toys. Kill it before you get close.") }));
+        run.Add(new LundunDo(r => { if (padCam != null) padCam.judgeSelf = true; }));      // watching from now
         run.Add(new LundunWhen("Get to the helicopter in Quay Gardens", r =>
         {
             if (heli == null || heli.Wrecked) { r.Fail("The helicopter's been wrecked"); return false; }
@@ -482,8 +524,43 @@ public class M15Warehouse9 : LundunMission
         int n = 0;
         if (!alarm) n++;
         if (heli == null || heli.HealthFraction >= 0.6f) n++;
-        if (run.Elapsed < 600f) n++;
-        return n >= 3 ? 3 : n == 2 ? 2 : 1;
+        if (run.Elapsed < 660f) n++;
+        if (run.OptionalDone("wipe_office")) n++;
+        return n >= 4 ? 3 : n >= 2 ? 2 : 1;
+    }
+
+    // ------------------------------------------------------------------ Phase 5: cameras, the recorder, the pad camera
+    void Security(LundunMissionRun run)
+    {
+        cams.Clear(); padSaw = false;
+        Quaternion q = Quaternion.LookRotation(inward);
+        Vector3[] at = { new Vector3(-11.6f, 5.2f, 10f), new Vector3(11.6f, 5.2f, 22f) };
+        Vector3[] dir = { new Vector3(1f, 0f, 0.6f), new Vector3(-1f, 0f, 0.3f) };
+        for (int i = 0; i < at.Length; i++)
+        {
+            LundunMissionCam c = LundunMissionCam.Create(run, "w9_" + i, Inside(at[i]), Quaternion.LookRotation(q * dir[i]).eulerAngles.y, 40f, 16f, 26f, -26f);
+            c.sweepSeconds = 9f + i * 2f;
+            cams.Add(c);
+        }
+        recorder = LundunRecorder.Create(run, Evidence, Inside(new Vector3(4.2f, 0f, 33.6f)), Quaternion.LookRotation(q * Vector3.back).eulerAngles.y);
+        recorder.Wiped += () => run.CompleteOptional("wipe_office");
+        run.AddOptional("wipe_office", "WIPE THE RECORDER in the office", 500);
+        // the pad's camera in Quay Gardens (it only starts watching once you're out with the bag)
+        Vector3 foot = LundunMissionRun.Ground(padAt + new Vector3(10f, 0f, 6f));
+        Vector3 look = padAt - foot; look.y = 0f;
+        padCam = LundunMissionCam.CreateOnPole(run, "w9_pad", foot, 4.8f, Quaternion.LookRotation(look.sqrMagnitude > 0.01f ? look : Vector3.back).eulerAngles.y, 30f, 20f, 30f, -18f);
+        padCam.judgeSelf = false;
+        padCam.Down += (c, quiet) => { if (!padSaw) run.CompleteOptional("pad_camera"); };
+        padCam.Spotted += (c, clear) =>
+        {
+            if (padSaw) return;
+            padSaw = true;
+            LundunMissions.Toast("THE PAD CAMERA SAW YOU\nHollis knows. So do the police");
+            WantedSystem w = WantedSystem.Instance;
+            Transform j = LundunMissionRun.James();
+            if (w != null && j != null) w.RaiseTo(5, j.position, true);
+        };
+        run.AddOptional("pad_camera", "TAKE OUT THE PAD CAMERA before it sees you", 300);
     }
 
     public override void Tidy()
@@ -499,6 +576,7 @@ public class M15Warehouse9 : LundunMission
     void Clear()
     {
         guards.Clear();
+        cams.Clear();
         foreach (GameObject g in new[] { room, front, heliPad, landPad, heli != null ? heli.gameObject : null }) if (g != null) Object.Destroy(g);
         heli = null;
     }

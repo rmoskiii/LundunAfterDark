@@ -15,6 +15,12 @@ using Object = UnityEngine.Object;
 /// scaffolding to the roof and Hollis's own helicopter, and fly it to Tower Plaza. Hollis is waiting. The last choice:
 /// give the ledger to the papers (Hollis arrested) or keep it as leverage (an uneasy partnership). Then the Chapter 2
 /// card. £25,000.
+/// Phase 5 (D): the gallery has three cameras sweeping alongside the torch guards (the same meter). The ones spotted
+/// from the Wheel in 11 are known: their cones show and they're on the map; the others are blind spots you can't see
+/// (no cone). If the control room was spotted, Leah can loop them all for 45 seconds, once (LundunCamLoop). No fuse box
+/// here: it's a palace. The strongroom holds the ledger and the tapes: whatever footage Hollis kept of James (Basketful,
+/// Brixtun Station) goes with it. The security recorder in the passage out of the strongroom: WIPE IT (optional, +£500;
+/// gold needs it) and the morning news has no footage of James; leave it and they're showing a man in a black jacket.
 public class M12LundunAfterDark : LundunMission
 {
     public const string MissionId = "m12_lundun_after_dark";
@@ -26,6 +32,10 @@ public class M12LundunAfterDark : LundunMission
     static readonly Vector3 ClimbFoot = new Vector3(662f, 0f, 1822f);
 
     readonly List<LundunGuard> guards = new List<LundunGuard>();
+    readonly List<LundunMissionCam> galleryCams = new List<LundunMissionCam>();
+    public const string Evidence = "palace_recorder";
+    LundunRecorder recorder;
+    bool tapes;
     GameObject wing, roofPad, landPad;
     LundunFlyHeli heli;
     Vector3 origin, roofAt, landAt;
@@ -38,7 +48,7 @@ public class M12LundunAfterDark : LundunMission
     public override string Teaser { get { return "The gala. The strongroom. Hollis's ledger. Tonight James decides how it ends."; } }
     public override string Giver { get { List<string> f = M11FamilyMeeting.Family(); return f.Count > 1 ? f[1] : "UNCLE FEMI"; } }
     public override long Reward { get { return 25000; } }
-    public override string MedalNote { get { return "never seen inside, the helicopter in good shape, under 15 minutes"; } }
+    public override string MedalNote { get { return "never seen inside, the recorder wiped, the helicopter in good shape, under 15 minutes"; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, M11FamilyMeeting.MissionId) && !LundunMissionBook.Done(d, Id); }
 
     static int Way { get { int w = M11FamilyMeeting.WayIn; return w < 0 ? 0 : w; } }
@@ -92,6 +102,7 @@ public class M12LundunAfterDark : LundunMission
             if (c != null && c.Hour > 4f && c.Hour < 21.5f) c.SetHour(22.5f);
             Clear();
             wing = r.Spawn(BuildWing(r));
+            Security(r);
             roofPad = LundunFlyHeli.Pad(roofAt, 6f, new Color(1f, 0.8f, 0.2f));
             landPad = LundunFlyHeli.Pad(landAt, 7f, new Color(0.3f, 1f, 0.45f));
             heli = LundunFlyHeli.Spawn(roofAt, 90f);
@@ -114,15 +125,20 @@ public class M12LundunAfterDark : LundunMission
             LundunArches.MissionInside = true;
         }));
         Vector3 ledger = At(new Vector3(0f, 0f, 66f));
-        run.Add(new LundunSneak(() => guards, () => Near(ledger, 1.6f), Seen,
+        run.Add(new LundunSneak(() => guards, () => galleryCams, () => Near(ledger, 1.6f), Seen,
             "Find the strongroom at the end of the grand gallery. Stay out of the torchlight").Mark(ledger, 1.6f, false));
         run.Add(new LundunIf(() => alarm, new LundunWhen("They've seen you! Get the ledger", r => Near(ledger, 1.6f)).Mark(ledger, 1.6f, false)));
         run.Add(new LundunNow(r =>
         {
-            LundunMissions.Toast("Got Hollis's ledger. The strongroom's alarmed!");
+            // Phase 5: the tapes are in there with it: whatever he kept of James goes too
+            tapes = false;
+            foreach (string id in new[] { M02EasyMoney.Evidence, M03NoWayHome.Evidence, M07HomeTurf.Evidence, M09PaperTrail.Evidence })
+                if (LundunEvidence.Exists(id)) { LundunEvidence.Wiped(id); tapes = true; }
+            LundunMissions.Toast(tapes ? "Got Hollis's ledger, and the tapes. The strongroom's alarmed!" : "Got Hollis's ledger. The strongroom's alarmed!");
             LundunHaptics.Heavy();
             foreach (LundunGuard g in guards) if (g != null) g.Wake();
         }));
+        run.Add(new LundunIf(() => tapes, new LundunTalk("", new LundunLine("JAMES", "And my tapes. Basketful, the station, all of it. He kept them right next to the book."))));
         run.Add(new LundunTalk("", new LundunLine(lead, "(phone) Alarms everywhere! Out through the state rooms, to the gardens!")));
         Vector3 sr1 = At(new Vector3(16f, 0f, 52f)), sr2 = At(new Vector3(16f, 0f, 22f)), garden = At(new Vector3(16f, 0f, 3f));
         run.Add(new LundunWhen("Through the state rooms", r => Near(sr1, 2.5f)).Mark(sr1, 2.5f, false));
@@ -197,6 +213,11 @@ public class M12LundunAfterDark : LundunMission
             : new[] { new LundunLine("HOLLIS", "Clever boy. So we're partners now, you and I."),
                       new LundunLine("JAMES", "No. You work for me now. Rye Lane's off limits. Forever."),
                       new LundunLine("UNCLE FEMI", "(phone) The debt is gone. He signed it away. I won't ask how, James. I don't want to know.") }));
+        // Phase 5: the morning news, and what the palace's recorder kept
+        run.Add(new LundunTalkPick(() => recorder != null && recorder.IsWiped
+            ? new[] { new LundunLine("KEMI", "(text) It's on the news. Break-in at the palace, and the cameras caught nothing. NOTHING. Who are you?!") }
+            : new[] { new LundunLine("KEMI", "(text) It's on the news. A man in a black jacket on the palace cameras. They can't see his face. Yet. James..."),
+                      new LundunLine("JAMES", "Yet.") }));
         run.Add(new LundunIf(() => tayoHanded, new LundunTalk("", new LundunLine("TAYO", "(phone) Heard you did it. Everyone's talking. I'm out of the hospital tomorrow. I'm sorry, James. For all of it."))));
         run.Add(new LundunIf(() => kemi, new LundunTalk("", new LundunLine("KEMI", "Get in. I'm driving. Let's go home."))));
         run.Add(new LundunCard("TO BE CONTINUED", LundunChoice.Chose(Key, true)
@@ -233,7 +254,34 @@ public class M12LundunAfterDark : LundunMission
         if (!alarm) n++;
         if (heli == null || heli.HealthFraction >= 0.6f) n++;
         if (run.Elapsed < 900f) n++;
-        return n >= 3 ? 3 : n == 2 ? 2 : 1;
+        if (run.OptionalDone("wipe_palace")) n++;
+        return n >= 4 ? 3 : n >= 2 ? 2 : 1;
+    }
+
+    // ------------------------------------------------------------------ Phase 5: the palace's cameras and recorder
+    void Security(LundunMissionRun run)
+    {
+        galleryCams.Clear();
+        Vector3[] at = { new Vector3(-7.7f, 6.5f, 30f), new Vector3(7.7f, 6.5f, 46f), new Vector3(0f, 8.4f, 57.6f) };
+        Vector3[] dir = { new Vector3(1f, 0f, 0.5f), new Vector3(-1f, 0f, -0.4f), new Vector3(0f, 0f, -1f) };
+        LundunMinimap mm = Object.FindAnyObjectByType<LundunMinimap>();
+        for (int i = 0; i < at.Length; i++)
+        {
+            float yaw = Quaternion.LookRotation(facing * dir[i]).eulerAngles.y;
+            LundunMissionCam c = LundunMissionCam.Create(run, "gallery_" + i, At(at[i]), yaw, 38f, 16f, 26f, -32f);
+            c.sweepSeconds = 9f + i;
+            bool known = M11FamilyMeeting.CameraFound(i);
+            c.ShowCone(known);
+            if (known && mm != null) mm.Track(c.transform, new Color(1f, 0.55f, 0.15f), "", 10f, false);
+            galleryCams.Add(c);
+        }
+        // the security recorder, in the passage out of the strongroom
+        recorder = LundunRecorder.Create(run, Evidence, At(new Vector3(8.6f, 0f, 64.3f)), Quaternion.LookRotation(facing * Vector3.forward).eulerAngles.y);
+        recorder.Wiped += () => run.CompleteOptional("wipe_palace");
+        run.AddOptional("wipe_palace", "WIPE THE PALACE RECORDER in the passage by the strongroom", 500);
+        // Leah's loop, if the control room was spotted from the Wheel
+        if (M11FamilyMeeting.ControlRoomFound)
+            LundunCamLoop.Create(run, () => galleryCams, () => LundunArches.MissionInside && !alarm);
     }
 
     public override void Tidy()
@@ -249,6 +297,7 @@ public class M12LundunAfterDark : LundunMission
     void Clear()
     {
         guards.Clear();
+        galleryCams.Clear();
         foreach (GameObject g in new[] { wing, roofPad, landPad, heli != null ? heli.gameObject : null }) if (g != null) Object.Destroy(g);
         heli = null;
     }

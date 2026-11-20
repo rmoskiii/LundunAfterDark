@@ -682,3 +682,33 @@ public class LundunShopCam : LundunStep
         m.GetComponent<Renderer>().sharedMaterial = mat;
     }
 }
+
+/// Phase 5 (gate D): M14's fifth trial, "Blind spot". Lose the police (done when the stars are gone) without a street
+/// camera seeing James while he does it. Seen once and the trial's blown (Clean false), though he still has to lose
+/// them. Teaches the escape rule: where no camera can see, the police lose you faster.
+public class LundunBlindSpot : LundunStep
+{
+    readonly string text;
+    float next;
+    public bool Clean { get; private set; }
+
+    public LundunBlindSpot(string objectiveText) { text = objectiveText; objective = objectiveText; }
+
+    public override void Begin(LundunMissionRun run) { Clean = true; next = 0f; objective = text + "  ·  unseen so far"; }
+
+    public override bool Tick(LundunMissionRun run)
+    {
+        if (Clean && Time.time >= next)
+        {
+            next = Time.time + 0.25f;
+            if (LundunCctv.Live && LundunCctv.Instance != null && LundunCctv.Instance.OnCamera)
+            {
+                Clean = false;
+                objective = text + "  ·  a camera saw you";
+                LundunHaptics.Medium();
+                LundunMissions.Toast("A CAMERA SAW YOU\nThe trial's blown, but lose them anyway");
+            }
+        }
+        return WantedSystem.Instance == null || WantedSystem.Instance.Stars == 0;
+    }
+}
