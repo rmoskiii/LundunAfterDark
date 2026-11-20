@@ -8,9 +8,11 @@ using Object = UnityEngine.Object;
 
 /// Phase 5 (gate A1): M01's cold open. About 30 seconds of the ending before the beginning: black, "THREE WEEKS LATER",
 /// then Kingsmere Palace at midnight, and all of it going off: a ragged cordon of a dozen police cars across the gates,
-/// every light bar strobing red and blue over the stone, sirens, armed officers behind the cars firing up at the roof,
-/// a car burning (then going up), floodlights on the front, the police helicopter circling with its searchlight on the
-/// roof, and Hollis's helicopter up there with its rotors turning. The camera runs low along the cordon (handheld),
+/// and the whole forecourt behind them full too: police cars rammed in at angles, riot vans as cover, burning wrecks,
+/// red flares on the ground, and three ragged lines of armed officers working up to the front steps, firing up at the
+/// roof (tracers, flashes, dust off the stone). Every light bar strobing red and blue, sirens, a car going up at the
+/// gates and another by the steps, floodlights on the front, the police helicopter circling with its searchlight on
+/// the roof, and Hollis's helicopter up there with its rotors turning. The camera runs low along the cordon (handheld),
 /// cranes up the front to the roof, then pulls out wide over the lot while James and Hollis are heard. Then "THREE
 /// WEEKS EARLIER" and back to James's front door.
 ///   the HUD and controls are hidden throughout; the camera's flown by hand (CameraFollow is paused)
@@ -34,9 +36,14 @@ public class LundunColdOpen : LundunStep
     readonly List<Transform> shooters = new List<Transform>();
     readonly List<Transform> spinning = new List<Transform>();
     Transform copter, copterBeam;
-    VehicleHealth burner;
+    readonly List<Light> flickers = new List<Light>();                 // flares and fires: warm, unsteady
+    readonly List<Vector3> aims = new List<Vector3>();                 // what each shooter's firing at
+    readonly List<LineRenderer> tracers = new List<LineRenderer>();
+    readonly List<float> tracerOff = new List<float>();
+    readonly List<VehicleHealth> blowAt = new List<VehicleHealth>();   // cars that go up, and when
+    readonly List<float> blowTime = new List<float>();
     float nextShot, copterAngle;
-    bool burnt;
+    int nextTracer;
     CameraFollow follow;
     Camera cam;
     Vector3 gate, palace, roof;
@@ -46,7 +53,7 @@ public class LundunColdOpen : LundunStep
 
     public override void Begin(LundunMissionRun run)
     {
-        phase = Phase.Later; t = 0f; startedAt = Time.time; skip = false; said = 0; burnt = false; nextShot = 0f; copterAngle = 0f;
+        phase = Phase.Later; t = 0f; startedAt = Time.time; skip = false; said = 0; nextShot = 0f; copterAngle = 0f; nextTracer = 0;
         VehicleSystem vs = Object.FindAnyObjectByType<VehicleSystem>();
         if (vs != null) vs.LockControls(true);
         follow = Object.FindAnyObjectByType<CameraFollow>();
@@ -96,8 +103,8 @@ public class LundunColdOpen : LundunStep
     void Fly(float s)
     {
         if (cam == null) return;
-        Vector3 toPalace = palace - gate; toPalace.y = 0f; toPalace.Normalize();
-        Vector3 side = Vector3.Cross(Vector3.up, toPalace);
+        Vector3 toPalace = Vector3.forward;                                    // the gates open north onto the forecourt
+        Vector3 side = Vector3.right;
         Vector3 p, look;
         if (s < 7f)
         {
@@ -126,6 +133,28 @@ public class LundunColdOpen : LundunStep
             look = Vector3.Lerp(roof + Vector3.up * 1.5f, (roof + gate) * 0.5f, k * 0.6f);
         }
         cam.transform.SetPositionAndRotation(p, Quaternion.LookRotation(look - p, Vector3.up));
+    }
+
+    void Tracer(Vector3 from, Vector3 to)
+    {
+        if (tracers.Count < 10)
+        {
+            LineRenderer lr = new GameObject("Tracer").AddComponent<LineRenderer>();
+            Shader sh = Shader.Find("Universal Render Pipeline/Unlit");
+            Material m = new Material(sh != null ? sh : Shader.Find("Sprites/Default"));
+            Color c = new Color(1f, 0.82f, 0.45f);
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+            m.color = c;
+            lr.sharedMaterial = m; lr.positionCount = 2; lr.startWidth = 0.06f; lr.endWidth = 0.025f;
+            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            props.Add(lr.gameObject); tracers.Add(lr); tracerOff.Add(0f);
+        }
+        nextTracer = (nextTracer + 1) % tracers.Count;
+        LineRenderer t = tracers[nextTracer];
+        Vector3 d = to - from;
+        t.SetPosition(0, from + d * UnityEngine.Random.Range(0.05f, 0.3f));          // a streak, not a beam
+        t.SetPosition(1, from + d * UnityEngine.Random.Range(0.45f, 0.75f));
+        t.enabled = true; tracerOff[nextTracer] = Time.time + 0.05f;
     }
 
     static Vector3 Handheld(float s, float amount)
@@ -158,22 +187,32 @@ public class LundunColdOpen : LundunStep
                 copterBeam.rotation = Quaternion.LookRotation(onRoof - copterBeam.position);
             }
         }
+        for (int i = 0; i < flickers.Count; i++)
+        {
+            Light l = flickers[i]; if (l == null) continue;
+            l.intensity = (l.range > 8f ? 4f : 2.2f) * (0.65f + 0.35f * Mathf.PerlinNoise(Time.time * 7f, i * 3.1f));
+        }
         if (Time.time >= nextShot && shooters.Count > 0)
         {
-            nextShot = Time.time + UnityEngine.Random.Range(0.12f, 0.5f);
-            Transform sh = shooters[UnityEngine.Random.Range(0, shooters.Count)];
+            nextShot = Time.time + UnityEngine.Random.Range(0.05f, 0.22f);   // a lot of guns
+            int k = UnityEngine.Random.Range(0, shooters.Count);
+            Transform sh = shooters[k];
             if (sh != null)
             {
+                Vector3 aim = aims[k] + UnityEngine.Random.insideUnitSphere * 2.5f;
+                sh.rotation = Quaternion.LookRotation(aim - sh.position);
                 LundunCombatFX.Muzzle(sh, 0.9f, 1);
-                AudioClip clip = LundunGunAudio.Shot(UnityEngine.Random.value < 0.6f ? LundunWeapons.Kind.Carbine : LundunWeapons.Kind.Pistol);
-                if (clip != null) AudioSource.PlayClipAtPoint(clip, sh.position, 0.55f);
+                AudioClip clip = LundunGunAudio.Shot(UnityEngine.Random.value < 0.65f ? LundunWeapons.Kind.Carbine : LundunWeapons.Kind.Pistol);
+                if (clip != null) AudioSource.PlayClipAtPoint(clip, sh.position, 0.5f);
+                Vector3 end = aim;
+                if (Physics.Raycast(sh.position, (aim - sh.position).normalized, out RaycastHit hit, 160f, LayerMask.GetMask("Default"), QueryTriggerInteraction.Ignore))
+                { end = hit.point; LundunCombatFX.Impact(hit, false); }                     // dust off the stone
+                Tracer(sh.position, end);
             }
         }
-        if (!burnt && burner != null && s > 1.2f)
-        {
-            burnt = true;
-            burner.TakeDamage(burner.Max * 5f);                                  // it burns, then it goes up
-        }
+        for (int i = 0; i < tracers.Count; i++) if (tracers[i] != null && tracers[i].enabled && Time.time > tracerOff[i]) tracers[i].enabled = false;
+        for (int i = 0; i < blowAt.Count; i++)
+            if (blowAt[i] != null && s >= blowTime[i]) { blowAt[i].TakeDamage(blowAt[i].Max * 5f); blowAt[i] = null; }   // it burns, then goes up
     }
 
     void Lines(float s)
@@ -195,103 +234,79 @@ public class LundunColdOpen : LundunStep
     // ------------------------------------------------------------------ the palace dressed for the night
     void Stage()
     {
-        Vector3 toPalace = palace - gate; toPalace.y = 0f; toPalace.Normalize();
-        Vector3 side = Vector3.Cross(Vector3.up, toPalace);
-        int cars = 0, officers = 0;
+        Vector3 toPalace = Vector3.forward;                                    // the gates open north onto the forecourt
+        Vector3 side = Vector3.right;
+        PoliceAI prefab = PoliceDirector.CarPrefab;
+        PoliceOfficer officerPrefab = prefab != null ? prefab.OfficerPrefab : null;
+        LundunPopulation pop = LundunPopulation.Instance;
+        int sirens = 0;
 
         // Hollis's helicopter on the roof, rotors turning
         LundunFlyHeli hollis = LundunFlyHeli.Spawn(roof, 90f);
         if (hollis != null) { props.Add(hollis.gameObject); Transform r = Find(hollis.transform, "Rotor"); if (r != null) spinning.Add(r); }
 
-        // the cordon: a dozen cars in a ragged double line across the approach (on the ground; no navmesh needed)
-        PoliceAI prefab = PoliceDirector.CarPrefab;
-        int sirens = 0;
+        // the cars that go up (placed first, so nobody stands close enough to get hurt by it)
+        List<Vector3> blasts = new List<Vector3>();
+        Vector3 gateBlast = Flat(gate.x + 19f, gate.z - 6f), stepsBlast = Flat(618f, 1752f);
+        Wreck(gateBlast, 110f, 1.2f); blasts.Add(gateBlast);
+        Wreck(stepsBlast, 200f, 9.5f); blasts.Add(stepsBlast);                 // as the camera cranes past it
+
+        // outside: the cordon, a dozen cars in a ragged double line across the approach
         for (int i = 0; i < 12; i++)
         {
             float lateral = -17f + i * 3.1f + UnityEngine.Random.Range(-0.8f, 0.8f);
             float back = (i % 2 == 0 ? 4f : 9f) + UnityEngine.Random.Range(-1f, 1f);
-            Vector3 at = LundunMissionRun.Ground(gate - toPalace * back + side * lateral);
-            Quaternion rot = Quaternion.LookRotation(Quaternion.Euler(0f, (i % 2 == 0 ? 1f : -1f) * UnityEngine.Random.Range(35f, 80f), 0f) * toPalace);
-            GameObject car = null;
-            if (prefab != null)
-            {
-                PoliceAI ai = Object.Instantiate(prefab, at + Vector3.up * 0.8f, rot);
-                ai.enabled = false;                                            // parked for the shot: no driving, no officers
-                car = ai.gameObject;
-                foreach (BlinkingLight bl in car.GetComponentsInChildren<BlinkingLight>(true)) { bl.CancelInvoke(); bl.InvokeRepeating("Toggle", UnityEngine.Random.Range(0f, 0.6f), 0.6f); }
-                foreach (AudioSource a in car.GetComponentsInChildren<AudioSource>(true))
-                    if (sirens < 3 && a.clip != null && a.clip.name.ToLowerInvariant().Contains("siren"))
-                    { a.loop = true; a.spatialBlend = 0.6f; a.pitch = 0.94f + sirens * 0.06f; a.volume = 0.8f; a.Play(); sirens++; }
-            }
-            else
-            {
-                LundunPopulation pop = LundunPopulation.Instance;
-                car = pop != null ? pop.NewCar(null, at + Vector3.up * 0.6f, rot, i) : null;
-                if (car != null) car.SetActive(true);
-            }
-            if (car == null) continue;
-            Still(car);
-            props.Add(car);
-            cars++;
-            // the light bar's glow on everything round it
-            Light l = new GameObject("Strobe").AddComponent<Light>();
-            l.transform.SetParent(car.transform, false); l.transform.localPosition = new Vector3(0f, 2.1f, 0f);
-            l.type = LightType.Point; l.range = 14f; l.shadows = LightShadows.None;
-            strobes.Add(l);
+            Vector3 at = gate - toPalace * back + side * lateral;
+            if (Near(at, blasts, 9f)) continue;
+            PoliceCar(at, (i % 2 == 0 ? 1f : -1f) * UnityEngine.Random.Range(35f, 80f), ref sirens);
         }
-
-        // armed officers between the cars, guns up at the roof (they don't move; their shots are flashes and noise)
-        PoliceOfficer officerPrefab = prefab != null ? prefab.OfficerPrefab : null;
         for (int i = 0; i < 7; i++)
-        {
-            Vector3 at = LundunMissionRun.Ground(gate - toPalace * 1.5f + side * (-13f + i * 4.3f));
-            Quaternion face = Quaternion.LookRotation(toPalace);
-            GameObject o;
-            if (officerPrefab != null)
-            {
-                PoliceOfficer po = Object.Instantiate(officerPrefab, at, face);
-                po.enabled = false;
-                o = po.gameObject;
-            }
-            else
-            {
-                LundunPopulation pop = LundunPopulation.Instance;
-                o = pop != null ? pop.NewPerson(null) : null;
-                if (o == null) continue;
-                o.transform.SetPositionAndRotation(at, face);
-                o.SetActive(true);
-            }
-            Still(o);
-            props.Add(o);
-            officers++;
-            Transform muzzle = new GameObject("Muzzle").transform;              // where his flashes come from
-            muzzle.SetParent(o.transform, false);
-            muzzle.localPosition = new Vector3(0.25f, 1.45f, 0.7f);
-            muzzle.localRotation = Quaternion.Euler(-35f, 0f, 0f);             // up at the roof
-            shooters.Add(muzzle);
-        }
+            Officer(gate - toPalace * 1.5f + side * (-13f + i * 4.3f), officerPrefab, blasts);
 
-        // a car on fire against the gates (it goes up a few seconds in)
-        LundunPopulation pp = LundunPopulation.Instance;
-        if (pp != null)
+        // inside: the forecourt, gates to front steps (z 1708 to 1765), rammed full
+        float[,] cars = { { 598, 1716, 30 }, { 633, 1719, -50 }, { 586, 1730, 80 }, { 642, 1733, -20 }, { 604, 1745, 160 },
+                          { 632, 1749, -110 }, { 580, 1754, 40 }, { 648, 1756, -70 }, { 572, 1720, 120 } };
+        for (int i = 0; i < cars.GetLength(0); i++)
         {
-            GameObject wreck = pp.NewCar(null, LundunMissionRun.Ground(gate - toPalace * 6f + side * 19f) + Vector3.up * 0.6f, Quaternion.LookRotation(Quaternion.Euler(0f, 110f, 0f) * toPalace), 3);
-            if (wreck != null)
-            {
-                wreck.SetActive(true);
-                Still(wreck);
-                burner = wreck.GetComponent<VehicleHealth>();
-                props.Add(wreck);
-            }
+            Vector3 at = Flat(cars[i, 0] + UnityEngine.Random.Range(-1.5f, 1.5f), cars[i, 1] + UnityEngine.Random.Range(-1.5f, 1.5f));
+            if (Near(at, blasts, 10f)) continue;
+            PoliceCar(at, cars[i, 2] + UnityEngine.Random.Range(-15f, 15f), ref sirens);
         }
+        // riot vans broadside, officers using them as cover
+        int van = pop != null ? pop.LookIndex("Van") : -1;
+        float[,] vans = { { 613, 1727, 95 }, { 592, 1740, 75 }, { 640, 1741, -85 } };
+        for (int i = 0; i < vans.GetLength(0); i++)
+        {
+            Vector3 at = Flat(vans[i, 0], vans[i, 1]);
+            if (Near(at, blasts, 10f) || pop == null) continue;
+            GameObject v = pop.NewCar(null, at, Quaternion.Euler(0f, vans[i, 2], 0f), van >= 0 ? van : 5 + i);
+            if (v == null) continue;
+            Still(v); Settle(v, at.y); props.Add(v);
+            Strobe(v.transform, 2.6f);
+        }
+        // burning wrecks that just burn (smoke drifting across the floodlights)
+        Burning(Flat(624f, 1733f), 30f);
+        Burning(Flat(578f, 1744f), -60f);
+        // three ragged lines of armed officers working up towards the steps
+        float[] lines = { 1722f, 1736f, 1750f };
+        for (int l = 0; l < lines.Length; l++)
+            for (int i = 0; i < 7; i++)
+            {
+                float x = 580f + i * 11f + (l % 2 == 0 ? 0f : 5.5f) + UnityEngine.Random.Range(-2f, 2f);
+                Officer(Flat(x, lines[l] + UnityEngine.Random.Range(-2f, 2f)), officerPrefab, blasts);
+            }
+        // red flares dropped all over the ground
+        for (int i = 0; i < 9; i++)
+            Flare(Flat(UnityEngine.Random.Range(578f, 650f), UnityEngine.Random.Range(1704f, 1760f)));
 
-        // floodlights up the front of the palace
-        for (int i = -1; i <= 1; i += 2)
+        // floodlights up the front of the palace, from the gates and from the forecourt
+        float[,] floods = { { -11f, -3f }, { 11f, -3f }, { -26f, 30f }, { 30f, 34f } };
+        for (int i = 0; i < floods.GetLength(0); i++)
         {
             Light f = new GameObject("Floodlight").AddComponent<Light>();
-            f.transform.position = LundunMissionRun.Ground(gate - toPalace * 3f + side * (i * 11f)) + Vector3.up * 3f;
-            f.transform.rotation = Quaternion.LookRotation(palace + Vector3.up * 14f - f.transform.position);
-            f.type = LightType.Spot; f.range = 90f; f.spotAngle = 55f; f.intensity = 30f; f.color = new Color(1f, 0.96f, 0.88f);
+            f.transform.position = LundunMissionRun.Ground(gate + side * floods[i, 0] + toPalace * floods[i, 1]) + Vector3.up * 3f;
+            f.transform.rotation = Quaternion.LookRotation(new Vector3(f.transform.position.x, roof.y - 6f, 1765f) - f.transform.position);
+            f.type = LightType.Spot; f.range = 110f; f.spotAngle = 50f; f.intensity = 30f; f.color = new Color(1f, 0.96f, 0.88f);
             f.shadows = LightShadows.None;
             props.Add(f.gameObject);
         }
@@ -307,7 +322,151 @@ public class LundunColdOpen : LundunStep
             copterBeam = Find(copter, "Searchlight");
             props.Add(ph.gameObject);
         }
-        Debug.Log("[Lundun] Cold open staged: " + cars + " police cars, " + officers + " officers, " + strobes.Count + " strobes, police helicopter " + (ph != null) + ", burning car " + (burner != null));
+        Debug.Log("[Lundun] Cold open staged: " + policeCars + " police cars, " + shooters.Count + " officers, " + strobes.Count + " strobes, " +
+                  flickers.Count + " flares/fires, " + blowAt.Count + " cars to go up, police helicopter " + (ph != null));
+    }
+
+    int policeCars;
+
+    Vector3 Flat(float x, float z) { return LundunMissionRun.Ground(new Vector3(x, 0f, z)); }
+
+    static bool Near(Vector3 p, List<Vector3> list, float within)
+    {
+        foreach (Vector3 q in list) if (LundunMissionRun.FlatDistance(p, q) < within) return true;
+        return false;
+    }
+
+    void PoliceCar(Vector3 at, float yaw, ref int sirens)
+    {
+        PoliceAI prefab = PoliceDirector.CarPrefab;
+        Quaternion rot = Quaternion.Euler(0f, yaw, 0f);
+        GameObject car = null;
+        if (prefab != null)
+        {
+            PoliceAI ai = Object.Instantiate(prefab, at + Vector3.up * 0.8f, rot);
+            ai.enabled = false;                                                // parked for the shot: no driving, no officers
+            car = ai.gameObject;
+            foreach (BlinkingLight bl in car.GetComponentsInChildren<BlinkingLight>(true)) { bl.CancelInvoke(); bl.InvokeRepeating("Toggle", UnityEngine.Random.Range(0f, 0.6f), 0.6f); }
+            foreach (AudioSource a in car.GetComponentsInChildren<AudioSource>(true))
+                if (sirens < 3 && a.clip != null && a.clip.name.ToLowerInvariant().Contains("siren"))
+                { a.loop = true; a.spatialBlend = 0.6f; a.pitch = 0.94f + sirens * 0.06f; a.volume = 0.8f; a.Play(); sirens++; }
+        }
+        else
+        {
+            LundunPopulation pop = LundunPopulation.Instance;
+            car = pop != null ? pop.NewCar(null, at, rot, policeCars) : null;
+        }
+        if (car == null) return;
+        Still(car);
+        Settle(car, at.y);
+        props.Add(car);
+        policeCars++;
+        Strobe(car.transform, 2.1f);
+    }
+
+    /// The light bar's glow on everything round it.
+    void Strobe(Transform on, float height)
+    {
+        Light l = new GameObject("Strobe").AddComponent<Light>();
+        l.transform.SetParent(on, false); l.transform.localPosition = new Vector3(0f, height, 0f);
+        l.type = LightType.Point; l.range = 14f; l.shadows = LightShadows.None;
+        strobes.Add(l);
+    }
+
+    /// An armed officer, gun up at the roof (he doesn't move; his shots are flashes, tracers and noise). Never within
+    /// reach of a car that's going to go up.
+    void Officer(Vector3 at, PoliceOfficer prefab, List<Vector3> blasts)
+    {
+        if (Near(at, blasts, 11f)) return;
+        Vector3 target = new Vector3(Mathf.Clamp(at.x + UnityEngine.Random.Range(-14f, 14f), 480f, 645f), roof.y - UnityEngine.Random.Range(0f, 9f), 1766f);
+        Vector3 flat = target - at; flat.y = 0f;
+        Quaternion face = Quaternion.LookRotation(flat.sqrMagnitude > 0.01f ? flat : Vector3.forward);
+        GameObject o;
+        if (prefab != null)
+        {
+            PoliceOfficer po = Object.Instantiate(prefab, at, face);
+            po.enabled = false;
+            o = po.gameObject;
+        }
+        else
+        {
+            LundunPopulation pop = LundunPopulation.Instance;
+            o = pop != null ? pop.NewPerson(null) : null;
+            if (o == null) return;
+            o.transform.SetPositionAndRotation(at, face);
+            o.SetActive(true);
+        }
+        Still(o);
+        props.Add(o);
+        Transform muzzle = new GameObject("Muzzle").transform;                  // where his flashes come from
+        muzzle.SetParent(o.transform, false);
+        muzzle.localPosition = new Vector3(0.25f, 1.45f, 0.7f);
+        muzzle.rotation = Quaternion.LookRotation(target - muzzle.position);
+        shooters.Add(muzzle);
+        aims.Add(target);
+    }
+
+    /// A civilian car set on fire. 'goesUpAt' seconds into the palace part it explodes; below zero it only burns.
+    void Wreck(Vector3 at, float yaw, float goesUpAt)
+    {
+        LundunPopulation pop = LundunPopulation.Instance;
+        GameObject w = pop != null ? pop.NewCar(null, at, Quaternion.Euler(0f, yaw, 0f), 3 + blowAt.Count + flickers.Count) : null;
+        if (w == null) return;
+        Still(w);
+        Settle(w, at.y);
+        props.Add(w);
+        Fire(w.transform);
+        VehicleHealth vh = w.GetComponentInChildren<VehicleHealth>();
+        if (vh == null) return;
+        if (goesUpAt >= 0f) { blowAt.Add(vh); blowTime.Add(goesUpAt); }
+        else
+        {
+            JsonUtility.FromJsonOverwrite("{\"fuseTime\":9999}", vh);        // burns for the whole shot, never goes up
+            vh.TakeDamage(vh.Max * 5f);
+        }
+    }
+
+    void Burning(Vector3 at, float yaw) { Wreck(at, yaw, -1f); }
+
+    void Fire(Transform on)
+    {
+        Light l = new GameObject("FireLight").AddComponent<Light>();
+        l.transform.SetParent(on, false); l.transform.localPosition = new Vector3(0f, 1.6f, 0f);
+        l.type = LightType.Point; l.range = 12f; l.color = new Color(1f, 0.5f, 0.15f); l.shadows = LightShadows.None;
+        flickers.Add(l);
+    }
+
+    void Flare(Vector3 at)
+    {
+        GameObject g = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        g.name = "Flare";
+        Collider c = g.GetComponent<Collider>(); if (c != null) Object.Destroy(c);
+        g.transform.SetPositionAndRotation(at + Vector3.up * 0.05f, Quaternion.Euler(90f, UnityEngine.Random.Range(0f, 360f), 0f));
+        g.transform.localScale = new Vector3(0.05f, 0.12f, 0.05f);
+        Renderer r = g.GetComponent<Renderer>();
+        Shader sh = Shader.Find("Universal Render Pipeline/Unlit");
+        Material m = new Material(sh != null ? sh : Shader.Find("Sprites/Default"));
+        Color red = new Color(1f, 0.15f, 0.08f);
+        if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", red);
+        m.color = red;
+        r.sharedMaterial = m; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        Light l = new GameObject("FlareLight").AddComponent<Light>();
+        l.transform.SetParent(g.transform, false); l.transform.localPosition = Vector3.zero;
+        l.type = LightType.Point; l.range = 6f; l.color = new Color(1f, 0.2f, 0.1f); l.shadows = LightShadows.None;
+        flickers.Add(l);
+        props.Add(g);
+    }
+
+    /// Held still (kinematic), so sit it on the ground by its bodywork rather than leave it floating where it spawned.
+    static void Settle(GameObject g, float groundY)
+    {
+        bool any = false; Bounds b = new Bounds();
+        foreach (Renderer r in g.GetComponentsInChildren<Renderer>())
+        {
+            if (r is ParticleSystemRenderer || r is LineRenderer) continue;
+            if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds);
+        }
+        if (any) g.transform.position += Vector3.up * (groundY - b.min.y + 0.02f);
     }
 
     /// Nothing in the shot moves by itself: no physics, no walking.
@@ -377,7 +536,8 @@ public class LundunColdOpen : LundunStep
     {
         foreach (GameObject g in props) if (g != null) Object.Destroy(g);
         props.Clear(); strobes.Clear(); shooters.Clear(); spinning.Clear();
-        copter = null; copterBeam = null; burner = null;
+        flickers.Clear(); aims.Clear(); tracers.Clear(); tracerOff.Clear(); blowAt.Clear(); blowTime.Clear();
+        copter = null; copterBeam = null; policeCars = 0;
         if (follow != null) follow.enabled = true;
         LundunClock c = LundunClock.Instance;
         if (c != null && hourWas >= 0f) { c.SetHour(hourWas); hourWas = -1f; }
