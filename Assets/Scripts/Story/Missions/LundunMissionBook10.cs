@@ -48,7 +48,7 @@ public class M12LundunAfterDark : LundunMission
     public override string Teaser { get { return "The gala. The strongroom. Hollis's ledger. Tonight James decides how it ends."; } }
     public override string Giver { get { List<string> f = M11FamilyMeeting.Family(); return f.Count > 1 ? f[1] : "UNCLE FEMI"; } }
     public override long Reward { get { return 25000; } }
-    public override string MedalNote { get { return "never seen inside, the recorder wiped, the helicopter in good shape, under 15 minutes"; } }
+    public override string MedalNote { get { return "never seen inside, the recorder wiped, the helicopter in good shape, under 13 minutes"; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, M11FamilyMeeting.MissionId) && !LundunMissionBook.Done(d, Id); }
 
     static int Way { get { int w = M11FamilyMeeting.WayIn; return w < 0 ? 0 : w; } }
@@ -253,7 +253,7 @@ public class M12LundunAfterDark : LundunMission
         int n = 0;
         if (!alarm) n++;
         if (heli == null || heli.HealthFraction >= 0.6f) n++;
-        if (run.Elapsed < 900f) n++;
+        if (run.Elapsed < 780f) n++;                                          // Phase 6: provisional until the Phase 7 playtest
         if (run.OptionalDone("wipe_palace")) n++;
         return n >= 4 ? 3 : n >= 2 ? 2 : 1;
     }

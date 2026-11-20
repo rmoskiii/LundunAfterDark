@@ -198,7 +198,7 @@ public class M02EasyMoney : LundunMission
     public override string Title { get { return "Easy Money"; } }
     public override string Teaser { get { return "Tayo's at FADEZ BARBERS. He reckons he can fix your money problems in one night."; } }
     public override string Giver { get { return "TAYO"; } }
-    public override long Reward { get { return 1200; } }
+    public override long Reward { get { return 1000; } }          // Phase 6: was 1,200
     public override string MedalNote { get { return "kill the camera, under 8 minutes"; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m01_one_last_favour") && !LundunMissionBook.Done(d, Id); }
 
@@ -337,7 +337,7 @@ public class M03NoWayHome : LundunMission
     public override string Title { get { return "No Way Home"; } }
     public override string Teaser { get { return "Tayo's still at the lock-up, on the phone and sweating. Something's wrong."; } }
     public override string Giver { get { return "TAYO"; } }
-    public override long Reward { get { return 800; } }
+    public override long Reward { get { return 700; } }           // Phase 6: was 800
     public override string MedalNote { get { return "the station camera never sees you, under 6 minutes"; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m02_easy_money") && !LundunMissionBook.Done(d, Id); }
 
@@ -524,7 +524,7 @@ public class M04EstateBusiness : LundunMission
     public override string Title { get { return "Estate Business"; } }
     public override string Teaser { get { return "Word's got round about Basketful. Kingsley wants a word, and Marcus isn't letting you go alone."; } }
     public override string Giver { get { return "MARCUS"; } }
-    public override long Reward { get { return 1500; } }
+    public override long Reward { get { return 1200; } }          // Phase 6: was 1,500
     public override string MedalNote { get { return "under 7 minutes"; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m03_no_way_home") && !LundunMissionBook.Done(d, Id); }
     public override Vector3 StartAt { get { return LundunStoryPlaces.Home + Quaternion.Euler(0f, LundunStoryPlaces.HomeYaw, 0f) * Vector3.forward * 3f; } }
@@ -659,7 +659,7 @@ public class M05UnclesRules : LundunMission
     public override string Teaser { get { return "Uncle Femi has something to confess, and somewhere he can't go alone."; } }
     public override string Giver { get { return "UNCLE FEMI"; } }
     public override long Reward { get { return 400; } }
-    public override string MedalNote { get { return "under 11 minutes"; } }
+    public override string MedalNote { get { return "under 9 minutes"; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m04_estate_business") && !LundunMissionBook.Done(d, Id); }
     /// At his counter.
     public override Vector3 StartAt { get { float y; return LundunStoryPlaces.Lagos(LundunShopLayout.AtCounter(LundunStoryPlaces.LagosWidth), out y); } }
@@ -757,7 +757,7 @@ public class M05UnclesRules : LundunMission
         run.Add(new LundunChapterPreview("CHAPTER 3  ·  PLAYER"));
     }
 
-    public override int Medal(LundunMissionRun run) { return run.Elapsed < 660f ? 3 : run.Elapsed < 900f ? 2 : 1; }
+    public override int Medal(LundunMissionRun run) { return run.Elapsed < 540f ? 3 : run.Elapsed < 720f ? 2 : 1; }   // Phase 6: provisional until the Phase 7 playtest
 }
 
 // ======================================================================================================================
@@ -776,8 +776,8 @@ public class M06PassengerProblems : LundunMission
     public override string Title { get { return "Passenger Problems"; } }
     public override string Teaser { get { return "Marcus is off the door in Knightsbury and needs a lift. The Riders have been asking about you."; } }
     public override string Giver { get { return "MARCUS"; } }
-    public override long Reward { get { return 2500; } }
-    public override string MedalNote { get { return "off camera, under 8 minutes"; } }
+    public override long Reward { get { return 3000; } }          // Phase 6: was 2,500
+    public override string MedalNote { get { return "off camera, under 9 minutes"; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m05_uncles_rules") && !LundunMissionBook.Done(d, Id); }
     public override Vector3 StartAt { get { return LundunMissionRun.Ground(Circus); } }
     public override Vector3 GiverFacing { get { return Vector3.back; } }
@@ -852,7 +852,7 @@ public class M06PassengerProblems : LundunMission
 
     public override int Medal(LundunMissionRun run)
     {
-        int m = run.Elapsed < 480f ? 3 : run.Elapsed < 660f ? 2 : 1;
+        int m = run.Elapsed < 540f ? 3 : run.Elapsed < 720f ? 2 : 1;      // Phase 6: provisional until the Phase 7 playtest
         if (!run.OptionalDone("off_camera")) m = Mathf.Min(m, 2);               // gold: off camera
         return m;
     }

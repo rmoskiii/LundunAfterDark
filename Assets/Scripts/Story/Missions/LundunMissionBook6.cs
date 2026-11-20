@@ -387,8 +387,8 @@ public class M10OpenForBusiness : LundunMission
     public override string Title { get { return "Open For Business"; } }
     public override string Teaser { get { return "Glass, shelves, stock. James is running the rebuild, and LAGOS FOODS opens again today."; } }
     public override string Giver { get { return "UNCLE FEMI"; } }
-    public override long Reward { get { return 4000; } }
-    public override string MedalNote { get { return "under 9 minutes, van not badly damaged"; } }
+    public override long Reward { get { return 4500; } }          // Phase 6: was 4,000
+    public override string MedalNote { get { return "under 10 minutes, van not badly damaged"; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m09_paper_trail") && !LundunMissionBook.Done(d, Id); }
     public override Vector3 StartAt { get { return FemiAtHome.Marker; } }
     public override Vector3 GiverFacing { get { return FemiAtHome.Facing; } }
@@ -599,7 +599,7 @@ public class M10OpenForBusiness : LundunMission
     {
         VehicleHealth vh = van != null ? van.GetComponent<VehicleHealth>() : null;
         bool tidy = vh == null || vh.Max <= 0f || vh.Current / vh.Max > 0.5f;
-        bool fast = run.Elapsed < 540f;
+        bool fast = run.Elapsed < 600f;                                       // Phase 6: provisional until the Phase 7 playtest
         return fast && tidy ? 3 : (fast || tidy) ? 2 : 1;
     }
 

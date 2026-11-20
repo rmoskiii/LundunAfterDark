@@ -23,7 +23,7 @@ public class M07HomeTurf : LundunMission
     public override string Title { get { return "Home Turf"; } }
     public override string Teaser { get { return "Kemi's on the phone. Electric Youth are taxing the stalls at Brixtun market, and they're using Kingsley's name."; } }
     public override string Giver { get { return "MARCUS"; } }
-    public override long Reward { get { return 2000; } }
+    public override long Reward { get { return 2500; } }          // Phase 6: was 2,000
     public override string MedalNote { get { return "under 6 minutes"; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m06_passenger_problems") && !LundunMissionBook.Done(d, Id); }
     public override Vector3 StartAt { get { return LundunStoryPlaces.Home + Quaternion.Euler(0f, LundunStoryPlaces.HomeYaw, 0f) * Vector3.forward * 3f; } }
@@ -243,8 +243,8 @@ public class M08BloodIsThicker : LundunMission
     public override string Title { get { return "Blood Is Thicker"; } }
     public override string Teaser { get { return "Marcus has found Tayo at Knightsbury Circus. He wants answers, and he isn't asking nicely."; } }
     public override string Giver { get { return "MARCUS"; } }
-    public override long Reward { get { return 1500; } }
-    public override string MedalNote { get { return "under 7 minutes"; } }
+    public override long Reward { get { return 2000; } }          // Phase 6: was 1,500
+    public override string MedalNote { get { return "under 8 minutes"; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m07_home_turf") && !LundunMissionBook.Done(d, Id); }
     public override Vector3 StartAt { get { return LundunMissionRun.Ground(Circus + new Vector3(-6f, 0f, 4f)); } }
     public override Vector3 GiverFacing { get { return Vector3.right; } }
@@ -544,7 +544,7 @@ public class M08BloodIsThicker : LundunMission
         return best;
     }
 
-    public override int Medal(LundunMissionRun run) { return run.Elapsed < 420f ? 3 : run.Elapsed < 600f ? 2 : 1; }
+    public override int Medal(LundunMissionRun run) { return run.Elapsed < 480f ? 3 : run.Elapsed < 600f ? 2 : 1; }   // Phase 6: provisional until the Phase 7 playtest
 
     public override void Tidy() { tayo = null; tayoBike = null; cyclist = null; runner = null; chose = false; LundunTube.ForcedTo = null; }
 }

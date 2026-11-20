@@ -398,7 +398,7 @@ public class M15Warehouse9 : LundunMission
     public override string Teaser { get { return "Hollis's gala money sits in Warehouse 9 tonight: a bag of bribes. And his helicopter's parked next door."; } }
     public override string Giver { get { return Planner; } }
     public override long Reward { get { return 6000; } }
-    public override string MedalNote { get { return "never seen, recorder wiped, helicopter in good shape, under 11 minutes"; } }
+    public override string MedalNote { get { return "never seen, recorder wiped, helicopter in good shape, under 10 minutes"; } }
     public override bool Story { get { return false; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m10_open_for_business") && !LundunMissionBook.Done(d, Id); }
     public override Vector3 StartAt { get { Vector3 p; Quaternion q; return LundunStoryPlaces.Kerb(new Vector3(1180f, 0f, 812f), out p, out q) ? LundunMissionRun.Ground(p) : LundunMissionRun.Ground(new Vector3(1180f, 0f, 815f)); } }
@@ -524,7 +524,7 @@ public class M15Warehouse9 : LundunMission
         int n = 0;
         if (!alarm) n++;
         if (heli == null || heli.HealthFraction >= 0.6f) n++;
-        if (run.Elapsed < 660f) n++;
+        if (run.Elapsed < 600f) n++;                                          // Phase 6: provisional until the Phase 7 playtest
         if (run.OptionalDone("wipe_office")) n++;
         return n >= 4 ? 3 : n >= 2 ? 2 : 1;
     }

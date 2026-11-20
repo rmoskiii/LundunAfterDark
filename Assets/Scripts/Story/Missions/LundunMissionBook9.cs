@@ -39,7 +39,7 @@ public class M11FamilyMeeting : LundunMission
     public override string Teaser { get { return "Hollis's leverage sits in the palace strongroom. The family meets at the top of the Wheel, and James runs the plan."; } }
     public override string Giver { get { return "UNCLE FEMI"; } }
     public override long Reward { get { return 2000; } }
-    public override string MedalNote { get { return "unseen at the showroom, under 11 minutes, the getaway car not badly damaged"; } }
+    public override string MedalNote { get { return "unseen at the showroom, under 9 minutes, the getaway car not badly damaged"; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m10_open_for_business") && !LundunMissionBook.Done(d, Id); }
     public override Vector3 StartAt { get { return FemiAtHome.Marker; } }
     public override Vector3 GiverFacing { get { return FemiAtHome.Facing; } }
@@ -210,7 +210,7 @@ public class M11FamilyMeeting : LundunMission
         VehicleHealth vh = car != null ? car.GetComponent<VehicleHealth>() : null;
         bool clean = vh == null || vh.Max <= 0f || (carStart - vh.Current) / vh.Max < 0.25f;
         float t = run.Elapsed;
-        int m = t < 660f && clean ? 3 : t < 900f ? 2 : 1;
+        int m = t < 540f && clean ? 3 : t < 720f ? 2 : 1;                // Phase 6: provisional until the Phase 7 playtest
         if (!run.OptionalDone("showroom_unseen")) m = Mathf.Min(m, 2);
         return m;
     }
