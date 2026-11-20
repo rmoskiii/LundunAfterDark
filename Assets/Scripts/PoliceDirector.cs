@@ -52,6 +52,23 @@ public class PoliceDirector : MonoBehaviour
     /// The car prefab police are sent in (W1b patrols use it too).
     public static PoliceAI CarPrefab => instance != null ? instance.policeCarPrefab : null;
 
+    /// Phase 5: a mission sends one police car to a spot (M02: one pulling up at Basketful as James comes out). It comes
+    /// from a road 50–110 m away that the camera can't see, and joins this level's units like any other.
+    public static bool SendCarTo(Vector3 where)
+    {
+        if (instance == null || instance.policeCarPrefab == null) return false;
+        WantedSystem w = WantedSystem.Instance;
+        int stars = w != null ? Mathf.Max(1, w.Stars) : 1;
+        PoliceTiers.Tier tier = PoliceTiers.For(stars);
+        Vector3 player = w != null && w.PlayerTarget != null ? w.PlayerTarget.position : where;
+        Vector3 pos; Quaternion rot;
+        if (!instance.FindRoadSpot(where, player, tier, out pos, out rot)) return false;
+        PoliceAI car = Instantiate(instance.policeCarPrefab, pos, rot);
+        car.Armed = false;
+        instance.units.Add(car);
+        return true;
+    }
+
     /// W1b: a patrol car joining the chase counts as one of this level's units (so fewer are sent in).
     public static void Adopt(PoliceAI car)
     {

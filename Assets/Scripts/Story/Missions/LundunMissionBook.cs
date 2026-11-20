@@ -31,13 +31,18 @@ public static class LundunMissionBook
 }
 
 // ======================================================================================================================
-/// 01 One Last Favour (the tutorial). Kemi fetches James for a family meeting at LAGOS FOODS: walk there with her (the
-/// GPS route), the family in the shop (Uncle Femi, Marcus, Kemi, then Leah drops in), drive to the Gilmore Estate for
-/// Uncle's parcel, two Tower Block Kings take it, fight them, bring it back to the shop, go home. No police (unless you
-/// make some). Afterwards LAGOS FOODS is open in the day, with Uncle Femi behind the counter.
+/// 01 One Last Favour (the tutorial). Phase 5 (A1): a cold open first (three weeks later: the palace, the police, Hollis's
+/// helicopter), then Kemi at James's door. He drives her to LAGOS FOODS in his Kestrel (quicker than the old walk); the
+/// family in the shop (Uncle Femi, Marcus, Kemi, then Leah drops in); drive to the Gilmore Estate for Uncle's parcel
+/// (every camera on the estate smashed or sprayed: no CCTV in this one). One of the Tower Block Kings grabs the parcel
+/// and runs: sprint after him and tackle him, then fight him and his mate, pick the parcel up, take it back to the shop,
+/// go home. Kemi's text at the end points at the map and the pause menu (work, crew). No police unless you make some.
+/// Afterwards LAGOS FOODS is open in the day, with Uncle Femi behind the counter.
 public class M01OneLastFavour : LundunMission
 {
     static readonly Vector3 Courtyard = new Vector3(330f, 0f, 380f);         // the Gilmore Estate's courtyard ("The Pickup")
+    GameObject spareCar;
+    LundunSnatch snatch;
 
     public override string Id { get { return "m01_one_last_favour"; } }
     public override string Title { get { return "One Last Favour"; } }
@@ -53,6 +58,15 @@ public class M01OneLastFavour : LundunMission
         get { return LundunStoryPlaces.Home + Quaternion.Euler(0f, LundunStoryPlaces.HomeYaw, 0f) * Vector3.forward * 3f; }
     }
     public override Vector3 GiverFacing { get { return Quaternion.Euler(0f, LundunStoryPlaces.HomeYaw, 0f) * Vector3.forward; } }
+
+    /// James's own car, the Kestrel on his drive (a stand-in by the door if it isn't there).
+    GameObject Kestrel()
+    {
+        LundunPlaces p = LundunPlaces.Instance;
+        if (p != null && p.Kestrel != null && LundunStoryPlaces.Fine(p.Kestrel.gameObject)) return p.Kestrel.gameObject;
+        if (!LundunStoryPlaces.Fine(spareCar)) { LundunMissions.LetGo(spareCar); spareCar = LundunStoryPlaces.ParkCar(StartAt + Quaternion.Euler(0f, LundunStoryPlaces.HomeYaw, 0f) * Vector3.forward * 4f, 1); }
+        return spareCar;
+    }
 
     public override void Build(LundunMissionRun run)
     {
@@ -71,22 +85,25 @@ public class M01OneLastFavour : LundunMission
             p = LundunStoryPlaces.Lagos(LundunShopLayout.Behind(W), out fy); LundunCrew.Stage("UNCLE FEMI", p, fy);
             p = LundunStoryPlaces.Lagos(LundunShopLayout.ByFridge(W), out fy); LundunCrew.Stage("MARCUS", p, fy);
         }));
-        run.Add(new LundunJoin("KEMI"));
+        run.Add(new LundunColdOpen());                                         // Phase 5: three weeks later...
+        run.Add(new LundunJoin("KEMI")).Checkpoint(LundunCheckpoint.Major);   // (a retry never plays the cold open again)
         run.Add(new LundunTalk("",
             new LundunLine("KEMI", "James! Good, you're up. Uncle wants everyone at the shop. Family meeting."),
             new LundunLine("JAMES", "A family meeting? Who's died?"),
-            new LundunLine("KEMI", "Nobody. Yet. It's two minutes, walk with me.")));
-        run.Add(new LundunGoTo(door, 3.5f, "Walk to LAGOS FOODS on Rye Lane"));
+            new LundunLine("KEMI", "Nobody. Yet. Two minutes in the car. You're driving.")));
+        run.Add(new LundunEnterCar(() => Kestrel(), "Get in your car", "Your car's been wrecked"));
+        run.Add(new LundunDriveTalk(door, 9f, "Drive to LAGOS FOODS on Rye Lane",
+            new LundunLine("KEMI", "Uncle's been funny all week. Phone calls in the back room, door shut."),
+            new LundunLine("JAMES", "Funny how?"),
+            new LundunLine("KEMI", "Funny like scared. Don't tell him I said that.")));
         run.Add(new LundunGoTo(counter, 1.6f, "Go in and see Uncle Femi", false));
         run.Add(new LundunDo(r => { float fy; Vector3 p = LundunStoryPlaces.Lagos(LundunShopLayout.InAisle(W), out fy); LundunCrew.Stage("KEMI", p, fy); }));
         run.Add(new LundunTalk("",
             new LundunLine("UNCLE FEMI", "Ah! The prince arrives. Ten minutes late, as usual."),
             new LundunLine("MARCUS", "Man's always late. You good, bro?"),
-            new LundunLine("JAMES", "Marcus. Uncle."),
             new LundunLine("UNCLE FEMI", "Listen. A man on the Gilmore Estate is holding a parcel for me. Spices, from home. You collect it, you bring it here. Simple."),
             new LundunLine("JAMES", "Why can't Marcus go?"),
-            new LundunLine("MARCUS", "Because I've got work in the morning. A real job, with a payslip."),
-            new LundunLine("KEMI", "Ignore him.")));
+            new LundunLine("MARCUS", "Because I've got work in the morning. A real job, with a payslip.")));
         // Leah drops in from her shift
         run.Add(new LundunDo(r =>
         {
@@ -94,20 +111,26 @@ public class M01OneLastFavour : LundunMission
             LundunCrew.Stage("LEAH", LundunStoryPlaces.LagosDoor + Quaternion.Euler(0f, fy, 0f) * Vector3.right * 3f, fy);
             LundunCrew.Stage("LEAH", inside, fy);
         }));
-        run.Add(new LundunWait(2.5f));
+        run.Add(new LundunWait(1.5f));
         run.Add(new LundunTalk("",
             new LundunLine("LEAH", "Sorry, sorry, my shift ran over. Did I miss the drama?"),
             new LundunLine("KEMI", "James is doing a pickup for Uncle."),
             new LundunLine("LEAH", "Be careful, yeah? Text me when you're back."),
             new LundunLine("UNCLE FEMI", "Take your car. And James: be polite. Polite costs nothing.")));
 
+        // the estate: every camera there's been seen to (set dressing: this one has no CCTV)
+        run.Add(new LundunDo(r => SmashedCameras(r)));
         run.Add(new LundunGoTo(Courtyard, 12f, "Drive to the Gilmore Estate for Uncle Femi's parcel"));
         run.Add(new LundunTalk("",
             new LundunLine("JAMES", "Evening. Femi Adeyemi sent me. I'm here for his parcel."),
             new LundunLine("TOWER BLOCK KING", "Parcel? Nah. That's ours now. Kings' ends, Kings' parcel. Tax, innit."),
-            new LundunLine("JAMES", "It's my uncle's. Hand it over."))).Checkpoint(LundunCheckpoint.Major);
-        run.Add(new LundunFight(Courtyard + new Vector3(4f, 0f, 3f), 2, false, "Get Uncle Femi's parcel back"));
-        run.Add(new LundunCollect(Courtyard + new Vector3(3f, 0f, 1.5f), "parcel", "Pick up the parcel"));
+            new LundunLine("TOWER BLOCK KING", "And don't look for cameras, bruv. Ain't none working round here. We see to that."),
+            new LundunLine("JAMES", "It's my uncle's. Hand it over."),
+            new LundunLine("TOWER BLOCK KING", "Come and get it then!"))).Checkpoint(LundunCheckpoint.Major);
+        snatch = new LundunSnatch(() => Courtyard + new Vector3(3f, 0f, 2f), "He's off with the parcel! Catch him");
+        run.Add(snatch);
+        run.Add(new LundunFight(() => snatch.Fighters, "Get Uncle Femi's parcel back"));
+        run.Add(new LundunCollect(() => snatch.DroppedAt, "parcel", "Pick up the parcel"));
         run.Add(new LundunTalk("",
             new LundunLine("KEMI", "(text) All good?? Uncle's wearing a hole in the floor."),
             new LundunLine("JAMES", "Bit of trouble. Got it though. On my way."))).Checkpoint(LundunCheckpoint.Minor);
@@ -121,6 +144,28 @@ public class M01OneLastFavour : LundunMission
             new LundunLine("MARCUS", "Uncle? Who's Kingsley?"),
             new LundunLine("UNCLE FEMI", "Nobody you need to know. Go home, all of you. Thank you, James.")));
         run.Add(new LundunGoTo(LundunStoryPlaces.Home, 6f, "Go home and get some sleep"));
+        // Kemi's text: the map, the pause menu, the work going
+        run.Add(new LundunTalk("",
+            new LundunLine("KEMI", "(text) Uncle says thank you. He won't say it to your face, so I'm saying it."),
+            new LundunLine("KEMI", "(text) Tap your map for the whole city. Pause menu's got your crew, your missions, and any work going.")));
+        run.Add(new LundunDo(r => LundunMissions.Toast("YOUR CITY\nTap the minimap: the full map\nPause: MISSIONS · CREW · DAILY")));
+    }
+
+    /// Three cameras on poles round the courtyard, every one knocked down and sprayed.
+    static void SmashedCameras(LundunMissionRun run)
+    {
+        Color[] paint = { new Color(0.85f, 0.1f, 0.12f), new Color(0.2f, 0.75f, 0.25f), new Color(0.05f, 0.05f, 0.06f) };
+        float[] angle = { 35f, 160f, 270f };
+        float[] dist = { 12f, 15f, 11f };
+        for (int i = 0; i < angle.Length; i++)
+        {
+            Vector3 p = Courtyard + Quaternion.Euler(0f, angle[i], 0f) * Vector3.forward * dist[i];
+            if (!UnityEngine.AI.NavMesh.SamplePosition(LundunMissionRun.Ground(p) + Vector3.up, out UnityEngine.AI.NavMeshHit hit, 5f, UnityEngine.AI.NavMesh.AllAreas)) continue;
+            Vector3 toMiddle = Courtyard - hit.position; toMiddle.y = 0f;
+            float yaw = toMiddle.sqrMagnitude > 0.01f ? Quaternion.LookRotation(toMiddle).eulerAngles.y : 0f;
+            LundunMissionCam c = LundunMissionCam.CreateOnPole(run, "estate_" + i, hit.position, 4f, yaw, 0f);
+            c.Vandalise(paint[i]);
+        }
     }
 
     public override int Medal(LundunMissionRun run)
@@ -129,22 +174,31 @@ public class M01OneLastFavour : LundunMission
         if (run.Elapsed < 600f) return 2;
         return 1;
     }
+
+    public override void Tidy() { LundunMissions.LetGo(spareCar); spareCar = null; }
 }
 
 // ======================================================================================================================
 /// 02 Easy Money. Tayo at FADEZ BARBERS has a plan for James's Kestrel payments: a pistol, his car, Basketful in
-/// Brixtun. Rob a till (hold the button while the cash bar fills and the stars climb), back to Tayo's car, lose the
-/// police, swap cars at the lock-up under the railway arches by Brixtun Station.
+/// Brixtun. Phase 5 (A1): the first proper CCTV lesson. Outside, Tayo shows James the camera over the tills (its own
+/// picture: what it sees); an optional KILL THE CAMERA (+£200, and gold needs it): shoot it before you rob the till and
+/// it has nothing, but it's a gunshot (more police). Leave it and it films James at the till, and that footage is
+/// remembered (LundunEvidence "basketful_cam": Hollis has it in M05). Rob a till (the money counts up as you hold; a
+/// cash bag on his back after), a police car pulls up as he comes out, back to Tayo's car, lose the police, swap cars at
+/// the lock-up under the railway arches by Brixtun Station.
 public class M02EasyMoney : LundunMission
 {
+    public const string Evidence = "basketful_cam";
     GameObject tayoCar, swapCar;
+    LundunMissionCam storeCam;
+    bool robbed;
 
     public override string Id { get { return "m02_easy_money"; } }
     public override string Title { get { return "Easy Money"; } }
     public override string Teaser { get { return "Tayo's at FADEZ BARBERS. He reckons he can fix your money problems in one night."; } }
     public override string Giver { get { return "TAYO"; } }
     public override long Reward { get { return 1200; } }
-    public override string MedalNote { get { return "under 8 minutes"; } }
+    public override string MedalNote { get { return "kill the camera, under 8 minutes"; } }
     public override bool Available(LundunStoryData d) { return LundunMissionBook.Done(d, "m01_one_last_favour") && !LundunMissionBook.Done(d, Id); }
 
     public override Vector3 StartAt { get { float y; return LundunStoryPlaces.Fadez(out y); } }
@@ -157,8 +211,10 @@ public class M02EasyMoney : LundunMission
         Vector3 outside, inside;
         LundunStoryPlaces.Store("Basketful", out outside, out inside);
         Quaternion lr; Vector3 lockUp = LundunStoryPlaces.LockUp(out lr);
+        Vector3 tills;
+        if (!LundunStoryPlaces.Tills("Basketful", out tills)) tills = inside;
 
-        run.Add(new LundunDo(r => { if (!LundunStoryPlaces.Fine(tayoCar)) { LundunMissions.LetGo(tayoCar); tayoCar = LundunStoryPlaces.ParkCar(fadez + Quaternion.Euler(0f, fy, 0f) * Vector3.forward * 6f, 2); } }));
+        run.Add(new LundunDo(r => { LundunCashBag.Carry(false); if (!LundunStoryPlaces.Fine(tayoCar)) { LundunMissions.LetGo(tayoCar); tayoCar = LundunStoryPlaces.ParkCar(fadez + Quaternion.Euler(0f, fy, 0f) * Vector3.forward * 6f, 2); } }));
         run.Add(new LundunJoin("TAYO"));
         run.Add(new LundunTalk("",
             new LundunLine("TAYO", "Jamesy! You're not here for a trim. Sit down, it's business."),
@@ -180,7 +236,31 @@ public class M02EasyMoney : LundunMission
         run.Add(new LundunTalk("",
             new LundunLine("TAYO", "Park up. I'll keep the engine running."),
             new LundunLine("JAMES", "You're not coming in?"),
-            new LundunLine("TAYO", "Someone's got to drive, innit. Gun out, straight to a till. Go, go.")));
+            new LundunLine("TAYO", "Someone's got to drive, innit. But clock this first.")));
+
+        // Phase 5: the camera over the tills, what it sees, and the choice
+        run.Add(new LundunDo(r =>
+        {
+            robbed = false;
+            Vector3 inward = tills - inside; inward.y = 0f;
+            inward = inward.sqrMagnitude > 0.01f ? inward.normalized : Vector3.forward;
+            Vector3 lens = LundunMissionRun.Ground(tills) + inward * 1.1f + Vector3.up * 2.7f;
+            Vector3 view = inside - lens; view.y = 0f;
+            storeCam = LundunMissionCam.Create(r, Evidence, lens, Quaternion.LookRotation(view.sqrMagnitude > 0.01f ? view : -inward).eulerAngles.y, 30f, 12f, 30f, -30f);
+            storeCam.judgeSelf = false;                                        // it doesn't call anyone: it records
+            storeCam.Down += (c, quiet) =>
+            {
+                if (!robbed) r.CompleteOptional("kill_camera");
+                if (!quiet && WantedSystem.Instance != null) WantedSystem.Instance.AddCrime(CrimeType.Gunfire, c.transform.position);   // a shot out camera, on top of the shot
+            };
+            r.AddOptional("kill_camera", "KILL THE CAMERA before the till", 200);
+        }));
+        run.Add(new LundunFeedCut(() => storeCam != null ? storeCam.Lens : tills + Vector3.up * 2.7f, () => tills + Vector3.up * 1f,
+            "BASKETFUL  ·  CAM 02  ·  TILLS", "THE CAMERA OVER THE TILLS", 3.5f));
+        run.Add(new LundunTalk("",
+            new LundunLine("TAYO", "See that? Camera right over the tills. Leave it and it's got your face, clear as day."),
+            new LundunLine("JAMES", "And if I shoot it?"),
+            new LundunLine("TAYO", "Then the whole of Brixtun hears a gunshot. Your call, bruv. Gun out, straight to a till. Go, go.")));
         run.Add(new LundunDo(r =>
         {
             GameObject c = tayoCar;
@@ -188,6 +268,23 @@ public class M02EasyMoney : LundunMission
         }));
         run.Add(new LundunGoTo(inside, 3f, "Go into Basketful", false)).Checkpoint(LundunCheckpoint.Major);
         run.Add(new LundunRob("Basketful", 900, "Rob a till: gun out, hold the button"));
+        // what the camera got (or didn't), the bag, and the police pulling up outside
+        run.Add(new LundunDo(r =>
+        {
+            robbed = true;
+            LundunCashBag.Carry(true);
+            bool caught = storeCam != null && !storeCam.Destroyed;
+            if (caught)
+            {
+                LundunEvidence.Recorded(Evidence);
+                if (LundunCctvFeed.Instance != null)
+                    LundunCctvFeed.Instance.StartCoroutine(LundunCctvFeed.Scripted(storeCam.Lens, () => LundunMissionRun.James().position + Vector3.up * 1.1f,
+                        "BASKETFUL  ·  CAM 02  ·  TILLS", "RECORDING  ·  SUBJECT AT THE TILL", 3f, LundunCctvFeed.Mark.Subject,
+                        () => LundunMissionRun.James().position + Vector3.up * 1f, "SUBJECT 01"));
+            }
+            else LundunEvidence.Destroyed(Evidence);
+            PoliceDirector.SendCarTo(outside);
+        }));
         run.Add(new LundunJoin("TAYO"));
         run.Add(new LundunEnterCar(() => tayoCar, "Get back to Tayo's car", "Tayo's car was wrecked"));
         run.Add(new LundunTalk("", new LundunLine("TAYO", "GO GO GO! Floor it!")));
@@ -195,6 +292,7 @@ public class M02EasyMoney : LundunMission
         run.Add(new LundunDo(r => { if (!LundunStoryPlaces.Fine(swapCar)) { LundunMissions.LetGo(swapCar); swapCar = LundunStoryPlaces.ParkCar(lockUp, 5); } })).Checkpoint(LundunCheckpoint.Minor);
         run.Add(new LundunGoTo(lockUp, 12f, "Drive to the lock-up under the railway arches"));
         run.Add(new LundunEnterCar(() => swapCar, "Swap cars", "The swap car was wrecked"));
+        run.Add(new LundunDo(r => LundunCashBag.Carry(false)));                // the bag goes in the boot
         run.Add(new LundunTalk("",
             new LundunLine("TAYO", "See? Easy bread. Your half's yours, my half's mine."),
             new LundunLine("JAMES", "My hands won't stop shaking."),
@@ -203,12 +301,17 @@ public class M02EasyMoney : LundunMission
 
     public override int Medal(LundunMissionRun run)
     {
-        if (run.Elapsed < 480f) return 3;
-        if (run.Elapsed < 720f) return 2;
-        return 1;
+        int m = run.Elapsed < 480f ? 3 : run.Elapsed < 720f ? 2 : 1;
+        if (!run.OptionalDone("kill_camera")) m = Mathf.Min(m, 2);              // gold needs the camera dealt with
+        return m;
     }
 
-    public override void Tidy() { LundunMissions.LetGo(tayoCar); tayoCar = null; LundunMissions.LetGo(swapCar); swapCar = null; }
+    public override void Tidy()
+    {
+        LundunCashBag.Carry(false);
+        LundunMissions.LetGo(tayoCar); tayoCar = null; LundunMissions.LetGo(swapCar); swapCar = null;
+        storeCam = null;
+    }
 }
 
 // ======================================================================================================================

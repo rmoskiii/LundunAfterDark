@@ -31,6 +31,7 @@ public class LundunRobbery : MonoBehaviour
     private LundunMarketCrowd crowd;
     private bool holding, started, twoStars;
     private float progress, nextLook;
+    private long holdBase;                                           // Phase 5: this till's float (picked when the hold starts; the money counter counts it up)
     private GameObject buttonGo;
     private Image fill, buttonImg;
     private TextMeshProUGUI label;
@@ -74,6 +75,8 @@ public class LundunRobbery : MonoBehaviour
             progress += Time.deltaTime / HoldTime;
             if (!twoStars && progress > 0.6f) { twoStars = true; Alarm(2); }
             fill.fillAmount = progress;
+            long sofar = (long)Mathf.Round(TillCash(store != null ? store.StoreName : "", holdBase) * Mathf.Clamp01(progress) / 10f) * 10;      // Phase 5: the money counter
+            label.text = "<size=130%>" + LundunWallet.Format(sofar) + "</size>\n<size=60%>KEEP HOLDING</size>";
             if (progress >= 1f) { progress = 1f; Finish(); }
             return;
         }
@@ -147,6 +150,7 @@ public class LundunRobbery : MonoBehaviour
     {
         if (robbedHere) return;
         holding = true; started = true; twoStars = false; progress = 0f;
+        holdBase = 300 + 50 * Random.Range(0, 7);
         PlayerHealth ph = PlayerHealth.Instance;
         Vector3 me = ph.Body.position;
         if (crowd != null) crowd.HoldUp(me, 45f, till, 2.5f);                  // everyone runs but the cashier
@@ -162,6 +166,15 @@ public class LundunRobbery : MonoBehaviour
         if (w != null && ph != null) w.RaiseTo(stars, ph.Body.position, stars == 1);
     }
 
+    /// What's in this till right now: a mission's set amount, else S7's float (£300–£600), worth more the hotter it is
+    /// (2★ ×1.25 … 5★ ×2), never more than £1,200. (The same sum as before: the stars still count as they are now.)
+    static long TillCash(string name, long till0)
+    {
+        if (MissionStore == name && MissionCash > 0) return MissionCash;
+        int stars = WantedSystem.Instance != null ? WantedSystem.Instance.Stars : 1;
+        return (long)Mathf.Min(1200f, till0 * (0.75f + 0.25f * Mathf.Max(1, stars)));
+    }
+
     void Finish()
     {
         holding = false;
@@ -173,11 +186,7 @@ public class LundunRobbery : MonoBehaviour
         buttonGo.SetActive(false);
         if (got < 0.12f) { LundunMissions.Toast("Nothing taken"); return; }
         bool mission = MissionStore == name;
-        // S7: £300–£600 in the till, worth more the hotter it got (2★ ×1.25 … 5★ ×2), never more than £1,200
-        int stars = WantedSystem.Instance != null ? WantedSystem.Instance.Stars : 1;
-        long till0 = 300 + 50 * Random.Range(0, 7);
-        long free = (long)Mathf.Min(1200f, till0 * (0.75f + 0.25f * Mathf.Max(1, stars)));
-        long full = mission && MissionCash > 0 ? MissionCash : free;
+        long full = TillCash(name, holdBase > 0 ? holdBase : 300 + 50 * Random.Range(0, 7));
         long cash = (long)Mathf.Round(full * Mathf.Clamp01(got) / 10f) * 10;
         if (!mission) { LundunDay.MarkToday("rob:" + name); LundunStory.MarkDirty(); nextTags = 0f; }
         if (!mission) LundunWallet.Earn(cash, "Till robbed");

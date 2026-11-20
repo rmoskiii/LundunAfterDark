@@ -319,13 +319,19 @@ public class LundunFight : LundunStep
 public class LundunCollect : LundunStep
 {
     readonly string what;
+    readonly Func<Vector3> whereNow;                   // Phase 5: somewhere only known once the step starts (where it fell)
     GameObject item;
     public LundunCollect(Vector3 where, string thing, string objectiveText)
     {
         what = thing; objective = objectiveText; hasMarker = true; marker = LundunMissionRun.Ground(where); markerRadius = 1.4f; route = false;
     }
+    public LundunCollect(Func<Vector3> where, string thing, string objectiveText)
+    {
+        whereNow = where; what = thing; objective = objectiveText; hasMarker = true; markerRadius = 1.4f; route = false;
+    }
     public override void Begin(LundunMissionRun run)
     {
+        if (whereNow != null) marker = LundunMissionRun.Ground(whereNow());
         item = GameObject.CreatePrimitive(PrimitiveType.Cube);
         item.name = "Mission_" + what;
         Collider c = item.GetComponent<Collider>(); if (c != null) UnityEngine.Object.Destroy(c);

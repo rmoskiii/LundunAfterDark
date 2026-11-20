@@ -59,6 +59,34 @@ public class LundunMissionCam : MonoBehaviour
         return c;
     }
 
+    /// A camera on its own pole (a car park, an estate courtyard): the pole from the ground up to 'lensHeight'.
+    public static LundunMissionCam CreateOnPole(LundunMissionRun run, string id, Vector3 ground, float lensHeight, float yaw, float sweepHalfDeg = 40f,
+                                                float rangeM = 14f, float halfAngleDeg = 26f, float pitchDeg = -28f)
+    {
+        LundunMissionCam c = Create(run, id, ground + Vector3.up * lensHeight, yaw, sweepHalfDeg, rangeM, halfAngleDeg, pitchDeg);
+        GameObject pole = Part(PrimitiveType.Cylinder, "Pole", c.transform, new Vector3(0f, -lensHeight * 0.5f, -0.38f), new Vector3(0.12f, lensHeight * 0.5f, 0.12f), bodyMat, true);
+        pole.transform.localRotation = Quaternion.identity;
+        return c;
+    }
+
+    /// Phase 5 (M01): one the estate got to first: the head knocked down on its bracket, sprayed over, blind for good
+    /// (no cone, no light, never sees anyone). Set dressing.
+    public void Vandalise(Color paint)
+    {
+        Destroyed = true;
+        Meter = 0f; lookingAt = 0f;
+        if (head != null)
+        {
+            head.localRotation = Quaternion.Euler(64f, 18f, -24f);               // hanging off its bracket
+            Material spray = new Material(Shader.Find("Universal Render Pipeline/Lit")) { name = "Spray" };
+            Tint(spray, paint);
+            GameObject tag = Part(PrimitiveType.Sphere, "Spray", head, new Vector3(0f, 0.01f, 0.17f), new Vector3(0.2f, 0.17f, 0.06f), spray, false);
+            tag.transform.localRotation = Quaternion.Euler(0f, 0f, 30f);
+            Part(PrimitiveType.Cube, "Drip", head, new Vector3(0.03f, -0.1f, 0.18f), new Vector3(0.025f, 0.12f, 0.02f), spray, false);
+        }
+        Colour();
+    }
+
     void OnEnable() { if (!All.Contains(this)) All.Add(this); t0 = Time.time; }
     void OnDisable() { All.Remove(this); }
 
