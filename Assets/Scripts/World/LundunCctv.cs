@@ -200,6 +200,22 @@ public class LundunCctv : MonoBehaviour
         return Sees(PlayerPoint(), out which);
     }
 
+    /// Phase 5: did camera i get a clear look at James (identified), or just a figure it couldn't make out? Clear: it
+    /// can see him, he's close (under 20 m, 12 m in a car), and he isn't facing away from it.
+    public bool Identifies(int i)
+    {
+        if (i < 0 || i >= cams.Length || !Working(i)) return false;
+        Vector3 me = PlayerPoint();
+        if (!SeesFrom(i, me)) return false;
+        float d = Vector3.Distance(cams[i].at, me);
+        bool driving = vehicles != null && vehicles.IsDriving;
+        if (d > (driving ? 12f : 20f)) return false;
+        if (driving || vehicles == null || vehicles.PlayerTarget == null) return true;
+        Vector3 toCam = cams[i].at - me; toCam.y = 0f;
+        Vector3 facing = vehicles.PlayerTarget.forward; facing.y = 0f;
+        return Vector3.Angle(facing, toCam) < 110f;                       // not with his back to it
+    }
+
     /// The cameras within r of a point (working ones), for the minimap.
     public void Near(Vector3 c, float r, List<int> into)
     {

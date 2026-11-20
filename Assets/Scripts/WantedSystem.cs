@@ -48,7 +48,7 @@ public class WantedSystem : MonoBehaviour
     private float escapeClock;                 // W2: counts towards losing them (faster outside the search area)
     private bool escapeTimerRunning;
 
-    class Report { public Health witness; public float heat; public Vector3 where; public float when, at; public CrimeType worst; }
+    class Report { public Health witness; public float heat; public Vector3 where; public float when, at; public CrimeType worst; public bool unclear; }
     private Report cctvCall;                   // V2e: a crime seen on CCTV, being phoned through by the operator
 
     /// W1b: police now know about a crime (seen by them, or a call got through) and roughly where.
@@ -182,13 +182,18 @@ public class WantedSystem : MonoBehaviour
         int cam;
         if (LundunCctv.Live && LundunCctv.Instance.SeesCrime(position, out cam))
         {
+            // Phase 5 (Story): a clear look at James (identified) vs a crime on camera by someone it couldn't make out
+            // (evidence, half the heat, no "shots fired = a star", and the police only know where it happened)
+            bool unclear = LundunGame.IsStory && !LundunCctv.Instance.Identifies(cam);
             if (cctvCall == null)
             {
-                cctvCall = new Report { at = Time.time + Random.Range(2.5f, 4f), worst = type };
-                if (Stars == 0) Toast("Caught on CCTV…");
+                cctvCall = new Report { at = Time.time + Random.Range(2.5f, 4f), worst = type, unclear = unclear };
+                if (Stars == 0) Toast(LundunGame.IsStory ? (unclear ? "On CCTV · face not clear" : "On CCTV · identified") : "Caught on CCTV…");
                 LundunCctvFeed.Caught(cam);                                   // V2f: a second of the camera's picture
             }
-            if (gunfire && heatForStar.Length > 0) amount = Mathf.Max(amount, heatForStar[0] - heat - cctvCall.heat);
+            else if (!unclear) cctvCall.unclear = false;                       // a clear look later on counts
+            if (unclear) amount *= 0.5f;
+            else if (gunfire && heatForStar.Length > 0) amount = Mathf.Max(amount, heatForStar[0] - heat - cctvCall.heat);
             cctvCall.heat += amount;
             cctvCall.where = position;
             cctvCall.when = Time.time;
@@ -296,7 +301,7 @@ public class WantedSystem : MonoBehaviour
         {
             Report r = cctvCall; cctvCall = null;
             int before = Stars;
-            Vector3 known = LundunCctv.Instance != null && LundunCctv.Instance.OnCamera && PlayerTarget != null ? PlayerTarget.position : r.where;
+            Vector3 known = !r.unclear && LundunCctv.Instance != null && LundunCctv.Instance.OnCamera && PlayerTarget != null ? PlayerTarget.position : r.where;   // Phase 5: unclear = where it happened
             Apply(r.heat, known, false);
             Log(r.worst, "phoned in from CCTV");
             CrimeKnown?.Invoke(r.worst, known);

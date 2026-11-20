@@ -19,6 +19,23 @@ public class LundunMissions : MonoBehaviour
 {
     public static LundunMissions Instance { get; private set; }
     public static bool Running { get { return Instance != null && Instance.run != null; } }
+    /// Phase 5: the optional objectives of the attempt running now, as lines for the pinned objective box ("" if none).
+    public static string OptionalLines
+    {
+        get
+        {
+            LundunMissionRun r = CurrentRun;
+            if (r == null || r.optionals.Count == 0) return "";
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            foreach (LundunMissionRun.Optional o in r.optionals)
+            {
+                if (sb.Length > 0) sb.Append('\n');
+                sb.Append(o.done ? "<color=#59F273>DONE</color>  <s>" + o.label + "</s>" : "<color=#FFA82E>OPTIONAL</color>  " + o.label);
+                if (o.bonus > 0 && !o.done) sb.Append("  <color=#59F273>+" + LundunWallet.Format(o.bonus) + "</color>");
+            }
+            return sb.ToString();
+        }
+    }
     /// Phase 3: a mission's card is up (the wardrobe keeps out of its way).
     public static bool CardOpen { get { return Instance != null && Instance.card != null && Instance.card.activeSelf; } }
     /// V2f: the attempt that's running (null if none), for LundunCctv.
@@ -540,7 +557,8 @@ public class LundunMissions : MonoBehaviour
         int medal = Mathf.Clamp(m.Medal(run), 0, 3);
         if (run.difficulty == LundunDifficulty.Easy) medal = Mathf.Min(medal, 2);   // gold needs Normal or Hard
         try { Passed?.Invoke(m.Id, medal); } catch (System.Exception e) { Debug.LogException(e); }
-        long pay = (long)Mathf.Round(m.Reward * run.RewardScale);
+        long bonus = run.OptionalBonus;                                         // Phase 5: optional objectives (not scaled)
+        long pay = (long)Mathf.Round(m.Reward * run.RewardScale) + bonus;
         int secs = Mathf.Max(1, Mathf.RoundToInt(run.Elapsed));
         Clean(true);
         LundunStoryData d = LundunStory.Data;
@@ -563,7 +581,7 @@ public class LundunMissions : MonoBehaviour
         m.Tidy();                                                              // S3: its cars
         run = null;
 
-        passMoney.text = "+" + LundunWallet.Format(pay);
+        passMoney.text = "+" + LundunWallet.Format(pay) + (bonus > 0 ? "  <size=50%>incl. " + LundunWallet.Format(bonus) + " optional</size>" : "");
         passMedal.text = (medal == 3 ? "GOLD" : medal == 2 ? "SILVER" : medal == 1 ? "BRONZE" : "") + "   " + Clock(secs) + (newBest ? "   NEW BEST!" : "");
         passMedal.color = medal == 3 ? new Color(1f, 0.82f, 0.25f) : medal == 2 ? new Color(0.8f, 0.84f, 0.9f) : new Color(0.85f, 0.55f, 0.3f);
         timeScaleBefore = Time.timeScale > 0f ? Time.timeScale : 1f;

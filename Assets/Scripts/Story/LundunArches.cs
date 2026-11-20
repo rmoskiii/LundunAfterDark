@@ -512,6 +512,8 @@ public class LundunArches : MonoBehaviour
         if (panelFor == Offer.Browse) DealerRows(); else if (panelFor == Offer.Garage) GarageRows();
         float h = -rowY + 210f;
         ((RectTransform)panelGo.transform).sizeDelta = new Vector2(820f, h);
+        float fits = Mathf.Min(1f, 900f / h);                                   // Phase 5: a long list still fits a wide phone
+        panelGo.transform.localScale = new Vector3(fits, fits, 1f);
     }
 
     // the arms dealer
@@ -524,6 +526,14 @@ public class LundunArches : MonoBehaviour
         Gun(w, LundunWeapons.Kind.Smg, "SMG", "fast, light, thirsty", SmgPrice);
         Gun(w, LundunWeapons.Kind.Shotgun, "SHOTGUN", "up close, it ends arguments", ShotgunPrice);
         Gun(w, LundunWeapons.Kind.Carbine, "CARBINE", "accurate at range, full auto", CarbinePrice);
+        // Phase 5: the suppressor, for the pistol (after M06)
+        if (LundunSuppressor.OnSale && !LundunSuppressor.Owned)
+            Row("SUPPRESSOR", "for your pistol · quiet shots, nobody hears", LundunWallet.Format(LundunSuppressor.Price), true, () =>
+            {
+                if (!Buy(LundunSuppressor.Price, "The suppressor")) return;
+                LundunSuppressor.Buy();
+                Toast("SUPPRESSOR fitted\nYour pistol's quiet now");
+            });
         Ammo(w, LundunWeapons.Kind.Pistol, "PISTOL MAGAZINE", 40);
         Ammo(w, LundunWeapons.Kind.Smg, "SMG MAGAZINE", 90);
         Ammo(w, LundunWeapons.Kind.Shotgun, "SHOTGUN SHELLS", 60);

@@ -167,9 +167,15 @@ public class PlayerCombat : MonoBehaviour
 
     void ShootWeapon(LundunWeapons.Weapon w)
     {
-        GunshotFired?.Invoke(transform.position);
-        CrimeSystem.Report(CrimeType.Gunfire, transform.position);
-        PlayWeaponFeedback(w);
+        // Phase 5: the suppressed pistol isn't heard (no "shots fired": not the police, the crowd or traffic)
+        bool quiet = LundunSuppressor.Quiet;
+        if (quiet) LundunSuppressor.QuietShot(transform.position);
+        else
+        {
+            GunshotFired?.Invoke(transform.position);
+            CrimeSystem.Report(CrimeType.Gunfire, transform.position);
+        }
+        PlayWeaponFeedback(w, quiet);
 
         // aim assist: a near-miss on a threat still lands (A1), a bit more forgiving for spray / shotgun
         Vector3 centre = LundunAimAssist.Instance != null ? LundunAimAssist.Instance.ShotDirection(cam.position, cam.forward, w.assist) : cam.forward;
@@ -197,6 +203,8 @@ public class PlayerCombat : MonoBehaviour
             else if (hit.collider != null)
             {
                 end = hit.point;
+                LundunMissionCam mcam = hit.collider.GetComponentInParent<LundunMissionCam>();   // Phase 5: a mission's camera
+                if (mcam != null) mcam.Shot(dir, quiet);
                 Health health = hit.collider.GetComponentInParent<Health>();
                 LundunBreakable.HitAt(hit.collider, hit.point, dir);                 // E5: shop displays, chiller glass, doors
                 // G3: bullet holes and dust on walls / ground, sparks off vehicles
@@ -263,26 +271,26 @@ public class PlayerCombat : MonoBehaviour
         return q * Quaternion.Euler(-r.y * half, r.x * half, 0f) * Vector3.forward;
     }
 
-    void PlayWeaponFeedback(LundunWeapons.Weapon w)
+    void PlayWeaponFeedback(LundunWeapons.Weapon w, bool quiet = false)
     {
         // G3: James's new guns: flash and smoke at the real muzzle, the gun kicks, brass flies out
         LundunWeaponRig rig = LundunWeaponRig.Instance;
         if (rig != null && rig.Muzzle != null)
         {
             int puffs = w.kind == LundunWeapons.Kind.Shotgun ? 4 : w.kind == LundunWeapons.Kind.Carbine ? 2 : 1;
-            LundunCombatFX.Muzzle(rig.Muzzle, w.flashSize, puffs);
+            LundunCombatFX.Muzzle(rig.Muzzle, quiet ? w.flashSize * 0.3f : w.flashSize, quiet ? 0 : puffs);   // Phase 5: suppressed: a small flash
             rig.Fired(w);
             if (w.kind != LundunWeapons.Kind.Shotgun) LundunCombatFX.Eject(rig.EjectPoint, false);   // the shotgun ejects on the pump
         }
-        else if (muzzleFlash != null) muzzleFlash.Flash(w.flashSize);
+        else if (muzzleFlash != null) muzzleFlash.Flash(quiet ? w.flashSize * 0.3f : w.flashSize);
         if (gunAudio != null)
         {
             // each gun's own sound (generated, or your own clip if set), with a little of the original recording underneath
             AudioClip own = w.customShot != null ? w.customShot : LundunGunAudio.Shot(w.kind);
-            gunAudio.pitch = 1f;
-            if (own != null) gunAudio.PlayOneShot(own, w.volume);
+            gunAudio.pitch = quiet ? 1.75f : 1f;                                 // Phase 5: suppressed: a soft, high crack
+            if (own != null) gunAudio.PlayOneShot(own, quiet ? w.volume * 0.28f : w.volume);
             AudioSource layer = layerAudio != null ? layerAudio : gunAudio;
-            if (gunshotClip != null && w.recordedLayer > 0f && layer != gunAudio)
+            if (!quiet && gunshotClip != null && w.recordedLayer > 0f && layer != gunAudio)
             {
                 layer.pitch = w.pitch;
                 layer.PlayOneShot(gunshotClip, w.volume * w.recordedLayer);
@@ -427,6 +435,8 @@ public class PlayerCombat : MonoBehaviour
 
     void HandleHit(RaycastHit hit)
     {
+        LundunMissionCam mcam = hit.collider.GetComponentInParent<LundunMissionCam>();   // Phase 5: a mission's camera (loud: the old gun)
+        if (mcam != null) mcam.Shot(cam.forward, false);
         Health health = hit.collider.GetComponentInParent<Health>();
         LundunBreakable.HitAt(hit.collider, hit.point, cam.forward);              // E5
 

@@ -162,6 +162,7 @@ public class LundunGuard : MonoBehaviour
 public class LundunSneak : LundunStep
 {
     readonly Func<List<LundunGuard>> guards;
+    readonly Func<List<LundunMissionCam>> cameras;      // Phase 5: a mission's own cameras count like guards
     readonly Func<bool> goal;
     readonly Action alarm;
     float meter;
@@ -174,7 +175,16 @@ public class LundunSneak : LundunStep
         guards = who; goal = done; alarm = onAlarm; objective = objectiveText;
     }
 
-    public override void Begin(LundunMissionRun run) { meter = 0f; Build(); }
+    /// Phase 5: guards and the mission's cameras (the cameras stop judging for themselves: this meter does).
+    public LundunSneak(Func<List<LundunGuard>> who, Func<List<LundunMissionCam>> cams, Func<bool> done, Action onAlarm, string objectiveText)
+        : this(who, done, onAlarm, objectiveText) { cameras = cams; }
+
+    public override void Begin(LundunMissionRun run)
+    {
+        meter = 0f; Build();
+        List<LundunMissionCam> cs = cameras != null ? cameras() : null;
+        if (cs != null) foreach (LundunMissionCam c in cs) if (c != null) c.judgeSelf = false;
+    }
 
     public override bool Tick(LundunMissionRun run)
     {
@@ -193,11 +203,16 @@ public class LundunSneak : LundunStep
                 float s = g.Sees(j.position);
                 float d = LundunMissionRun.FlatDistance(g.transform.position, j.position);
                 if (speed > 4.2f && d < 7f) s = Mathf.Max(s, 0.45f);                  // heard him running
+                if (LundunSuppressor.HeardNear(g.transform.position, LundunSuppressor.HeardWithin)) s = Mathf.Max(s, 0.7f);   // Phase 5: a suppressed shot, right by them
                 if (driving && d < 25f) s = Mathf.Max(s, 0.8f);                       // a car in the yard
                 g.Suspicious = s > 0f && meter > 0.25f;
                 rate = Mathf.Max(rate, s * 1.15f);
             }
         }
+        List<LundunMissionCam> cams = cameras != null ? cameras() : null;           // Phase 5: the mission's cameras
+        if (j != null && cams != null && !LundunMissionRun.Driving())
+            foreach (LundunMissionCam c in cams)
+                if (c != null) rate = Mathf.Max(rate, c.Sees(j.position) * 1.15f);
         float scale = run.difficulty == LundunDifficulty.Easy ? 0.75f : run.difficulty == LundunDifficulty.Hard ? 1.3f : 1f;
         meter = rate > 0f ? meter + rate * scale * Time.deltaTime : Mathf.Max(0f, meter - 0.22f * Time.deltaTime);
         Show();

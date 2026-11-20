@@ -116,6 +116,11 @@ public class LundunGuide : MonoBehaviour
         // the pinned box: the objective (with the distance), or what's next
         string pinned = "";
         if (running) pinned = objective + (has && dist > 8f ? "   <color=#C9A2FF>· " + Metres(dist) + "</color>" : "");
+        string optional = running ? LundunMissions.OptionalLines : "";                      // Phase 5: optional objectives
+        if (optional.Length > 0) pinned += "\n<size=74%>" + optional + "</size>";
+        int optLines = optional.Length > 0 ? optional.Split('\n').Length : 0;
+        float pinH = 104f + optLines * 30f;
+        if (Mathf.Abs(pin.sizeDelta.y - pinH) > 0.5f) pin.sizeDelta = new Vector2(pin.sizeDelta.x, pinH);
         else if (next != null)
         {
             string where = Where(next);

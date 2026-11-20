@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
@@ -7,21 +8,30 @@ using UnityEngine.UI;
 
 /// V2f: the CCTV picture (added by LundunCctv; nothing to set up).
 ///   caught       when a camera catches James at it (WantedSystem) or reads his stolen plate (LundunCctv), the screen
-///                cuts to that camera for about a second: grainy, green-grey, scanlines, "CAM 0412", the time, REC.
-///                Not more than once every 35 seconds, and never during a cutscene
+///                cuts to that camera for about a second. Not more than once every 35 seconds, and never during a cutscene
 ///   the replay   while he's wanted or has been shooting, the camera that can see him is recorded a few times a second
 ///                (small pictures, the last three seconds kept). At WASTED or BUSTED, if it had him, those seconds play
-///                back first as CCTV footage ("<< PLAYBACK"), then the WASTED / BUSTED screen as before
-/// Costs: one small extra camera that only draws on the frames it's needed (12 a second during the cut, 4 a second
-/// while recording), no shadows, no post-processing, no anti-aliasing.
+///                back first as CCTV footage ("PLAYBACK"), then the WASTED / BUSTED screen as before
+/// Phase 5 (gate B):
+///   the look     black and white, like real council CCTV: low frame rate, grain, a soft glow round lights, slight
+///                lens bulge, interlace lines, the odd tear, dark corners; the on-screen display of a real system
+///                (camera name, date and time ticking, ● REC, the operator's name, corner brackets)
+///   scripted     missions can cut to any spot as a CCTV camera for a few seconds (Scripted / LundunFeedCut): a
+///                caption ("PLATE READ  ·  LK19 XRT") and a tracking box round someone or something (SUBJECT, a
+///                plate), for the M03 plate read, Hollis's footage, Leah's help, the shop camera...
+/// Costs: one small extra camera that only draws on the frames it's needed (12 a second during a cut, 4 a second while
+/// recording), no shadows, no post-processing, no anti-aliasing.
 public class LundunCctvFeed : MonoBehaviour
 {
     public static LundunCctvFeed Instance { get; private set; }
 
-    const int W = 384, H = 216;
+    const int W = 480, H = 270;
     const int Frames = 12;                    // 3 seconds at 4 a second
     const float RecordGap = 0.25f, LiveGap = 1f / 12f;
     const float CutLength = 1.1f, CutCooldown = 35f;
+
+    /// What the tracking box is round.
+    public enum Mark { None, Subject, Plate }
 
     private Camera eye;
     private RenderTexture live;
@@ -32,13 +42,18 @@ public class LundunCctvFeed : MonoBehaviour
 
     private Canvas canvas;
     private RawImage screen;
-    private TextMeshProUGUI camLabel, clockLabel, tagLabel;
+    private RectTransform picture, box;
+    private TextMeshProUGUI camLabel, clockLabel, tagLabel, captionLabel, boxLabel;
+    private GameObject captionBar;
     private Image recDot;
 
     private float showUntil = -1f, lastCut = -99f, nextLive, nextRecord, lastShot = -99f;
     private int showCam = -1;
-    private bool replaying;
+    private bool replaying, scripted;
     private VehicleSystem vehicles;
+
+    /// A scripted cut is playing.
+    public static bool Busy { get { return Instance != null && (Instance.scripted || Instance.replaying); } }
 
     void Awake() { Instance = this; }
     void OnEnable() { LundunCctv.PlateRead += OnPlateRead; PlayerCombat.GunshotFired += OnGunshot; }
@@ -59,7 +74,7 @@ public class LundunCctvFeed : MonoBehaviour
     void Show(int cam)
     {
         LundunCctv cctv = LundunCctv.Instance;
-        if (cctv == null || cam < 0 || cam >= cctv.Count || replaying || VehicleSystem.Locked) return;
+        if (cctv == null || cam < 0 || cam >= cctv.Count || replaying || scripted || VehicleSystem.Locked) return;
         if (Time.unscaledTime - lastCut < CutCooldown) return;
         if (!Ready()) return;
         lastCut = Time.unscaledTime;
@@ -68,13 +83,78 @@ public class LundunCctvFeed : MonoBehaviour
         nextLive = 0f;
         screen.texture = live;
         tagLabel.text = "LIVE";
+        captionBar.SetActive(false);
+        box.gameObject.SetActive(false);
         canvas.enabled = true;
         LundunHaptics.Light();
+    }
+
+    // ------------------------------------------------------------------ Phase 5: scripted cuts
+    /// A mission's cut to a CCTV view: from 'lens' looking at look() (each frame), for 'seconds' (real time), named
+    /// camName, with a caption (or none) and a tracking box round markAt() (or none). Yield on it to wait.
+    public static IEnumerator Scripted(Vector3 lens, Func<Vector3> look, string camName, string caption, float seconds,
+                                       Mark mark = Mark.None, Func<Vector3> markAt = null, string markLabel = null)
+    {
+        LundunCctvFeed f = Instance;
+        if (f == null || !f.Ready()) yield break;
+        while (f.replaying) yield return null;
+        f.scripted = true;
+        f.showUntil = -1f;
+        f.screen.texture = f.live;
+        f.tagLabel.text = "LIVE";
+        f.camLabel.text = camName;
+        f.captionBar.SetActive(!string.IsNullOrEmpty(caption));
+        f.captionLabel.text = caption ?? "";
+        f.box.gameObject.SetActive(false);
+        f.canvas.enabled = true;
+        LundunHaptics.Light();
+        float end = Time.unscaledTime + seconds, next = 0f;
+        while (Time.unscaledTime < end && f != null)
+        {
+            bool frame = Time.unscaledTime >= next;                          // a choppy 12 a second
+            if (frame)
+            {
+                next = Time.unscaledTime + LiveGap;
+                Vector3 target = look != null ? look() : lens + Vector3.forward;
+                Vector3 d = target - lens;
+                if (d.sqrMagnitude < 0.01f) d = Vector3.forward;
+                f.eye.transform.SetPositionAndRotation(lens, Quaternion.LookRotation(d, Vector3.up));
+                f.eye.targetTexture = f.live;
+                f.Track(mark, markAt, markLabel);
+            }
+            f.eye.enabled = frame;                                         // drawn at the end of this frame only
+            f.Clock(LundunClock.Instance != null ? LundunClock.Instance.Hour : 22f);
+            yield return null;
+        }
+        if (f != null)
+        {
+            f.eye.enabled = false;
+            f.canvas.enabled = false;
+            f.captionBar.SetActive(false);
+            f.box.gameObject.SetActive(false);
+            f.scripted = false;
+        }
+    }
+
+    /// The tracking box: round where markAt() is in the picture (hidden if it's off screen).
+    void Track(Mark mark, Func<Vector3> markAt, string markLabel)
+    {
+        if (mark == Mark.None || markAt == null) { box.gameObject.SetActive(false); return; }
+        Vector3 p = markAt();
+        Vector3 v = eye.WorldToViewportPoint(p);
+        if (v.z <= 0.2f || v.x < 0.02f || v.x > 0.98f || v.y < 0.02f || v.y > 0.98f) { box.gameObject.SetActive(false); return; }
+        Rect r = picture.rect;
+        float size = Mathf.Clamp((mark == Mark.Plate ? 2.2f : 4.5f) * r.height / Mathf.Max(1f, v.z), 60f, 420f);
+        box.anchoredPosition = new Vector2((v.x - 0.5f) * r.width, (v.y - 0.5f) * r.height);
+        box.sizeDelta = mark == Mark.Plate ? new Vector2(size * 1.6f, size * 0.6f) : new Vector2(size * 0.7f, size);
+        boxLabel.text = markLabel ?? (mark == Mark.Plate ? "PLATE" : "SUBJECT");
+        if (!box.gameObject.activeSelf) box.gameObject.SetActive(true);
     }
 
     // ------------------------------------------------------------------ each frame: draw the camera only when needed
     void LateUpdate()
     {
+        if (scripted) return;                                           // the scripted cut draws its own frames
         if (eye == null) { if (showUntil < 0f && !Recording()) return; if (!Ready()) return; }
         bool draw = false;
         float now = Time.unscaledTime;
@@ -141,7 +221,7 @@ public class LundunCctvFeed : MonoBehaviour
     /// WASTED / BUSTED: the last few seconds a camera had of him, as CCTV footage (nothing if no camera had him).
     public IEnumerator Replay()
     {
-        if (ring == null || !Ready()) yield break;
+        if (ring == null || !Ready() || scripted) yield break;
         float now = Time.unscaledTime;
         List<int> take = new List<int>();
         for (int k = 0; k < Frames; k++)
@@ -153,6 +233,8 @@ public class LundunCctvFeed : MonoBehaviour
         replaying = true;
         showUntil = -1f;
         eye.enabled = false;
+        captionBar.SetActive(false);
+        box.gameObject.SetActive(false);
         canvas.enabled = true;
         tagLabel.text = "<< PLAYBACK";
         foreach (int i in take)
@@ -198,7 +280,7 @@ public class LundunCctvFeed : MonoBehaviour
             BuildOverlay();
             return true;
         }
-        catch (System.Exception e)
+        catch (Exception e)
         {
             Debug.LogException(e);
             enabled = false;
@@ -234,33 +316,85 @@ public class LundunCctvFeed : MonoBehaviour
         sg.transform.SetParent(cg.transform, false);
         screen = sg.AddComponent<RawImage>();
         screen.raycastTarget = false;
-        Stretch(screen.rectTransform);
+        picture = screen.rectTransform;
+        Stretch(picture);
         AspectRatioFitter fit = sg.AddComponent<AspectRatioFitter>();
-        fit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+        fit.aspectMode = AspectRatioFitter.AspectMode.FitInParent;          // all of the picture shows; black bars on wide phones
         fit.aspectRatio = W / (float)H;
         Shader feed = Resources.Load<Shader>("LundunCctvFeed");
         if (feed != null) screen.material = new Material(feed);
-        else screen.color = new Color(0.75f, 0.85f, 0.78f);
+        else screen.color = new Color(0.8f, 0.82f, 0.85f);
 
-        camLabel = NewLabel("Cam", cg.transform, new Vector2(0f, 1f), TextAlignmentOptions.TopLeft, new Vector2(150f, -70f));
-        clockLabel = NewLabel("Clock", cg.transform, new Vector2(1f, 1f), TextAlignmentOptions.TopRight, new Vector2(-150f, -70f));
-        tagLabel = NewLabel("Tag", cg.transform, new Vector2(0f, 0f), TextAlignmentOptions.BottomLeft, new Vector2(150f, 70f));
-        TextMeshProUGUI brand = NewLabel("Brand", cg.transform, new Vector2(1f, 0f), TextAlignmentOptions.BottomRight, new Vector2(-150f, 70f));
-        brand.text = "LUNDUN CCTV";
-        recDot = NewImage("Rec", cg.transform, new Color(1f, 0.15f, 0.12f));
+        // the system's display, on the picture
+        camLabel = NewLabel("Cam", picture, new Vector2(0f, 1f), TextAlignmentOptions.TopLeft, new Vector2(70f, -48f));
+        clockLabel = NewLabel("Clock", picture, new Vector2(1f, 1f), TextAlignmentOptions.TopRight, new Vector2(-70f, -48f));
+        tagLabel = NewLabel("Tag", picture, new Vector2(0f, 0f), TextAlignmentOptions.BottomLeft, new Vector2(116f, 48f));
+        TextMeshProUGUI brand = NewLabel("Brand", picture, new Vector2(1f, 0f), TextAlignmentOptions.BottomRight, new Vector2(-70f, 48f));
+        brand.text = "LUNDUN BOROUGH COUNCIL  ·  CCTV";
+        brand.fontSize = 26f;
+        recDot = NewImage("Rec", picture, new Color(1f, 0.15f, 0.12f));
         recDot.sprite = LundunHudArt.Disc;
         RectTransform rr = recDot.rectTransform;
-        rr.anchorMin = rr.anchorMax = new Vector2(0f, 1f);
-        rr.sizeDelta = new Vector2(30f, 30f);
-        rr.anchoredPosition = new Vector2(120f, -90f);
+        rr.anchorMin = rr.anchorMax = new Vector2(0f, 0f);
+        rr.sizeDelta = new Vector2(26f, 26f);
+        rr.anchoredPosition = new Vector2(88f, 66f);
+        // corner brackets
+        for (int k = 0; k < 4; k++)
+        {
+            Vector2 corner = new Vector2(k % 2, k / 2);
+            Vector2 inward = new Vector2(corner.x < 0.5f ? 1f : -1f, corner.y < 0.5f ? 1f : -1f);
+            Image h = NewImage("CornerH" + k, picture, new Color(1f, 1f, 1f, 0.75f));
+            Image v = NewImage("CornerV" + k, picture, new Color(1f, 1f, 1f, 0.75f));
+            foreach (Image im in new[] { h, v })
+            {
+                RectTransform t = im.rectTransform;
+                t.anchorMin = t.anchorMax = corner; t.pivot = corner;
+                t.anchoredPosition = inward * 30f;
+            }
+            h.rectTransform.sizeDelta = new Vector2(70f, 4f);
+            v.rectTransform.sizeDelta = new Vector2(4f, 70f);
+        }
+
+        // the caption bar (scripted cuts)
+        captionBar = new GameObject("Caption", typeof(RectTransform));
+        captionBar.transform.SetParent(picture, false);
+        RectTransform cb = (RectTransform)captionBar.transform;
+        cb.anchorMin = cb.anchorMax = new Vector2(0.5f, 0f); cb.pivot = new Vector2(0.5f, 0f);
+        cb.anchoredPosition = new Vector2(0f, 120f); cb.sizeDelta = new Vector2(1000f, 76f);
+        Image cbi = captionBar.AddComponent<Image>(); cbi.color = new Color(0f, 0f, 0f, 0.78f); cbi.raycastTarget = false;
+        captionLabel = NewLabel("CaptionText", cb, new Vector2(0.5f, 0.5f), TextAlignmentOptions.Center, Vector2.zero);
+        captionLabel.rectTransform.sizeDelta = new Vector2(980f, 70f);
+        captionLabel.fontSize = 40f;
+        captionLabel.color = Color.white;
+        captionBar.SetActive(false);
+
+        // the tracking box
+        GameObject bx = new GameObject("Track", typeof(RectTransform));
+        bx.transform.SetParent(picture, false);
+        box = (RectTransform)bx.transform;
+        box.anchorMin = box.anchorMax = new Vector2(0.5f, 0.5f);
+        Image frame = bx.AddComponent<Image>();
+        frame.sprite = LundunHudArt.PanelRim; frame.type = Image.Type.Sliced; frame.pixelsPerUnitMultiplier = 1.4f;
+        frame.color = new Color(1f, 1f, 1f, 0.95f); frame.raycastTarget = false;
+        boxLabel = NewLabel("TrackLabel", box, new Vector2(0f, 1f), TextAlignmentOptions.BottomLeft, new Vector2(0f, 6f));
+        boxLabel.rectTransform.pivot = new Vector2(0f, 0f);
+        boxLabel.fontSize = 28f;
+        bx.SetActive(false);
     }
 
     void Labels(int cam, float hour)
     {
-        camLabel.text = "CAM " + (cam + 1).ToString("0000") + "   REC";
+        LundunCctv cctv = LundunCctv.Instance;
+        string kind = cctv != null && cam >= 0 && cam < cctv.Count && cctv[cam].kind == LundunCctv.Kind.Dome ? "PTZ" : "FIXED";
+        camLabel.text = "CAM " + (cam + 1).ToString("0000") + "  ·  " + kind;
+        Clock(hour);
+    }
+
+    void Clock(float hour)
+    {
         int secs = Mathf.FloorToInt(Mathf.Repeat(hour, 24f) * 3600f);
-        System.DateTime today = System.DateTime.Now;
-        clockLabel.text = today.ToString("dd-MM-yyyy") + "  " + (secs / 3600).ToString("00") + ":" + (secs / 60 % 60).ToString("00") + ":" + (secs % 60).ToString("00");
+        DateTime today = DateTime.Now;
+        clockLabel.text = "<mspace=0.55em>" + today.ToString("dd-MM-yyyy") + "  " + (secs / 3600).ToString("00") + ":" + (secs / 60 % 60).ToString("00") + ":" + (secs % 60).ToString("00") + "</mspace>";
         recDot.enabled = Mathf.Repeat(Time.unscaledTime, 1f) < 0.6f;
     }
 
@@ -279,15 +413,18 @@ public class LundunCctvFeed : MonoBehaviour
         GameObject g = new GameObject(name, typeof(RectTransform));
         g.transform.SetParent(parent, false);
         TextMeshProUGUI t = g.AddComponent<TextMeshProUGUI>();
-        t.fontSize = 38f;
-        t.color = new Color(0.92f, 0.96f, 0.92f, 0.95f);
+        t.fontSize = 32f;
+        t.color = new Color(0.95f, 0.97f, 1f, 0.95f);
         t.alignment = align;
         t.raycastTarget = false;
         t.textWrappingMode = TextWrappingModes.NoWrap;
+        t.richText = true;
+        t.outlineWidth = 0.18f;                                          // legible on bright footage, like a real OSD
+        t.outlineColor = new Color32(0, 0, 0, 200);
         RectTransform rt = t.rectTransform;
         rt.anchorMin = rt.anchorMax = corner;
         rt.pivot = corner;
-        rt.sizeDelta = new Vector2(900f, 60f);
+        rt.sizeDelta = new Vector2(900f, 50f);
         rt.anchoredPosition = offset;
         return t;
     }
@@ -297,4 +434,38 @@ public class LundunCctvFeed : MonoBehaviour
         rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
         rt.offsetMin = rt.offsetMax = Vector2.zero;
     }
+}
+
+/// Phase 5 (gate B): a mission step that cuts to a CCTV view (LundunCctvFeed.Scripted) and waits for it to finish.
+public class LundunFeedCut : LundunStep
+{
+    readonly Func<Vector3> lens, look, markAt;
+    readonly string camName, caption, markLabel;
+    readonly float seconds;
+    readonly LundunCctvFeed.Mark mark;
+    readonly Action after;
+    bool done;
+
+    public LundunFeedCut(Func<Vector3> lensAt, Func<Vector3> lookAt, string cam, string captionText, float secs,
+                         LundunCctvFeed.Mark marked = LundunCctvFeed.Mark.None, Func<Vector3> marker = null, string markText = null, Action then = null)
+    {
+        lens = lensAt; look = lookAt; camName = cam; caption = captionText; seconds = secs;
+        mark = marked; markAt = marker; markLabel = markText; after = then;
+    }
+
+    public override void Begin(LundunMissionRun run)
+    {
+        done = false;
+        if (LundunCctvFeed.Instance == null) { done = true; return; }
+        LundunCctvFeed.Instance.StartCoroutine(Play());
+    }
+
+    IEnumerator Play()
+    {
+        yield return LundunCctvFeed.Scripted(lens(), look, camName, caption, seconds, mark, markAt, markLabel);
+        done = true;
+        if (after != null) after();
+    }
+
+    public override bool Tick(LundunMissionRun run) { return done; }
 }

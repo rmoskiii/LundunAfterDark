@@ -50,6 +50,35 @@ public class LundunMissionRun
 
     public LundunMissionRun(LundunMission m, LundunDifficulty d) { mission = m; difficulty = d; }
 
+    // ------------------------------------------------------------------ Phase 5: optional objectives
+    /// Something extra a mission offers (KILL THE CAMERA, WIPE THE RECORDER...): shown under the objective, pays a
+    /// bonus when the mission's passed, and a mission's Medal() can ask whether it was done (OptionalDone).
+    public class Optional { public string id, label; public long bonus; public bool done; }
+    public readonly List<Optional> optionals = new List<Optional>();
+
+    /// Offer an optional objective for this attempt.
+    public Optional AddOptional(string id, string label, long bonus)
+    {
+        Optional o = optionals.Find(x => x.id == id);
+        if (o == null) { o = new Optional { id = id, label = label, bonus = bonus }; optionals.Add(o); }
+        return o;
+    }
+
+    /// Done (once): a toast with the bonus.
+    public void CompleteOptional(string id)
+    {
+        Optional o = optionals.Find(x => x.id == id);
+        if (o == null || o.done) return;
+        o.done = true;
+        LundunHaptics.Medium();
+        LundunMissions.Toast("OPTIONAL DONE\n" + o.label + (o.bonus > 0 ? "  +" + LundunWallet.Format(o.bonus) : ""));
+    }
+
+    public bool OptionalDone(string id) { Optional o = optionals.Find(x => x.id == id); return o != null && o.done; }
+
+    /// The bonus earned from optional objectives this attempt.
+    public long OptionalBonus { get { long b = 0; foreach (Optional o in optionals) if (o.done) b += o.bonus; return b; } }
+
     public LundunStep Current { get { return index >= 0 && index < steps.Count ? steps[index] : null; } }
     public float Elapsed { get { return Time.time - startedAt; } }
 

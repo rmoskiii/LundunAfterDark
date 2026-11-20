@@ -35,6 +35,7 @@ public partial class LundunStoryUI : MonoBehaviour
         if (GetComponent<LundunWardrobe>() == null) gameObject.AddComponent<LundunWardrobe>();      // Phase 3: WARDROBE at the safehouse doors (both modes)
         if (LundunGame.IsStory)
         {
+            LundunSuppressor.Ensure();                                                              // Phase 5: the suppressor on the pistol, once bought
             BuildMoney();
             if (GetComponent<LundunCrew>() == null) gameObject.AddComponent<LundunCrew>();          // S2 the crew
             if (GetComponent<LundunRobbery>() == null) gameObject.AddComponent<LundunRobbery>();    // S3 robbing tills
