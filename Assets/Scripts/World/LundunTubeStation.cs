@@ -247,15 +247,16 @@ public class LundunTubeStation : MonoBehaviour
         boardGo.SetActive(false); skipGo.SetActive(false);
         if (vehicles != null) vehicles.LockControls(true);
         if (hiss != null) sfx.PlayOneShot(hiss, 0.7f);
-        for (float t = 0f; t < 1f; t += Time.unscaledDeltaTime / 0.5f) { tube.Black(t); yield return null; }
-        tube.Black(1f);
-        // the ride: a moment in the dark, the train rattling along
+        // G6b: the ride plays on the Tube map: the train along the route, the pause at a change, ARRIVING
+        LundunTubeNetwork.Journey jn = tube.Journey(at, to);
+        LundunTubeMap map = tube.Map;
+        float total = jn != null && jn.Hops > 0 ? jn.RideSeconds : 3.5f;
+        if (map != null && jn != null && jn.Hops > 0) map.ShowRide(jn);
+        for (float t = 0f; t < 1f; t += Time.unscaledDeltaTime / 0.35f) { tube.Black(t); if (map != null) map.SetAlpha(t); yield return null; }
+        tube.Black(1f); if (map != null) map.SetAlpha(1f);
         if (trainAudio != null) trainAudio.Stop();
-        AudioClip ride = LundunTube.MakeRumble(3.6f);
+        AudioClip ride = LundunTube.MakeRumble(total + 0.4f);
         if (sfx != null && ride != null) sfx.PlayOneShot(ride, 0.9f);
-        LundunTubeNetwork.Journey jn = tube.Journey(at, to);              // G6: the line, and any change
-        captionText.text = "<size=60%>NEXT STOP</size>\n" + tube.Names[to] + (jn != null && jn.Hops > 0 ? "\n<size=45%>" + jn.Summary + "</size>" : "");
-        captionGo.SetActive(true);
         if (LundunClock.Instance != null) LundunClock.Instance.AddHours(minutes / 60f);
         ClearPeople();
         MoveTo(to);
@@ -265,13 +266,21 @@ public class LundunTubeStation : MonoBehaviour
         train.SetActive(true);
         train.transform.localPosition = Vector3.zero;
         Doors(true);
-        state = TrainState.Waiting; waitUntil = Time.time + 7f; nextBoard = Time.time + 7.5f;   // pulls out once he's off
+        state = TrainState.Waiting; waitUntil = Time.time + total + 4f; nextBoard = Time.time + total + 4.5f;   // pulls out once he's off
         Place(Local(Mathf.Round(Random.Range(-2f, 2f)) * 4.5f, -Drop + 0.05f, -27.6f), 0f);    // off the train, facing the way out
-        yield return new WaitForSecondsRealtime(3f);
-        captionGo.SetActive(false);
+        if (map != null && map.Showing) yield return map.Animate(jn, Mathf.Max(1f, total - 0.7f));
+        else
+        {
+            captionText.text = "<size=60%>NEXT STOP</size>\n" + tube.Names[to];
+            captionGo.SetActive(true);
+            yield return new WaitForSecondsRealtime(total - 0.7f);
+            captionGo.SetActive(false);
+        }
+        if (sfx != null) sfx.Stop();
         if (vehicles != null) vehicles.LockControls(false);
-        for (float t = 1f; t > 0f; t -= Time.unscaledDeltaTime / 0.5f) { tube.Black(t); yield return null; }
+        for (float t = 1f; t > 0f; t -= Time.unscaledDeltaTime / 0.35f) { tube.Black(t); if (map != null) map.SetAlpha(t); yield return null; }
         tube.Black(0f);
+        if (map != null) map.Hide();
         LundunMissions.Toast(tube.Names[to] + "\n" + minutes + " min on the Tube");
         busy = false;
     }

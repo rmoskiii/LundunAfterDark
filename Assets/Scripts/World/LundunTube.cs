@@ -35,6 +35,7 @@ public class LundunTube : MonoBehaviour
     private bool travelling;
     private LundunTubeStation station;                       // G5: the walk-through station
     private GameObject skipGo;
+    private LundunTubeMap map;                               // G6b: the Tube map (choosing a stop, and the ride)
     private float nextCheck;
 
     public Transform[] Markers { get { return markers; } }
@@ -48,7 +49,8 @@ public class LundunTube : MonoBehaviour
     public bool Travelling { get { return travelling; } }
     // G5: for the walk-through station
     public LundunTubeStation Station { get { return station; } }
-    public bool PanelOpen { get { return panel != null && panel.activeSelf; } }
+    public bool PanelOpen { get { return (panel != null && panel.activeSelf) || (map != null && map.Showing); } }
+    public LundunTubeMap Map { get { return map; } }
     public Quaternion Facing(int i) { return facing[i]; }
     /// G6: game minutes from a to b: by the lines (LundunTubeNetwork) when both are on them, else by the distance.
     public int Minutes(int a, int b)
@@ -68,7 +70,11 @@ public class LundunTube : MonoBehaviour
     /// The quick ride (fade, a few minutes, up the steps at `to`); atBlack runs once the screen's dark.
     public void QuickRide(int from, int to, int minutes, System.Action atBlack) { StartCoroutine(Ride(from, to, minutes, atBlack)); }
     /// The station list: chosen(to, minutes), or the quick ride if chosen is null. includeHere: "way out here" too.
-    public void Pick(int from, string subtitle, bool includeHere, System.Action<int, int> chosen) { ShowList(from, subtitle, includeHere, chosen); }
+    public void Pick(int from, string subtitle, bool includeHere, System.Action<int, int> chosen)
+    {
+        if (map != null) { promptGo.SetActive(false); if (skipGo != null) skipGo.SetActive(false); map.Choose(from, subtitle, includeHere, chosen); }
+        else ShowList(from, subtitle, includeHere, chosen);
+    }
     bool CanWalk() { return station != null && !LundunMissions.Running && ForcedTo == null; }
 
     public int Find(string stationName) { if (names != null) for (int i = 0; i < names.Length; i++) if (names[i] == stationName) return i; return -1; }
@@ -127,6 +133,8 @@ public class LundunTube : MonoBehaviour
         BuildUI();
         station = gameObject.AddComponent<LundunTubeStation>();     // G5
         station.tube = this;
+        map = gameObject.AddComponent<LundunTubeMap>();            // G6b
+        map.tube = this;
         rumble = MakeRumble(rideSeconds + 0.6f);
         audioSource = gameObject.AddComponent<AudioSource>();
         audioSource.playOnAwake = false;
@@ -160,7 +168,8 @@ public class LundunTube : MonoBehaviour
         }
         bool show = here >= 0;
         if (!show && panel.activeSelf) panel.SetActive(false);
-        promptGo.SetActive(show && !panel.activeSelf);
+        if (!show && map != null && map.Choosing) map.Hide();          // walked away from the steps
+        promptGo.SetActive(show && !PanelOpen);
         if (skipGo != null) skipGo.SetActive(false);
         if (show)
         {
@@ -175,7 +184,7 @@ public class LundunTube : MonoBehaviour
             bool walk = CanWalk();
             promptText.text = wanted ? "STATION CLOSED\n<size=70%>Police incident</size>" : "TAKE THE TUBE\n<size=70%>" + names[here] + (walk ? " · walk down" : "") + "</size>";
             promptButton.interactable = !wanted;
-            if (skipGo != null) skipGo.SetActive(walk && !wanted && !panel.activeSelf);    // G5: the old quick ride
+            if (skipGo != null) skipGo.SetActive(walk && !wanted && !PanelOpen);    // G5: the old quick ride
         }
     }
 
@@ -198,14 +207,16 @@ public class LundunTube : MonoBehaviour
             station.Enter(here);
             return;
         }
-        ShowList(here, "from " + names[here], false, null);
+        int fromHere = here;
+        Pick(fromHere, "from " + LundunTubeNetwork.Title(names[fromHere]) + " · where to?", false, (to, minutes) => StartCoroutine(Ride(fromHere, to, minutes)));
     }
 
     /// G5: SKIP at the top of the steps: the old quick ride.
     void OpenQuick()
     {
         if (here < 0) return;
-        ShowList(here, "from " + names[here] + " · quick ride", false, null);
+        int fromHere = here;
+        Pick(fromHere, "from " + LundunTubeNetwork.Title(names[fromHere]) + " · quick ride: where to?", false, (to, minutes) => StartCoroutine(Ride(fromHere, to, minutes)));
     }
 
     void ShowList(int from, string subtitle, bool includeHere, System.Action<int, int> chosen)
@@ -259,21 +270,40 @@ public class LundunTube : MonoBehaviour
         travelling = true;
         panel.SetActive(false);
         promptGo.SetActive(false);
+        if (skipGo != null) skipGo.SetActive(false);
         vehicles.LockControls(true);
+        // G6b: a ride on the lines plays on the Tube map (not a mission's follow-the-target ride, which stays quick)
+        LundunTubeNetwork.Journey jn = ForcedTo == null && from != to ? Journey(from, to) : null;
+        bool onMap = jn != null && jn.Hops > 0 && map != null;
+        if (onMap)
+        {
+            float total = jn.RideSeconds;
+            AudioClip clip = MakeRumble(total + 0.4f);
+            if (clip != null) audioSource.PlayOneShot(clip);
+            map.ShowRide(jn);
+            for (float t = 0f; t < 1f; t += Time.unscaledDeltaTime / 0.35f) { SetBlack(t); map.SetAlpha(t); yield return null; }
+            SetBlack(1f); map.SetAlpha(1f);
+            if (atBlack != null) { try { atBlack(); } catch (System.Exception e) { Debug.LogException(e); } }
+            PlaceAtTop(to);
+            if (LundunClock.Instance != null && minutes > 0) LundunClock.Instance.AddHours(minutes / 60f);
+            yield return map.Animate(jn, Mathf.Max(1f, total - 0.7f));
+            audioSource.Stop();
+            vehicles.LockControls(false);
+            if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(names[to] + "\n" + minutes + " min on the Tube");
+            for (float t = 1f; t > 0f; t -= Time.unscaledDeltaTime / 0.35f) { SetBlack(t); map.SetAlpha(t); yield return null; }
+            SetBlack(0f); map.Hide();
+            travelling = false;
+            nextCheck = Time.time + 1.5f;
+            if (Arrived != null) Arrived(names[to]);
+            yield break;
+        }
         if (rumble != null && to != from) audioSource.PlayOneShot(rumble);
 
         for (float t = 0f; t < 1f; t += Time.unscaledDeltaTime / 0.6f) { SetBlack(t); yield return null; }
         SetBlack(1f);
         if (atBlack != null) { try { atBlack(); } catch (System.Exception e) { Debug.LogException(e); } }   // G5: out of the station
 
-        // move James to the top of the other station's steps, a couple of metres out
-        Transform player = PlayerHealth.Instance.Body;
-        Vector3 outDir = facing[to] * Vector3.forward;
-        Vector3 pos = LundunPlaces.Ground(tops[to] + outDir * 2.5f) + Vector3.up * LundunPlaces.FeetOffset(player);
-        CharacterController cc = player.GetComponent<CharacterController>();
-        if (cc != null) cc.enabled = false;
-        player.SetPositionAndRotation(pos, facing[to]);
-        if (cc != null) cc.enabled = true;
+        PlaceAtTop(to);
         if (LundunClock.Instance != null && minutes > 0) LundunClock.Instance.AddHours(minutes / 60f);
 
         yield return new WaitForSecondsRealtime(to == from ? 0.3f : Mathf.Max(0.5f, rideSeconds - 1.2f));
@@ -284,6 +314,18 @@ public class LundunTube : MonoBehaviour
         travelling = false;
         nextCheck = Time.time + 1.5f;      // don't pop the button straight back up
         if (Arrived != null) Arrived(names[to]);
+    }
+
+    /// James at the top of station `to`'s steps, a couple of metres out, facing the street.
+    void PlaceAtTop(int to)
+    {
+        Transform player = PlayerHealth.Instance.Body;
+        Vector3 outDir = facing[to] * Vector3.forward;
+        Vector3 pos = LundunPlaces.Ground(tops[to] + outDir * 2.5f) + Vector3.up * LundunPlaces.FeetOffset(player);
+        CharacterController cc = player.GetComponent<CharacterController>();
+        if (cc != null) cc.enabled = false;
+        player.SetPositionAndRotation(pos, facing[to]);
+        if (cc != null) cc.enabled = true;
     }
 
     void SetBlack(float a)
