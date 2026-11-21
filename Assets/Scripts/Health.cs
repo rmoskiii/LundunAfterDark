@@ -36,6 +36,10 @@ public class Health : MonoBehaviour
     public bool Invulnerable { get; set; }
     /// R2: the killing blow was a gunshot (never launches the body; a strong one knocks it back instead).
     public bool KilledByGunfire { get; private set; }
+    /// G2: the gun the last shot came from (set by whoever fired it, just before the hit), and the killing blow's push
+    /// (which way it went): LundunDeaths picks the death from them.
+    public LundunWeapons.Kind? LastWeapon { get; set; }
+    public Vector3 DeathForce { get; private set; }
 
     void Awake()
     {
@@ -80,6 +84,7 @@ public class Health : MonoBehaviour
     void Die(Vector3 hitPoint, Vector3 force, bool gunfire)
     {
         KilledByGunfire = gunfire;
+        DeathForce = force;
         DiedFromPhysics = physicsDeath || (!gunfire && force.magnitude >= launchThreshold);
         Died?.Invoke();
 

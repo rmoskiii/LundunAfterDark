@@ -798,6 +798,6 @@ public class PoliceOfficer : MonoBehaviour
             foreach (Collider col in GetComponentsInChildren<Collider>())
                 col.enabled = false;
 
-        if (animator != null) animator.SetTrigger("Die");
+        if (animator != null) LundunDeaths.Play(animator, health, transform);      // G2: was always "Die"
     }
 }

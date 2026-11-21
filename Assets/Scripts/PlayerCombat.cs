@@ -239,6 +239,7 @@ public class PlayerCombat : MonoBehaviour
         float push = w.kind == LundunWeapons.Kind.Shotgun ? 2.2f : 1f;     // the shotgun knocks people back
         // R2: the shotgun knocks harder the more pellets hit (up close); and it's gunfire, so a kill never launches the body
         float share = w.pellets > 1 ? Mathf.Lerp(0.4f, 1f, Mathf.Clamp01(sh.pellets / (float)w.pellets)) : 1f;
+        health.LastWeapon = w.kind;                                          // G2: which death
         health.TakeDamage(sh.damage, sh.hit.point, dir * impactForce * push * share, true);
 
         if (health.GetComponent<NPCBrain>() != null)
@@ -454,6 +455,7 @@ public class PlayerCombat : MonoBehaviour
         if (health == null) return;
 
         bool wasAlive = !health.IsDead;
+        if (LundunWeapons.Instance != null) health.LastWeapon = LundunWeapons.Instance.Current.kind;   // G2
         health.TakeDamage(damage, hit.point, cam.forward * impactForce, true);
 
         if (wasAlive && health.GetComponent<NPCBrain>() != null)
