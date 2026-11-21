@@ -77,6 +77,71 @@ public class LundunTube : MonoBehaviour
     }
     bool CanWalk() { return station != null && !LundunMissions.Running && ForcedTo == null; }
 
+    // ------------------------------------------------------------------ G6c: from the full map, from anywhere
+    /// The station whose steps are within `within` metres of a spot (the full map's icons), or -1.
+    public int FindNear(Vector3 p, float within)
+    {
+        int best = -1; float bd = within * within;
+        if (tops != null) for (int i = 0; i < tops.Length; i++) { Vector3 d = tops[i] - p; d.y = 0f; if (d.sqrMagnitude < bd) { bd = d.sqrMagnitude; best = i; } }
+        return best;
+    }
+
+    /// The station nearest a spot (on the lines if possible), and how far it is.
+    public int Nearest(Vector3 p, out float metres)
+    {
+        int best = -1; metres = float.MaxValue;
+        if (tops == null) return -1;
+        for (int pass = 0; pass < 2 && best < 0; pass++)
+            for (int i = 0; i < tops.Length; i++)
+            {
+                if (pass == 0 && !LundunTubeNetwork.Known(names[i])) continue;
+                Vector3 d = tops[i] - p; d.y = 0f;
+                if (d.magnitude < metres) { metres = d.magnitude; best = i; }
+            }
+        return best;
+    }
+
+    /// Walking minutes for a distance (a steady walk: about 80 m a minute).
+    public static int WalkMinutes(float metres) { return Mathf.Max(1, Mathf.CeilToInt(metres / 80f)); }
+
+    /// Can James go by Tube from where he is now? (why not, if not)
+    public bool CanTravelFromHere(out string why)
+    {
+        why = null;
+        PlayerHealth ph = PlayerHealth.Instance;
+        if (names == null || names.Length == 0) why = "No Tube in this world";
+        else if (travelling || LundunTubeStation.Underground) why = "You're already on the Tube";
+        else if (ForcedTo != null || LundunMissions.Running) why = "Not during a job";
+        else if (WantedSystem.Instance != null && WantedSystem.Instance.Stars > 0) why = "Stations are closed: the police are after you";
+        else if (vehicles != null && vehicles.IsDriving) why = "Get out of the car first";
+        else if (VehicleSystem.Locked || ph == null || ph.IsDead) why = "Not right now";
+        return why == null;
+    }
+
+    /// Minutes from where James is to station `to`: a walk to the nearest station, then the Tube.
+    public int MinutesFromHere(int to, out int walk, out int via)
+    {
+        walk = 0; via = -1;
+        PlayerHealth ph = PlayerHealth.Instance;
+        if (ph == null || ph.Body == null || to < 0) return 0;
+        float m; via = Nearest(ph.Body.position, out m);
+        if (via < 0) return 0;
+        walk = WalkMinutes(m);
+        return walk + Minutes(via, to);
+    }
+
+    /// The full map's TAKE THE TUBE: walk to the nearest station (game time), then ride to `to` on the Tube map.
+    public bool TravelFromHere(int to)
+    {
+        string why;
+        if (!CanTravelFromHere(out why)) { if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(why); return false; }
+        int walk, via;
+        int minutes = MinutesFromHere(to, out walk, out via);
+        if (via < 0) return false;
+        StartCoroutine(Ride(via, to, minutes, null, walk));
+        return true;
+    }
+
     public int Find(string stationName) { if (names != null) for (int i = 0; i < names.Length; i++) if (names[i] == stationName) return i; return -1; }
     /// The top of a station's steps, and the way out onto the street.
     public Vector3 Top(int i) { return tops[i]; }
@@ -265,8 +330,10 @@ public class LundunTube : MonoBehaviour
         ((RectTransform)panel.transform).sizeDelta = new Vector2(two ? 900f : 760f, Mathf.Max(640f, 230f + rows * (two ? 96f : 108f)));   // room for every stop
     }
 
-    IEnumerator Ride(int from, int to, int minutes, System.Action atBlack = null)
+    IEnumerator Ride(int from, int to, int minutes, System.Action atBlack = null, int walkMinutes = 0)
     {
+        // G6c: from the full map, from anywhere: a walk to the nearest station first (in the minutes, and the toast)
+        string walkNote = walkMinutes > 0 ? walkMinutes + " min walk to " + LundunTubeNetwork.Title(names[from]) : null;
         travelling = true;
         panel.SetActive(false);
         promptGo.SetActive(false);
@@ -280,7 +347,7 @@ public class LundunTube : MonoBehaviour
             float total = jn.RideSeconds;
             AudioClip clip = MakeRumble(total + 0.4f);
             if (clip != null) audioSource.PlayOneShot(clip);
-            map.ShowRide(jn);
+            map.ShowRide(jn, walkNote);
             for (float t = 0f; t < 1f; t += Time.unscaledDeltaTime / 0.35f) { SetBlack(t); map.SetAlpha(t); yield return null; }
             SetBlack(1f); map.SetAlpha(1f);
             if (atBlack != null) { try { atBlack(); } catch (System.Exception e) { Debug.LogException(e); } }
@@ -289,7 +356,7 @@ public class LundunTube : MonoBehaviour
             yield return map.Animate(jn, Mathf.Max(1f, total - 0.7f));
             audioSource.Stop();
             vehicles.LockControls(false);
-            if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(names[to] + "\n" + minutes + " min on the Tube");
+            if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(names[to] + "\n" + (walkNote != null ? walkMinutes + " min walk + " + (minutes - walkMinutes) + " min on the Tube" : minutes + " min on the Tube"));
             for (float t = 1f; t > 0f; t -= Time.unscaledDeltaTime / 0.35f) { SetBlack(t); map.SetAlpha(t); yield return null; }
             SetBlack(0f); map.Hide();
             travelling = false;
@@ -308,7 +375,7 @@ public class LundunTube : MonoBehaviour
 
         yield return new WaitForSecondsRealtime(to == from ? 0.3f : Mathf.Max(0.5f, rideSeconds - 1.2f));
         vehicles.LockControls(false);
-        if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(minutes > 0 ? names[to] + "\n" + minutes + " min on the Tube" : names[to]);
+        if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(walkNote != null && from == to ? names[to] + "\n" + walkMinutes + " min walk" : minutes > 0 ? names[to] + "\n" + minutes + " min on the Tube" : names[to]);
         for (float t = 1f; t > 0f; t -= Time.unscaledDeltaTime / 0.6f) { SetBlack(t); yield return null; }
         SetBlack(0f);
         travelling = false;

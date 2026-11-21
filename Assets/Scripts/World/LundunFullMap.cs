@@ -17,6 +17,9 @@ using UnityEngine.UI;
 ///     once you zoom in; it always sits over the HUD (the minimap can't draw on top of it)
 ///   • E8: Greater Lundun round the playable city (the river across the middle, the outer boroughs and their names),
 ///     drawn behind the map picture; zooming right out shows all of it, top to bottom, without scrolling
+///   • G6c: the Tube's three lines in their colours (station to station), the stations always shown with their names
+///     once you zoom in a little; tapping one shows its lines, with SET ROUTE and TAKE THE TUBE (from anywhere: a walk
+///     to the nearest station, then the ride on the Tube map; game time passes)
 /// Built by Lundun → 6  Build Full Map + GPS (which fills in the fields below); the new look is made in code.
 public class LundunFullMap : MonoBehaviour
 {
@@ -108,6 +111,15 @@ public class LundunFullMap : MonoBehaviour
     static readonly string[] OpenSpaceNames = { "RYE COMMON", "QUAY FREIGHT", "LOUGHBOROUGH REC" };
     static readonly Vector2[] OpenSpaceAt = { new Vector2(1330f, 250f), new Vector2(1266f, 1076f), new Vector2(840f, -546f) };
     private readonly List<KeyValuePair<string, GameObject>> gangAreas = new List<KeyValuePair<string, GameObject>>();   // R4b
+
+    // G6c: the Tube's lines, the stations' names, and the card's second button
+    class TubeSeg { public RectTransform rt; public Vector3 a, b; }
+    private readonly List<TubeSeg> tubeSegs = new List<TubeSeg>();
+    private readonly List<TextMeshProUGUI> tubeLabels = new List<TextMeshProUGUI>();
+    private RectTransform tubeLayer, tubeButton;
+    private TextMeshProUGUI tubeButtonText;
+    [Tooltip("G6c: the Tube stations' names show once less than this many metres fit top-to-bottom")]
+    [SerializeField] private float tubeNamesBelow = 1100f;
 
     void Awake() { Instance = this; if (window != null) window.SetActive(false); }
 
@@ -289,9 +301,13 @@ public class LundunFullMap : MonoBehaviour
         foreach (Item it in items)
         {
             if (it.icon == null || System.Array.IndexOf(MinorKinds, it.kind) < 0) continue;
-            bool on = minor && ChipOn(it.kind);
+            bool on = (minor || it.kind == "tube") && ChipOn(it.kind);          // G6c: the Tube's stations always (with its lines)
             if (it.icon.gameObject.activeSelf != on) it.icon.gameObject.SetActive(on);
         }
+        bool tubeOn = ChipOn("tube");
+        if (tubeLayer != null && tubeLayer.gameObject.activeSelf != tubeOn) tubeLayer.gameObject.SetActive(tubeOn);
+        bool tubeNames = tubeOn && metresTall < tubeNamesBelow;
+        foreach (TextMeshProUGUI t in tubeLabels) if (t.gameObject.activeSelf != tubeNames) t.gameObject.SetActive(tubeNames);
         Declutter(streets);
 
         // selection ring and pin
@@ -327,9 +343,11 @@ public class LundunFullMap : MonoBehaviour
             SetCardIcon(selected.kind);
             cardButtonText.text = "SET ROUTE";
             cardButton.color = Purple;
+            TubeCard(me);
         }
         else if (hasWp)
         {
+            TubeCard(me);
             card.gameObject.SetActive(true);
             cardTitle.text = nav.WaypointName;
             cardSub.text = "Route  ·  " + Distance(nav.RouteMetres) + " by road";
@@ -337,7 +355,7 @@ public class LundunFullMap : MonoBehaviour
             cardButtonText.text = "CLEAR ROUTE";
             cardButton.color = new Color(1f, 1f, 1f, 0.16f);
         }
-        else card.gameObject.SetActive(false);
+        else { TubeCard(me); card.gameObject.SetActive(false); }
         if (routeInfo != null) routeInfo.text = hasWp ? "To: " + nav.WaypointName + "\n" + Distance(nav.RouteMetres) : "";
     }
 
@@ -354,6 +372,93 @@ public class LundunFullMap : MonoBehaviour
         else if (nav.HasWaypoint) nav.Clear();
         LundunHaptics.Medium();
         Refresh();
+    }
+
+    // ------------------------------------------------------------------ G6c: the Tube on the full map
+    /// The three lines, station to station, in their colours (under the icons and names), and the stations' names.
+    void BuildTubeLines()
+    {
+        LundunTube tube = LundunTube.Instance;
+        if (tube == null || tube.Names == null) return;
+        tubeLayer = Rect("TubeLines", content);
+        Stretch(tubeLayer);
+        tubeLayer.SetSiblingIndex(labelLayer != null ? labelLayer.GetSiblingIndex() : content.childCount - 1);   // over the picture, under the names
+        foreach (LundunTubeNetwork.Line line in LundunTubeNetwork.Lines)
+        {
+            // station to station along the line, skipping any that aren't built in this world
+            Vector3? prev = null;
+            foreach (string st in line.stops)
+            {
+                int i = tube.Find(st);
+                if (i < 0) continue;
+                Vector3 p = tube.Top(i);
+                if (prev.HasValue) TubeSegment(prev.Value, p, line.colour);
+                prev = p;
+            }
+        }
+        // the stations: any the full map doesn't have yet (Brixtun's, from its own expansion), and every name
+        for (int i = 0; i < tube.Names.Length; i++)
+        {
+            Vector3 p = tube.Top(i);
+            bool have = false;
+            foreach (Item it in items) if (it.kind == "tube" && Flat(it.pos - p) < 30f) { have = true; break; }
+            if (!have) AddItem("tube", LundunTubeNetwork.Title(tube.Names[i]) + " Station", p);
+            string lines = "";
+            foreach (int li in LundunTubeNetwork.LinesAt(tube.Names[i]))
+                lines += (lines.Length > 0 ? "  " : "") + "<color=#" + LundunTubeNetwork.Lines[li].Hex + ">" + LundunTubeNetwork.Lines[li].name + "</color>";
+            TextMeshProUGUI l = Label(labelLayer, LundunTubeNetwork.Title(tube.Names[i]) + (lines.Length > 0 ? "\n<size=72%>" + lines + "</size>" : ""), p, 19, new Color(1f, 1f, 1f, 0.92f));
+            l.richText = true;
+            l.rectTransform.anchoredPosition = new Vector2(0f, -34f);
+            l.gameObject.SetActive(false);
+            tubeLabels.Add(l);
+        }
+        ApplyZoom();
+    }
+
+    void TubeSegment(Vector3 a, Vector3 b, Color c)
+    {
+        RectTransform rt = Rect("Line", tubeLayer);
+        Anchor(rt, (a + b) * 0.5f);
+        Vector2 d = new Vector2(b.x - a.x, b.z - a.z);
+        rt.sizeDelta = new Vector2(d.magnitude * Mathf.Max(ppm, 0.0001f), 8f);
+        rt.localEulerAngles = new Vector3(0f, 0f, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
+        Image img = rt.gameObject.AddComponent<Image>();
+        c.a = 0.85f; img.color = c; img.raycastTarget = false;
+        tubeSegs.Add(new TubeSeg { rt = rt, a = a, b = b });
+    }
+
+    /// On a Tube station's card: its lines (instead of just "Lundun Underground") and TAKE THE TUBE.
+    void TubeCard(Vector3 me)
+    {
+        if (tubeButton == null) return;
+        LundunTube tube = LundunTube.Instance;
+        int i = selected != null && selected.kind == "tube" && tube != null ? tube.FindNear(selected.pos, 30f) : -1;
+        int walk = 0, via = -1, minutes = 0;
+        if (i >= 0) minutes = tube.MinutesFromHere(i, out walk, out via);
+        bool on = i >= 0 && via >= 0 && via != i;                  // it's your nearest station anyway: just SET ROUTE and walk
+        if (tubeButton.gameObject.activeSelf != on) tubeButton.gameObject.SetActive(on);
+        card.sizeDelta = new Vector2(on ? 1150f : 860f, 140f);
+        if (i < 0) return;
+        string lines = LundunTubeNetwork.LinesText(tube.Names[i]);
+        cardSub.text = (lines.Length > 0 ? lines : "Lundun Underground") + "  ·  " + Distance(Flat(selected.pos - me)) + " away" +
+                       (via == i ? "  ·  your nearest station" : "");
+        if (!on) return;
+        string why;
+        tubeButtonText.text = tube.CanTravelFromHere(out why) ? "TAKE THE TUBE  <size=75%>" + minutes + " min</size>" : "TAKE THE TUBE";
+    }
+
+    void TubeButton()
+    {
+        LundunTube tube = LundunTube.Instance;
+        if (tube == null || selected == null) return;
+        int i = tube.FindNear(selected.pos, 30f);
+        if (i < 0) return;
+        string why;
+        if (!tube.CanTravelFromHere(out why)) { if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(why); LundunHaptics.Light(); return; }
+        LundunHaptics.Medium();
+        selected = null;
+        Close();                                                                 // the game runs again, then the journey
+        tube.TravelFromHere(i);
     }
 
     static string Distance(float m) { return m >= 1000f ? (m / 1000f).ToString("0.0") + " km" : Mathf.Max(10, Mathf.RoundToInt(m / 10f) * 10) + " m"; }
@@ -479,6 +584,8 @@ public class LundunFullMap : MonoBehaviour
         LundunBikes bikes = LundunBikes.Instance;
         if (bikes != null && bikes.Markers != null)
             foreach (Transform t in bikes.Markers) if (t != null) AddItem("bike", "Lundun Cycles", t.position);
+
+        BuildTubeLines();
 
         // live icons (on top of the places)
         if (playerCar != null)
@@ -661,6 +768,17 @@ public class LundunFullMap : MonoBehaviour
         btn.gameObject.AddComponent<LundunPressFX>();
         cardButtonText = Text(btn, "SET ROUTE", 30, Color.white); Stretch(cardButtonText.rectTransform);
         cardButtonText.characterSpacing = 4f;
+        // G6c: TAKE THE TUBE, beside SET ROUTE (only on a Tube station's card)
+        tubeButton = Rect("TakeTheTube", card);
+        tubeButton.anchorMin = tubeButton.anchorMax = new Vector2(1f, 0.5f); tubeButton.pivot = new Vector2(1f, 0.5f);
+        tubeButton.anchoredPosition = new Vector2(-26f - 270f - 14f, 0f); tubeButton.sizeDelta = new Vector2(270f, 84f);
+        Image tbi = tubeButton.gameObject.AddComponent<Image>();
+        tbi.sprite = LundunHudArt.Pill; tbi.type = Image.Type.Sliced; tbi.pixelsPerUnitMultiplier = 0.76f; tbi.color = new Color(0.106f, 0.153f, 0.4f, 1f);
+        Button tb = tubeButton.gameObject.AddComponent<Button>(); tb.targetGraphic = tbi; tb.onClick.AddListener(TubeButton);
+        tubeButton.gameObject.AddComponent<LundunPressFX>();
+        tubeButtonText = Text(tubeButton, "TAKE THE TUBE", 24, Color.white); Stretch(tubeButtonText.rectTransform);
+        tubeButtonText.richText = true;
+        tubeButton.gameObject.SetActive(false);
         card.gameObject.SetActive(false);
     }
 
@@ -713,6 +831,7 @@ public class LundunFullMap : MonoBehaviour
         PlaceAll(districtLabels, half, 14f);
         PlaceAll(placeLabels, half, 10f);
         PlaceAll(itemLabels, half, 6f);
+        PlaceAll(tubeLabels, half, 6f);                                       // G6c
         PlaceAll(outerLabels, half, 14f);
         if (streets) PlaceAll(streetLabels, half, 4f);
     }
@@ -1017,6 +1136,11 @@ public class LundunFullMap : MonoBehaviour
     void ApplyZoom()
     {
         content.sizeDelta = new Vector2(mapWidth * ppm, mapHeight * ppm);
+        foreach (TubeSeg sg in tubeSegs)                                          // G6c: the lines keep their length on the map
+        {
+            Vector2 d = new Vector2(sg.b.x - sg.a.x, sg.b.z - sg.a.z);
+            sg.rt.sizeDelta = new Vector2(d.magnitude * ppm, sg.rt.sizeDelta.y);
+        }
         if (simpleRect != null)
         {
             Vector4 s = simpleArea;

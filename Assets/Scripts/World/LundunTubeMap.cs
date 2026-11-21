@@ -149,7 +149,7 @@ public class LundunTubeMap : MonoBehaviour
 
     // ================================================================== RIDE
     /// Puts the map up for a ride (call as the screen goes dark); SetAlpha fades it with the dark.
-    public void ShowRide(LundunTubeNetwork.Journey j)
+    public void ShowRide(LundunTubeNetwork.Journey j, string lead = null)
     {
         Build();
         chosen = null; skipRide = false;
@@ -160,7 +160,7 @@ public class LundunTubeMap : MonoBehaviour
         ShowHere(null);
         Highlight(j);
         title.text = "LUNDUN UNDERGROUND";
-        subtitle.text = j != null && j.Hops > 0 ? LundunTubeNetwork.Lines[j.hopLine[0]].name + " line · towards " + LundunTubeNetwork.Title(Towards(j, 0)) : "";
+        subtitle.text = (lead != null ? lead + " · then the " : "") + (j != null && j.Hops > 0 ? LundunTubeNetwork.Lines[j.hopLine[0]].name + " line · towards " + LundunTubeNetwork.Title(Towards(j, 0)) : "");
         trainMark.gameObject.SetActive(j != null && j.stops.Count > 0 && dots.ContainsKey(j.stops[0]));
         if (trainMark.gameObject.activeSelf) trainMark.anchoredPosition = dots[j.stops[0]].rt.anchoredPosition;
         rideNext.text = j != null && j.Hops > 0 ? "NEXT STOP  <color=#FFC72C>" + LundunTubeNetwork.Title(j.stops[1]) + "</color>" : "";
