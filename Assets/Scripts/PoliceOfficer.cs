@@ -96,10 +96,12 @@ public class PoliceOfficer : MonoBehaviour
             }
         }
         if (health != null) health.RefreshColour();
-        GameObject gun = LundunAngryDriver.GunModel;
-        if (gun == null || animator == null || !animator.isHuman) return;
+        if (animator == null || !animator.isHuman) return;
         Transform hand = animator.GetBoneTransform(HumanBodyBones.RightHand);
         if (hand == null) return;
+        if (Rifle(hand)) return;                                    // G1: a rifle (the carbine James can take off them)
+        GameObject gun = LundunAngryDriver.GunModel;                // (the old pistol, if the rifle couldn't be built)
+        if (gun == null) return;
         GameObject prop = Instantiate(gun, hand);
         prop.name = "OfficerGun";
         float s = transform.localScale.y; if (s < 0.0001f) s = 1f;
@@ -107,6 +109,78 @@ public class PoliceOfficer : MonoBehaviour
         prop.transform.localPosition = new Vector3(0.05f, 0.08f, 0.02f) / s;
         prop.transform.localRotation = Quaternion.Euler(0f, 90f, 90f);
         foreach (Collider c in prop.GetComponentsInChildren<Collider>()) Destroy(c);
+    }
+
+    // ------------------------------------------------------------------ G1 (how each officer goes about it)
+    /// Each officer has his own way: RUSHER takes up the chase at once and keeps moving (short bursts); STEADY is the
+    /// standard; CAUTIOUS holds back when he first takes up the chase (3–5.5 s: armed, standing off and firing;
+    /// unarmed, waiting) before he comes on. From 2★ they run at their own pace too: rushers at the tier's full speed,
+    /// the rest a little slower. Never faster than the tier's speed.
+    private enum Temper { Rusher, Steady, Cautious }
+    private Temper temper;
+    private float speedFactor = 1f, holdBackUntil = -1f;
+    private bool heldBack;
+    private State lastState = State.Patrol;
+
+    void PickTemper()
+    {
+        float r = Random.value;
+        temper = r < 0.35f ? Temper.Rusher : r < 0.75f ? Temper.Steady : Temper.Cautious;
+        speedFactor = temper == Temper.Rusher ? 1f : temper == Temper.Steady ? Random.Range(0.88f, 0.96f) : Random.Range(0.8f, 0.88f);
+    }
+
+    void Engage(int stars)
+    {
+        if (temper != Temper.Cautious || stars < 2 || heldBack) { holdBackUntil = -1f; return; }
+        heldBack = true;                                                    // once: after that he comes on like the rest
+        holdBackUntil = Time.time + Random.Range(3f, 5.5f);
+    }
+
+    /// His running speed: the tier's, or a little under it from 2★ (never over).
+    float RunSpeed(PoliceTiers.Tier tier, int stars)
+    {
+        return stars >= 2 ? tier.runSpeed * Mathf.Min(1f, speedFactor) : tier.runSpeed;
+    }
+
+    // ------------------------------------------------------------------ G1 (police rifles)
+    /// The end of his rifle (null if he hasn't one).
+    public Transform RifleMuzzle { get { return rifleMuzzle; } }
+    /// For a scene where he only stands and fires (M01's cold open): the armed look and rifle, and the aim pose.
+    public void ShowArmedForScene()
+    {
+        if (rifle == null) ArmedLook();
+        LundunAnim.Bool(animator, "Aim", true);
+    }
+    private GameObject rifle;
+    private Transform rifleMuzzle;
+    private AudioClip rifleShot;
+
+    /// The carbine model in his right hand: the barrel along his fingers, the top of the gun the way his thumb points,
+    /// so it sits right in any pose (carried low when he's walking, levelled when he aims). Worked out from his own
+    /// hand bones, so it fits whatever model he is. Returns false if it couldn't be made.
+    bool Rifle(Transform hand)
+    {
+        GameObject g = LundunGunModels.Build(LundunWeapons.Kind.Carbine);
+        if (g == null) return false;
+        Transform finger = animator.GetBoneTransform(HumanBodyBones.RightMiddleProximal);
+        Transform thumb = animator.GetBoneTransform(HumanBodyBones.RightThumbProximal);
+        Vector3 along = finger != null ? finger.position - hand.position : transform.forward;
+        if (along.sqrMagnitude < 0.0001f) along = transform.forward;
+        along.Normalize();
+        Vector3 up = thumb != null ? thumb.position - hand.position : transform.up;
+        up = Vector3.ProjectOnPlane(up, along);
+        if (up.sqrMagnitude < 0.0001f) up = Vector3.ProjectOnPlane(transform.up, along);
+        foreach (Collider c in g.GetComponentsInChildren<Collider>(true)) Destroy(c);
+        foreach (Renderer r in g.GetComponentsInChildren<Renderer>(true)) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        g.name = "OfficerRifle";
+        g.transform.SetPositionAndRotation(hand.position + along * 0.05f, Quaternion.LookRotation(along, up.normalized));
+        g.transform.SetParent(hand, true);
+        Vector3 ls = hand.lossyScale;
+        g.transform.localScale = new Vector3(1f / Mathf.Max(0.0001f, Mathf.Abs(ls.x)), 1f / Mathf.Max(0.0001f, Mathf.Abs(ls.y)), 1f / Mathf.Max(0.0001f, Mathf.Abs(ls.z)));
+        rifle = g;
+        rifleMuzzle = g.transform.Find("Muzzle");
+        rifleShot = LundunGunAudio.Shot(LundunWeapons.Kind.Carbine);
+        return true;
     }
 
     // ------------------------------------------------------------------ W1b: foot patrols
@@ -186,6 +260,7 @@ public class PoliceOfficer : MonoBehaviour
         audioSource.spatialBlend = 1f;
         audioSource.minDistance = 6f;
         audioSource.maxDistance = 100f;
+        PickTemper();
 
         if (tracerMaterial != null)
         {
@@ -282,6 +357,8 @@ public class PoliceOfficer : MonoBehaviour
         if (state != State.Chase && state != State.Search) holding = false;
         canSeeNow = canSee;
         Watchdog(target, wanted);
+        if (state == State.Chase && lastState != State.Chase) Engage(wanted.Stars);     // G1: each time he takes up the chase
+        lastState = state;
 
         // ---------- do it ----------
         switch (state)
@@ -305,14 +382,34 @@ public class PoliceOfficer : MonoBehaviour
             // R1: the shot was called off (out of range, out of sight, into a car): carry on chasing this frame
         }
 
+        // G1: a cautious one holds back first: armed, he stands off and fires; unarmed, he waits for backup a moment
+        if (Time.time < holdBackUntil && distance > closeRange && playerAlive)
+        {
+            bool inRange = Armed && stars >= starsToShoot && distance < shootRange && canSeeNow;
+            if (inRange || !Armed)
+            {
+                SetAim(inRange);
+                Stop();
+                FaceTowards(target.position);
+                if (inRange && Time.time >= nextShot && Time.time >= reactUntil)
+                {
+                    nextShot = Time.time + tier.timeBetweenShots * Random.Range(0.8f, 1.3f);
+                    FireAt(target, tier);
+                    LundunAnim.Trigger(animator, "Shoot");
+                }
+                debugNote = inRange ? "HOLD + FIRE" : "HOLD BACK";
+                return;
+            }
+        }
+
         bool shooting = Armed && stars >= starsToShoot && distance > closeRange && distance < shootRange && playerAlive && canSeeNow;
 
         // L2: fire and move: a burst standing still (2–3.5 s), then a second or so moving up, never rooted to one spot
         if (shooting && Time.time < advanceUntil) shooting = false;
         else if (shooting)
         {
-            if (standingSince < 0f) { standingSince = Time.time; burstFor = Random.Range(2f, 3.5f); }
-            if (Time.time - standingSince > burstFor) { advanceUntil = Time.time + Random.Range(1f, 1.6f); standingSince = -1f; shooting = false; }
+            if (standingSince < 0f) { standingSince = Time.time; burstFor = temper == Temper.Rusher ? Random.Range(1f, 1.8f) : Random.Range(2f, 3.5f); }
+            if (Time.time - standingSince > burstFor) { advanceUntil = Time.time + (temper == Temper.Rusher ? Random.Range(1.4f, 2.2f) : Random.Range(1f, 1.6f)); standingSince = -1f; shooting = false; }
         }
         else standingSince = -1f;
         if (!shooting && Time.time < advanceUntil) debugNote = "MOVE UP";
@@ -335,7 +432,7 @@ public class PoliceOfficer : MonoBehaviour
 
         // Run you down for the arrest
         agent.isStopped = false;
-        agent.speed = tier.runSpeed;
+        agent.speed = RunSpeed(tier, stars);
         agent.stoppingDistance = 1.2f;
         if (!HoldIfUnreachable(target.position))
         {
@@ -349,7 +446,7 @@ public class PoliceOfficer : MonoBehaviour
     void Search(Vector3 lastKnown, PoliceTiers.Tier tier)
     {
         agent.isStopped = false;
-        agent.speed = tier.runSpeed * 0.7f;
+        agent.speed = RunSpeed(tier, WantedSystem.Instance != null ? WantedSystem.Instance.Stars : 0) * 0.7f;
         agent.stoppingDistance = 1f;
         if (HoldIfUnreachable(lastKnown)) return;
         Repath(lastKnown, tier.repath);
@@ -586,6 +683,7 @@ public class PoliceOfficer : MonoBehaviour
     void FireAt(Transform target, PoliceTiers.Tier tier)
     {
         Vector3 from = transform.position + Vector3.up * 1.4f + transform.forward * 0.5f;
+        if (rifleMuzzle != null) from = rifleMuzzle.position;                       // G1: from the end of his rifle
         Vector3 aim = PoliceAim.Centre(target);
         float distance = Vector3.Distance(from, aim);
 
@@ -597,7 +695,14 @@ public class PoliceOfficer : MonoBehaviour
         // Hit or miss is rolled first; a hit lands unless a building is in the way (see PoliceAim)
         Vector3 end = PoliceAim.Fire(transform, from, target, chance, shootRange, tier.damage, damageToCar);
 
-        if (gunshot != null)
+        if (rifleShot != null)
+        {
+            // G1: a rifle's crack, and the flash at the muzzle
+            audioSource.pitch = Random.Range(0.96f, 1.04f);
+            audioSource.PlayOneShot(rifleShot, 0.75f);
+            if (rifleMuzzle != null) LundunCombatFX.Muzzle(rifleMuzzle, 0.8f, 1);
+        }
+        else if (gunshot != null)
         {
             audioSource.pitch = Random.Range(1.05f, 1.2f);     // a bit higher: pistol, not rifle
             audioSource.PlayOneShot(gunshot, 0.7f);
@@ -673,7 +778,13 @@ public class PoliceOfficer : MonoBehaviour
     void OnDied()
     {
         // G2: armed officers drop their carbine (with some ammo) for James to pick up
-        if (Armed) LundunPickup.Spawn(LundunWeapons.Kind.Carbine, 60, transform.position);
+        // G1 (rifles): it leaves his hands: the one on the ground is the one he was carrying
+        if (Armed)
+        {
+            Vector3 at = rifle != null ? rifle.transform.position : transform.position;
+            if (rifle != null) { Destroy(rifle); rifle = null; rifleMuzzle = null; }
+            LundunPickup.Spawn(LundunWeapons.Kind.Carbine, 60, at);
+        }
         state = State.Dead;
         CrimeSystem.Report(CrimeType.KillOfficer, transform.position);
         Active.Remove(this);

@@ -386,7 +386,16 @@ public class LundunColdOpen : LundunStep
         {
             PoliceOfficer po = Object.Instantiate(prefab, at, face);
             po.enabled = false;
+            po.ShowArmedForScene();                                             // G1: rifles up
             o = po.gameObject;
+            if (po.RifleMuzzle != null)
+            {
+                Still(o);
+                props.Add(o);
+                shooters.Add(po.RifleMuzzle);
+                aims.Add(target);
+                return;
+            }
         }
         else
         {
