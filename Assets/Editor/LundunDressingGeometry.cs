@@ -141,6 +141,7 @@ namespace LundunGreybox
         static DressAtlas A;
         static MeshData mSolid, mCut, mGlow;
         static Random drng;
+        static List<double[]> treeCrowns;           // G3: every tree Dress made: x, z, base, height, spread, twist
         static List<double[]> occ;          // x, z, radius of everything placed so far
         static List<LampInfo> lampList;
         static Dictionary<string, List<V2>> dpolys;
@@ -155,6 +156,7 @@ namespace LundunGreybox
             if (roads == null || W != world) throw new Exception("Call Generator.Build(world) first.");
             D = new DressingResult();
             drng = new Random(1812);
+            treeCrowns = new List<double[]>();      // G3: noted for the autumn (no random numbers drawn)
             occ = new List<double[]>();
             lampList = built.lamps;
             blds = built.buildings;
@@ -450,6 +452,7 @@ namespace LundunGreybox
             if (pit) SBox(mSolid, p, new V2(0, 1), 0.6, 0.6, baseY - 0.02, baseY + 0.005, S("pit"));
             Cyl(mSolid, p, 0.15, baseY, baseY + 2.8, 6, S("bark"), false);
             double y0 = baseY + 2.2, tw = drng.NextDouble();
+            if (treeCrowns != null) treeCrowns.Add(new[] { p.x, p.z, baseY, h, r, tw });   // G3: where it stands and its crown (for Lundun → 37)
             Band(mSolid, p, r * 0.55, y0, r, y0 + h * 0.35, 7, leaf, tw);
             Band(mSolid, p, r, y0 + h * 0.35, r * 0.85, y0 + h * 0.7, 7, leaf, tw);
             Band(mSolid, p, r * 0.85, y0 + h * 0.7, r * 0.35, y0 + h, 7, leaf, tw);

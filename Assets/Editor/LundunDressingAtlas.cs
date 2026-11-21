@@ -290,6 +290,50 @@ namespace LundunGreybox
             Clip(x, y, w, h);
         }
 
+        /// G3: fallen autumn leaves on a transparent tile (cut out like the chain-link): a drift (long, thick along one
+        /// edge, for gutters) or a patch (round, thinning out, for under trees). Its own random numbers.
+        public void LeafLitter(string name, int w, int h, bool drift, int seed)
+        {
+            int x, y; if (!AllocTail(name, w, h, out x, out y)) return;
+            Fill(x, y, w, h, new Col(0, 0, 0, 0));
+            Random r = new Random(seed);
+            Col[] cols = { Col.Hex("c9772b"), Col.Hex("a8481f"), Col.Hex("d9a93b"), Col.Hex("6b4a2a"), Col.Hex("8a6a2c"), Col.Hex("b86a24"), Col.Hex("7d3a18") };
+            int n = drift ? 340 : 240;
+            for (int k = 0; k < n; k++)
+            {
+                double u, v;
+                if (drift) { u = r.NextDouble(); v = Math.Pow(r.NextDouble(), 1.7); }       // piled along the bottom edge (the kerb)
+                else
+                {
+                    double a = r.NextDouble() * Math.PI * 2, d = Math.Pow(r.NextDouble(), 0.75) * 0.47;
+                    u = 0.5 + Math.Cos(a) * d; v = 0.5 + Math.Sin(a) * d;
+                }
+                double cx = x + 6 + u * (w - 12), cy = y + 6 + v * (h - 12);
+                double len = 6 + r.NextDouble() * 6, wid = len * (0.45 + r.NextDouble() * 0.2), rot = r.NextDouble() * Math.PI;
+                Col c = cols[r.Next(cols.Length)].Scale(0.85 + r.NextDouble() * 0.3);
+                Leaf(cx, cy, len, wid, rot, c);
+            }
+            Clip(x, y, w, h);
+        }
+
+        /// One leaf: a pointed oval, a darker vein down the middle.
+        void Leaf(double cx, double cy, double len, double wid, double rot, Col c)
+        {
+            double cs = Math.Cos(rot), sn = Math.Sin(rot);
+            int R = (int)Math.Ceiling(len) + 1;
+            for (int j = (int)cy - R; j <= (int)cy + R; j++)
+                for (int i = (int)cx - R; i <= (int)cx + R; i++)
+                {
+                    double dx = i + 0.5 - cx, dy = j + 0.5 - cy;
+                    double a = (dx * cs + dy * sn) / len, b = (-dx * sn + dy * cs) / wid;
+                    double edge = 1 - Math.Abs(a);                                    // pointed at both ends
+                    double d = b * b / Math.Max(0.05, edge * edge) + a * a;
+                    if (d > 1) continue;
+                    Col cc = Math.Abs(b) < 0.12 ? c.Scale(0.7) : c;
+                    Put(i, j, cc, Math.Min(1, (1 - d) * 4));
+                }
+        }
+
         /// Fully opaque or fully clear (alpha-tested material).
         void Clip(int x, int y, int w, int h)
         {
