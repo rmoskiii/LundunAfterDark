@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -49,7 +50,19 @@ public class LundunTube : MonoBehaviour
     public LundunTubeStation Station { get { return station; } }
     public bool PanelOpen { get { return panel != null && panel.activeSelf; } }
     public Quaternion Facing(int i) { return facing[i]; }
-    public int Minutes(int a, int b) { return a == b ? 0 : Mathf.RoundToInt(3f + Vector3.Distance(tops[a], tops[b]) / 1000f * minutesPerKm); }
+    /// G6: game minutes from a to b: by the lines (LundunTubeNetwork) when both are on them, else by the distance.
+    public int Minutes(int a, int b)
+    {
+        if (a == b) return 0;
+        LundunTubeNetwork.Journey j = Journey(a, b);
+        return j != null ? j.Minutes : Mathf.RoundToInt(3f + Vector3.Distance(tops[a], tops[b]) / 1000f * minutesPerKm);
+    }
+    /// G6: the trip from station a to b on the lines (null if either isn't on them).
+    public LundunTubeNetwork.Journey Journey(int a, int b)
+    {
+        if (names == null || a < 0 || b < 0 || a >= names.Length || b >= names.Length) return null;
+        return LundunTubeNetwork.Plan(names[a], names[b]);
+    }
     public void Black(float a) { SetBlack(a); }
     public void RaiseArrived(int to) { if (Arrived != null && to >= 0 && to < names.Length) Arrived(names[to]); }
     /// The quick ride (fade, a few minutes, up the steps at `to`); atBlack runs once the screen's dark.
@@ -173,7 +186,7 @@ public class LundunTube : MonoBehaviour
         int forced = ForcedTo != null ? Find(ForcedTo) : -1;
         if (forced >= 0 && forced != here)
         {
-            int minutes = Mathf.RoundToInt(3f + Vector3.Distance(tops[here], tops[forced]) / 1000f * minutesPerKm);
+            int minutes = Minutes(here, forced);
             StartCoroutine(Ride(here, forced, minutes));
             return;
         }
@@ -203,24 +216,42 @@ public class LundunTube : MonoBehaviour
         panelTitle.text = "LUNDUN UNDERGROUND\n<size=60%>" + subtitle + "</size>";
         Transform list = panel.transform.Find("List");
         for (int i = list.childCount - 1; i >= 0; i--) Destroy(list.GetChild(i).gameObject);
-        int rows = 1;
-        for (int i = 0; i < names.Length; i++)
+        // G6: nearest first (by the lines), each with its time and any change; two columns once there are lots
+        List<int> order = new List<int>();
+        for (int i = 0; i < names.Length; i++) if (i != from || includeHere) order.Add(i);
+        order.Sort((x, y) => Minutes(from, x) != Minutes(from, y) ? Minutes(from, x).CompareTo(Minutes(from, y)) : string.CompareOrdinal(names[x], names[y]));
+        bool two = order.Count > 6;
+        foreach (int i in order)
         {
-            if (i == from && !includeHere) continue;
             int to = i;
             int minutes = Minutes(from, to);
-            string label = to == from ? names[i] + "   <size=70%><color=#ffc72c>way out here</color></size>"
-                                      : names[i] + "   <size=70%><color=#ffc72c>" + minutes + " min</color></size>";
-            MakeButton(list, label, new Color(0.11f, 0.15f, 0.4f, 0.95f), () =>
+            string label;
+            if (to == from) label = names[i] + "\n<size=60%><color=#ffc72c>way out here</color></size>";
+            else
+            {
+                LundunTubeNetwork.Journey j = Journey(from, to);
+                string how = j != null && j.changes.Count > 0 ? " · change at " + LundunTubeNetwork.Title(j.changes[0]) + (j.changes.Count > 1 ? " +1" : "") : "";
+                label = names[i] + "\n<size=60%><color=#ffc72c>" + minutes + " min</color>" + how + "</size>";
+            }
+            Button b = MakeButton(list, label, new Color(0.11f, 0.15f, 0.4f, 0.95f), () =>
             {
                 panel.SetActive(false);
                 if (chosen != null) chosen(to, minutes);
                 else StartCoroutine(Ride(from, to, minutes));
             });
-            rows++;
+            b.GetComponentInChildren<TextMeshProUGUI>().fontSize = two ? 28 : 34;
         }
         MakeButton(list, "Cancel", new Color(0.25f, 0.25f, 0.25f, 0.9f), () => panel.SetActive(false));
-        ((RectTransform)panel.transform).sizeDelta = new Vector2(760f, Mathf.Max(640f, 230f + rows * 108f));   // room for every stop
+        int rows = two ? (order.Count + 2) / 2 : order.Count + 1;
+        GridLayoutGroup grid = list.GetComponent<GridLayoutGroup>();
+        if (grid != null)
+        {
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = two ? 2 : 1;
+            grid.cellSize = new Vector2(two ? 400f : 680f, two ? 82f : 92f);
+            grid.spacing = new Vector2(16f, two ? 14f : 16f);
+        }
+        ((RectTransform)panel.transform).sizeDelta = new Vector2(two ? 900f : 760f, Mathf.Max(640f, 230f + rows * (two ? 96f : 108f)));   // room for every stop
     }
 
     IEnumerator Ride(int from, int to, int minutes, System.Action atBlack = null)
@@ -313,8 +344,9 @@ public class LundunTube : MonoBehaviour
         RectTransform lrt = (RectTransform)list.transform;
         lrt.anchorMin = new Vector2(0f, 0f); lrt.anchorMax = new Vector2(1f, 1f);
         lrt.offsetMin = new Vector2(40f, 30f); lrt.offsetMax = new Vector2(-40f, -180f);
-        VerticalLayoutGroup v = list.AddComponent<VerticalLayoutGroup>();
-        v.spacing = 16f; v.childControlHeight = true; v.childControlWidth = true; v.childForceExpandHeight = false;
+        GridLayoutGroup v = list.AddComponent<GridLayoutGroup>();        // G6: one column, or two once there are lots of stops
+        v.spacing = new Vector2(16f, 16f); v.cellSize = new Vector2(680f, 92f); v.childAlignment = TextAnchor.UpperCenter;
+        v.constraint = GridLayoutGroup.Constraint.FixedColumnCount; v.constraintCount = 1;
         panel.SetActive(false);
 
         // blackout for the journey

@@ -96,6 +96,7 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
         if (reg != null)
             foreach (LundunMapRegistry.Entry e in reg.Entries)
             {
+                if (e.kind == "tube") continue;                            // G6: the Tube's own markers draw its stations (no doubles)
                 Transform t = reg.Marker(e.id);
                 if (t == null) continue;
                 string letter = LundunMapRegistry.Letter(e.kind);

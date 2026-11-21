@@ -35,7 +35,8 @@ public class LundunTubeStation : MonoBehaviour
     GameObject root, train, doorsShut, doorsOpen;
     Transform colliders;
     readonly List<TextMeshPro> nameSigns = new List<TextMeshPro>();
-    TextMeshPro dotMatrix;
+    TextMeshPro dotMatrix, linesSign;
+    string lineName = "All stations";                        // G6: the line(s) through this station
     class Gate { public Transform a, b; public float ax, bx, open; public Collider block; }
     readonly List<Gate> gates = new List<Gate>();
     readonly List<GameObject> people = new List<GameObject>();
@@ -220,8 +221,8 @@ public class LundunTubeStation : MonoBehaviour
             case TrainState.Leaving: first = "departing"; break;
             default: first = Mathf.Max(1, Mathf.CeilToInt((nextTrain - now + 7f) / 60f)) + " min"; break;
         }
-        return "<align=left>1  All stations<line-height=0>\n<align=right>" + first + "<line-height=1em>\n" +
-               "<align=left>2  All stations<line-height=0>\n<align=right>" + (state == TrainState.None ? "5 min" : "4 min") + "<line-height=1em>\n" +
+        return "<align=left>1  " + lineName + "<line-height=0>\n<align=right>" + first + "<line-height=1em>\n" +
+               "<align=left>2  " + lineName + "<line-height=0>\n<align=right>" + (state == TrainState.None ? "5 min" : "4 min") + "<line-height=1em>\n" +
                "<align=center>STAND BEHIND THE YELLOW LINE";
     }
 
@@ -252,7 +253,8 @@ public class LundunTubeStation : MonoBehaviour
         if (trainAudio != null) trainAudio.Stop();
         AudioClip ride = LundunTube.MakeRumble(3.6f);
         if (sfx != null && ride != null) sfx.PlayOneShot(ride, 0.9f);
-        captionText.text = "<size=60%>NEXT STOP</size>\n" + tube.Names[to];
+        LundunTubeNetwork.Journey jn = tube.Journey(at, to);              // G6: the line, and any change
+        captionText.text = "<size=60%>NEXT STOP</size>\n" + tube.Names[to] + (jn != null && jn.Hops > 0 ? "\n<size=45%>" + jn.Summary + "</size>" : "");
         captionGo.SetActive(true);
         if (LundunClock.Instance != null) LundunClock.Instance.AddHours(minutes / 60f);
         ClearPeople();
@@ -283,6 +285,10 @@ public class LundunTubeStation : MonoBehaviour
         root.transform.position = origin;
         string n = tube.Names[station];
         foreach (TextMeshPro t in nameSigns) if (t != null) t.text = n;
+        // G6: the line(s) through here, on the landing's sign and the next-train board
+        string lines = LundunTubeNetwork.LinesText(n);
+        lineName = lines.Length > 0 ? lines.Replace(" and ", " & ") : "All stations";
+        if (linesSign != null) linesSign.text = lines.Length > 0 ? lines : "Trains: All stations";
     }
 
     Vector3 Local(float x, float y, float z) { return origin + new Vector3(x, y, z); }
@@ -689,7 +695,7 @@ public class LundunTubeStation : MonoBehaviour
             Solid(new Vector3(s * 4.4f, -5.3f, -25.05f), new Vector3(0.2f, 2.2f, 1.3f));
         }
         k.Box(MNavy, new Vector3(0f, -Drop + 3.6f, lz), new Vector3(4.6f, 0.55f, 0.08f));
-        Words(root.transform, "Trains: All stations", new Vector3(0f, -Drop + 3.6f, lz + 0.05f), Quaternion.LookRotation(Vector3.back), new Vector2(4.2f, 0.38f), 2.8f, Color.white, TextAlignmentOptions.Center);
+        linesSign = Words(root.transform, "Trains: All stations", new Vector3(0f, -Drop + 3.6f, lz + 0.05f), Quaternion.LookRotation(Vector3.back), new Vector2(4.2f, 0.38f), 2.8f, Color.white, TextAlignmentOptions.Center);
         Words(root.transform, "Way out", new Vector3(0f, -Drop + 3.6f, lz - 0.05f), Quaternion.LookRotation(Vector3.forward), new Vector2(4.2f, 0.38f), 2.8f, Color.white, TextAlignmentOptions.Center);
     }
 
