@@ -7,6 +7,9 @@ using UnityEngine.UI;
 /// pick a station, the screen goes dark to the rumble of a train, a few minutes pass on the clock,
 /// and James comes up the steps at the other end. Closed while you're wanted.
 /// Added automatically by LundunDressing (the stations come from Lundun → 13). Builds its own little UI.
+/// G5: TAKE THE TUBE now walks you down into the station (LundunTubeStation: ticket hall, gates, escalators, the
+/// platform, the train). SKIP next to it is the old quick ride. A story mission, or a mission following someone
+/// (ForcedTo), still gets the quick ride.
 public class LundunTube : MonoBehaviour
 {
     public static LundunTube Instance { get; private set; }
@@ -29,6 +32,8 @@ public class LundunTube : MonoBehaviour
     private AudioClip rumble;
     private int here = -1;
     private bool travelling;
+    private LundunTubeStation station;                       // G5: the walk-through station
+    private GameObject skipGo;
     private float nextCheck;
 
     public Transform[] Markers { get { return markers; } }
@@ -40,6 +45,19 @@ public class LundunTube : MonoBehaviour
     /// S5: James came up at this station (its name), each time he rides.
     public static event System.Action<string> Arrived;
     public bool Travelling { get { return travelling; } }
+    // G5: for the walk-through station
+    public LundunTubeStation Station { get { return station; } }
+    public bool PanelOpen { get { return panel != null && panel.activeSelf; } }
+    public Quaternion Facing(int i) { return facing[i]; }
+    public int Minutes(int a, int b) { return a == b ? 0 : Mathf.RoundToInt(3f + Vector3.Distance(tops[a], tops[b]) / 1000f * minutesPerKm); }
+    public void Black(float a) { SetBlack(a); }
+    public void RaiseArrived(int to) { if (Arrived != null && to >= 0 && to < names.Length) Arrived(names[to]); }
+    /// The quick ride (fade, a few minutes, up the steps at `to`); atBlack runs once the screen's dark.
+    public void QuickRide(int from, int to, int minutes, System.Action atBlack) { StartCoroutine(Ride(from, to, minutes, atBlack)); }
+    /// The station list: chosen(to, minutes), or the quick ride if chosen is null. includeHere: "way out here" too.
+    public void Pick(int from, string subtitle, bool includeHere, System.Action<int, int> chosen) { ShowList(from, subtitle, includeHere, chosen); }
+    bool CanWalk() { return station != null && !LundunMissions.Running && ForcedTo == null; }
+
     public int Find(string stationName) { if (names != null) for (int i = 0; i < names.Length; i++) if (names[i] == stationName) return i; return -1; }
     /// The top of a station's steps, and the way out onto the street.
     public Vector3 Top(int i) { return tops[i]; }
@@ -94,6 +112,8 @@ public class LundunTube : MonoBehaviour
     {
         vehicles = FindAnyObjectByType<VehicleSystem>();
         BuildUI();
+        station = gameObject.AddComponent<LundunTubeStation>();     // G5
+        station.tube = this;
         rumble = MakeRumble(rideSeconds + 0.6f);
         audioSource = gameObject.AddComponent<AudioSource>();
         audioSource.playOnAwake = false;
@@ -103,7 +123,15 @@ public class LundunTube : MonoBehaviour
 
     void Update()
     {
-        if (names == null || travelling || Time.time < nextCheck) return;
+        if (names == null) return;
+        if (LundunTubeStation.Underground)                        // G5: down in the station: it runs its own buttons
+        {
+            here = -1;
+            if (promptGo.activeSelf) promptGo.SetActive(false);
+            if (skipGo != null && skipGo.activeSelf) skipGo.SetActive(false);
+            return;
+        }
+        if (travelling || Time.time < nextCheck) return;
         nextCheck = Time.time + 0.2f;
         here = -1;
         PlayerHealth ph = PlayerHealth.Instance;
@@ -120,6 +148,7 @@ public class LundunTube : MonoBehaviour
         bool show = here >= 0;
         if (!show && panel.activeSelf) panel.SetActive(false);
         promptGo.SetActive(show && !panel.activeSelf);
+        if (skipGo != null) skipGo.SetActive(false);
         if (show)
         {
             bool wanted = WantedSystem.Instance != null && WantedSystem.Instance.Stars > 0;
@@ -130,8 +159,10 @@ public class LundunTube : MonoBehaviour
                 promptButton.interactable = true;
                 return;
             }
-            promptText.text = wanted ? "STATION CLOSED\n<size=70%>Police incident</size>" : "TAKE THE TUBE\n<size=70%>" + names[here] + "</size>";
+            bool walk = CanWalk();
+            promptText.text = wanted ? "STATION CLOSED\n<size=70%>Police incident</size>" : "TAKE THE TUBE\n<size=70%>" + names[here] + (walk ? " · walk down" : "") + "</size>";
             promptButton.interactable = !wanted;
+            if (skipGo != null) skipGo.SetActive(walk && !wanted && !panel.activeSelf);    // G5: the old quick ride
         }
     }
 
@@ -146,32 +177,63 @@ public class LundunTube : MonoBehaviour
             StartCoroutine(Ride(here, forced, minutes));
             return;
         }
-        panel.SetActive(true);
-        promptGo.SetActive(false);
-        panelTitle.text = "LUNDUN UNDERGROUND\n<size=60%>from " + names[here] + "</size>";
-        Transform list = panel.transform.Find("List");
-        for (int i = list.childCount - 1; i >= 0; i--) Destroy(list.GetChild(i).gameObject);
-        for (int i = 0; i < names.Length; i++)
+        bool wanted = WantedSystem.Instance != null && WantedSystem.Instance.Stars > 0;
+        if (CanWalk() && !wanted)                                  // G5: down the steps into the station
         {
-            if (i == here) continue;
-            int to = i;
-            float km = Vector3.Distance(tops[here], tops[to]) / 1000f;
-            int minutes = Mathf.RoundToInt(3f + km * minutesPerKm);
-            MakeButton(list, names[i] + "   <size=70%><color=#ffc72c>" + minutes + " min</color></size>", new Color(0.11f, 0.15f, 0.4f, 0.95f), () => StartCoroutine(Ride(here, to, minutes)));
+            promptGo.SetActive(false);
+            if (skipGo != null) skipGo.SetActive(false);
+            station.Enter(here);
+            return;
         }
-        MakeButton(list, "Cancel", new Color(0.25f, 0.25f, 0.25f, 0.9f), () => panel.SetActive(false));
+        ShowList(here, "from " + names[here], false, null);
     }
 
-    IEnumerator Ride(int from, int to, int minutes)
+    /// G5: SKIP at the top of the steps: the old quick ride.
+    void OpenQuick()
+    {
+        if (here < 0) return;
+        ShowList(here, "from " + names[here] + " · quick ride", false, null);
+    }
+
+    void ShowList(int from, string subtitle, bool includeHere, System.Action<int, int> chosen)
+    {
+        panel.SetActive(true);
+        promptGo.SetActive(false);
+        if (skipGo != null) skipGo.SetActive(false);
+        panelTitle.text = "LUNDUN UNDERGROUND\n<size=60%>" + subtitle + "</size>";
+        Transform list = panel.transform.Find("List");
+        for (int i = list.childCount - 1; i >= 0; i--) Destroy(list.GetChild(i).gameObject);
+        int rows = 1;
+        for (int i = 0; i < names.Length; i++)
+        {
+            if (i == from && !includeHere) continue;
+            int to = i;
+            int minutes = Minutes(from, to);
+            string label = to == from ? names[i] + "   <size=70%><color=#ffc72c>way out here</color></size>"
+                                      : names[i] + "   <size=70%><color=#ffc72c>" + minutes + " min</color></size>";
+            MakeButton(list, label, new Color(0.11f, 0.15f, 0.4f, 0.95f), () =>
+            {
+                panel.SetActive(false);
+                if (chosen != null) chosen(to, minutes);
+                else StartCoroutine(Ride(from, to, minutes));
+            });
+            rows++;
+        }
+        MakeButton(list, "Cancel", new Color(0.25f, 0.25f, 0.25f, 0.9f), () => panel.SetActive(false));
+        ((RectTransform)panel.transform).sizeDelta = new Vector2(760f, Mathf.Max(640f, 230f + rows * 108f));   // room for every stop
+    }
+
+    IEnumerator Ride(int from, int to, int minutes, System.Action atBlack = null)
     {
         travelling = true;
         panel.SetActive(false);
         promptGo.SetActive(false);
         vehicles.LockControls(true);
-        if (rumble != null) audioSource.PlayOneShot(rumble);
+        if (rumble != null && to != from) audioSource.PlayOneShot(rumble);
 
         for (float t = 0f; t < 1f; t += Time.unscaledDeltaTime / 0.6f) { SetBlack(t); yield return null; }
         SetBlack(1f);
+        if (atBlack != null) { try { atBlack(); } catch (System.Exception e) { Debug.LogException(e); } }   // G5: out of the station
 
         // move James to the top of the other station's steps, a couple of metres out
         Transform player = PlayerHealth.Instance.Body;
@@ -181,11 +243,11 @@ public class LundunTube : MonoBehaviour
         if (cc != null) cc.enabled = false;
         player.SetPositionAndRotation(pos, facing[to]);
         if (cc != null) cc.enabled = true;
-        if (LundunClock.Instance != null) LundunClock.Instance.AddHours(minutes / 60f);
+        if (LundunClock.Instance != null && minutes > 0) LundunClock.Instance.AddHours(minutes / 60f);
 
-        yield return new WaitForSecondsRealtime(Mathf.Max(0.5f, rideSeconds - 1.2f));
+        yield return new WaitForSecondsRealtime(to == from ? 0.3f : Mathf.Max(0.5f, rideSeconds - 1.2f));
         vehicles.LockControls(false);
-        if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(names[to] + "\n" + minutes + " min on the Tube");
+        if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(minutes > 0 ? names[to] + "\n" + minutes + " min on the Tube" : names[to]);
         for (float t = 1f; t > 0f; t -= Time.unscaledDeltaTime / 0.6f) { SetBlack(t); yield return null; }
         SetBlack(0f);
         travelling = false;
@@ -223,6 +285,16 @@ public class LundunTube : MonoBehaviour
         promptButton = promptGo.GetComponent<Button>();
         promptText = promptGo.GetComponentInChildren<TextMeshProUGUI>();
         promptGo.SetActive(false);
+
+        // G5: SKIP, under TAKE THE TUBE: the old quick ride
+        skipGo = MakeButton(cg.transform, "SKIP  <size=70%>quick ride</size>", new Color(0.2f, 0.2f, 0.24f, 0.92f), OpenQuick).gameObject;
+        RectTransform skt = (RectTransform)skipGo.transform;
+        skt.anchorMin = skt.anchorMax = new Vector2(0.5f, 0f);
+        skt.pivot = new Vector2(0.5f, 0f);
+        skt.anchoredPosition = new Vector2(0f, 130f);
+        skt.sizeDelta = new Vector2(300f, 84f);
+        skipGo.GetComponentInChildren<TextMeshProUGUI>().fontSize = 30;
+        skipGo.SetActive(false);
 
         // station list
         panel = new GameObject("TubePanel", typeof(RectTransform));
@@ -278,7 +350,7 @@ public class LundunTube : MonoBehaviour
     }
 
     // ------------------------------------------------------------------ the sound of a train (made in code)
-    static AudioClip MakeRumble(float seconds)
+    public static AudioClip MakeRumble(float seconds)
     {
         int rate = 22050, n = (int)(seconds * rate);
         float[] s = new float[n];

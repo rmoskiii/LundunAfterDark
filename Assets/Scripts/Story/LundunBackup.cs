@@ -65,7 +65,7 @@ public class LundunBackup : MonoBehaviour
         if (d == null || !d.flags.Contains(Flag) || LundunMissions.Running || Active) return false;
         if (LundunDay.DoneToday("backup")) return false;
         PlayerHealth ph = PlayerHealth.Instance;
-        return ph != null && !ph.IsDead && ph.OnFoot && !VehicleSystem.Locked && !LundunArches.Inside && !LundunPubs.InsidePub;
+        return ph != null && !ph.IsDead && ph.OnFoot && !VehicleSystem.Locked && !LundunArches.Inside && !LundunPubs.InsidePub && !LundunTubeStation.Underground;
     }
 
     /// The police after him, or someone going for him close by.
