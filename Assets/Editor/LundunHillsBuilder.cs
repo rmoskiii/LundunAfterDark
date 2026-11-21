@@ -143,7 +143,7 @@ public static class LundunHillsBuilder
     static int Bend(HillGrid hill, LundunHillRecord rec, GameObject root, List<string> skipped)
     {
         // every mesh (drawn, or only a collider) over the rising ground that's too big to lift whole
-        Dictionary<string, Job> jobs = new Dictionary<string, Job>();
+        Dictionary<(Mesh, Transform), Job> jobs = new Dictionary<(Mesh, Transform), Job>();
         foreach (MeshFilter mf in Object.FindObjectsByType<MeshFilter>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
             if (mf.sharedMesh == null || Excluded(mf.transform)) continue;
@@ -186,11 +186,10 @@ public static class LundunHillsBuilder
         return tris;
     }
 
-    static Job JobFor(Dictionary<string, Job> jobs, Mesh m, Transform t)
+    static Job JobFor(Dictionary<(Mesh, Transform), Job> jobs, Mesh m, Transform t)
     {
-        string key = m.GetInstanceID() + "/" + t.GetInstanceID();
         Job j;
-        if (!jobs.TryGetValue(key, out j)) jobs[key] = j = new Job { src = m, t = t };
+        if (!jobs.TryGetValue((m, t), out j)) jobs[(m, t)] = j = new Job { src = m, t = t };
         return j;
     }
 
