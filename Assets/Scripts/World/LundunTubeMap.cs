@@ -75,6 +75,9 @@ public class LundunTubeMap : MonoBehaviour
         Refresh();
         ShowHere(from >= 0 && from < tube.Names.Length ? tube.Names[from] : null);
         Select(null);
+        // G6d: going somewhere by Tube on the GPS: its stop's picked already (RIDE and go)
+        LundunNavigation nav = LundunNavigation.Instance;
+        if (nav != null && nav.ViaTube && nav.TubeTo >= 0 && nav.TubeTo < tube.Names.Length && nav.TubeTo != from) Select(tube.Names[nav.TubeTo]);
     }
 
     public void Hide()

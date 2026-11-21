@@ -5,6 +5,8 @@ using UnityEngine;
 /// GPS: holds the current waypoint, keeps a route to it along the roads (re-planned every half second,
 /// so a wrong turn just re-routes), shows the waypoint beam in the world and says "Arrived".
 /// Missions can call LundunNavigation.Instance.SetDestination(position, "name") later.
+/// G6d: a route can go by Tube (SetViaTube): the GPS takes you to the station's steps first ("then the Tube to …"),
+/// and once you come up at the other end it re-routes to where you were going. Any other route replaces it.
 public class LundunNavigation : MonoBehaviour
 {
     public static LundunNavigation Instance { get; private set; }
@@ -29,6 +31,15 @@ public class LundunNavigation : MonoBehaviour
     public List<Destination> Destinations { get; private set; }
     public LundunWorldData World { get; private set; }
     public LundunRoadGraph Graph { get { return graph; } }
+
+    // G6d: a route by Tube: walk to `TubeFrom`'s steps, ride to `TubeTo`, then on to the final place
+    public bool ViaTube { get; private set; }
+    public int TubeFrom { get; private set; }
+    public int TubeTo { get; private set; }
+    public string FinalName { get; private set; }
+    public LundunTube.TripAdvice TubeAdvice { get; private set; }
+    private Vector3 finalPos;
+    private bool settingTube, toldBoard;
 
     private LundunRoadGraph graph;
     private VehicleSystem vehicles;
@@ -78,13 +89,53 @@ public class LundunNavigation : MonoBehaviour
         return b.ToString();
     }
 
-    void Start() { vehicles = FindAnyObjectByType<VehicleSystem>(); }
+    void Start()
+    {
+        vehicles = FindAnyObjectByType<VehicleSystem>();
+        // G6d: every Tube station in PLACES and the GPS, the expansions' too (the Tube has them all by now)
+        LundunTube tube = LundunTube.Instance;
+        if (tube != null && tube.Names != null && Destinations != null)
+            for (int i = 0; i < tube.Names.Length; i++)
+            {
+                Vector3 p = tube.Top(i);
+                bool have = false;
+                foreach (Destination d in Destinations)
+                    if (d.kind == "tube" && new Vector2(d.position.x - p.x, d.position.z - p.z).sqrMagnitude < 30f * 30f) { have = true; break; }
+                if (!have) Destinations.Add(new Destination { id = "TUBE_ALL_" + i, name = TitleCase(tube.Names[i]) + " Station", kind = "tube", position = new Vector3(p.x, 0f, p.z) });
+            }
+    }
+
+    void OnEnable() { LundunTube.Arrived += TubeArrived; }
+    void OnDisable() { LundunTube.Arrived -= TubeArrived; }
+
+    /// G6d: route by Tube: to the steps of advice.from first; after the ride, on to `position`.
+    public void SetViaTube(LundunTube.TripAdvice advice, Vector3 position, string name)
+    {
+        LundunTube tube = LundunTube.Instance;
+        if (tube == null || advice == null || !advice.HasTube) { SetDestination(position, name); return; }
+        settingTube = true;
+        SetDestination(tube.Top(advice.from), TitleCase(tube.Names[advice.from]) + " Station  (Tube to " + TitleCase(tube.Names[advice.to]) + ")");
+        settingTube = false;
+        ViaTube = true; toldBoard = false;
+        TubeFrom = advice.from; TubeTo = advice.to; TubeAdvice = advice;
+        finalPos = position; FinalName = string.IsNullOrEmpty(name) ? "Waypoint" : name;
+    }
+
+    /// G6d: up the steps after a ride: if we were going by Tube, on to the final place (whichever stop it was).
+    void TubeArrived(string station)
+    {
+        if (!ViaTube) return;
+        ViaTube = false;
+        SetDestination(finalPos, FinalName);
+        ShowToast("Route: on to " + FinalName);
+    }
 
     /// Sets the waypoint. snapToRoad = move it onto the nearest road (used for taps on the map).
     public void SetDestination(Vector3 position, string name, bool snapToRoad = false)
     {
         if (graph == null) return;
         if (!settingStraight) Straight = false;
+        if (!settingTube) ViaTube = false;                                // G6d: any other route replaces the Tube one
         if (snapToRoad)
         {
             int e; double t, d;
@@ -116,6 +167,7 @@ public class LundunNavigation : MonoBehaviour
     public void Clear()
     {
         Straight = false;
+        ViaTube = false;
         HasWaypoint = false;
         Route.Clear();
         RouteMetres = 0f;
@@ -130,6 +182,13 @@ public class LundunNavigation : MonoBehaviour
 
         Vector3 me = vehicles.PlayerTarget.position;
         Vector2 flat = new Vector2(me.x - Waypoint.x, me.z - Waypoint.z);
+        if (flat.magnitude < arriveDistance && ViaTube)
+        {
+            // G6d: at the station: the route waits for the ride
+            if (!toldBoard) { toldBoard = true; ShowToast("Take the Tube to " + TitleCase(LundunTube.Instance != null ? LundunTube.Instance.Names[TubeTo] : "") ); }
+            if (Time.unscaledTime >= nextPlan) Plan();
+            return;
+        }
         if (flat.magnitude < arriveDistance)
         {
             ShowToast("Arrived: " + WaypointName);

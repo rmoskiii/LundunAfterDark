@@ -118,6 +118,10 @@ public class LundunFullMap : MonoBehaviour
     private readonly List<TextMeshProUGUI> tubeLabels = new List<TextMeshProUGUI>();
     private RectTransform tubeLayer, tubeButton;
     private TextMeshProUGUI tubeButtonText;
+    // G6d: the GPS's comparison for the selected place (worked out once per selection: the map's paused)
+    private Item adviceFor;
+    private Vector3 adviceAt;
+    private LundunTube.TripAdvice advice;
     [Tooltip("G6c: the Tube stations' names show once less than this many metres fit top-to-bottom")]
     [SerializeField] private float tubeNamesBelow = 1100f;
 
@@ -349,8 +353,10 @@ public class LundunFullMap : MonoBehaviour
         {
             TubeCard(me);
             card.gameObject.SetActive(true);
-            cardTitle.text = nav.WaypointName;
-            cardSub.text = "Route  ·  " + Distance(nav.RouteMetres) + " by road";
+            cardTitle.text = nav.ViaTube ? nav.FinalName : nav.WaypointName;
+            cardSub.text = nav.ViaTube && nav.TubeAdvice != null && LundunTube.Instance != null
+                ? "Via Tube from " + LundunTubeNetwork.Title(LundunTube.Instance.Names[nav.TubeFrom]) + "  ·  " + nav.TubeAdvice.TubeTotal + " min"   // G6d
+                : "Route  ·  " + Distance(nav.RouteMetres) + " by road";
             SetCardIcon("route");
             cardButtonText.text = "CLEAR ROUTE";
             cardButton.color = new Color(1f, 1f, 1f, 0.16f);
@@ -433,6 +439,7 @@ public class LundunFullMap : MonoBehaviour
         if (tubeButton == null) return;
         LundunTube tube = LundunTube.Instance;
         int i = selected != null && selected.kind == "tube" && tube != null ? tube.FindNear(selected.pos, 30f) : -1;
+        if (i < 0) { AdviceCard(me); return; }                    // G6d: any other place: walk (or drive) or the Tube?
         int walk = 0, via = -1, minutes = 0;
         if (i >= 0) minutes = tube.MinutesFromHere(i, out walk, out via);
         bool on = i >= 0 && via >= 0 && via != i;                  // it's your nearest station anyway: just SET ROUTE and walk
@@ -447,12 +454,46 @@ public class LundunFullMap : MonoBehaviour
         tubeButtonText.text = tube.CanTravelFromHere(out why) ? "TAKE THE TUBE  <size=75%>" + minutes + " min</size>" : "TAKE THE TUBE";
     }
 
+    /// G6d: on any place's card: how long walking (or driving) takes against the Tube, and VIA TUBE when it's quicker.
+    void AdviceCard(Vector3 me)
+    {
+        LundunTube tube = LundunTube.Instance;
+        bool on = false;
+        if (selected != null && tube != null && Flat(selected.pos - me) > 250f)
+        {
+            if (adviceFor != selected || Flat(adviceAt - selected.pos) > 1f)
+            {
+                adviceFor = selected; adviceAt = selected.pos;
+                advice = tube.Advise(me, selected.pos, vehicles != null && vehicles.IsDriving);
+            }
+            if (advice != null && advice.HasTube)
+            {
+                cardSub.text = advice.DirectText + "  ·  " + (advice.TubeBetter ? "<color=#FFC72C>" + advice.TubeText + "</color>" : advice.TubeText);
+                on = advice.TubeBetter;
+                if (on) tubeButtonText.text = "VIA TUBE  <size=75%>" + advice.TubeTotal + " min</size>";
+            }
+        }
+        if (tubeButton.gameObject.activeSelf != on) tubeButton.gameObject.SetActive(on);
+        card.sizeDelta = new Vector2(on ? 1150f : 860f, 140f);
+    }
+
     void TubeButton()
     {
         LundunTube tube = LundunTube.Instance;
         if (tube == null || selected == null) return;
-        int i = tube.FindNear(selected.pos, 30f);
-        if (i < 0) return;
+        int i = selected.kind == "tube" ? tube.FindNear(selected.pos, 30f) : -1;
+        if (i < 0)
+        {
+            // G6d: a route by Tube: the GPS takes you to the station first, then on after the ride
+            LundunNavigation nav = LundunNavigation.Instance;
+            if (nav == null || advice == null || adviceFor != selected || !advice.HasTube) return;
+            nav.SetViaTube(advice, selected.pos, selected.name);
+            nav.ShowToast("Route set via the Tube\nWalk to " + LundunTubeNetwork.Title(tube.Names[advice.from]) + " Station");
+            LundunHaptics.Medium();
+            selected = null;
+            Refresh();
+            return;
+        }
         string why;
         if (!tube.CanTravelFromHere(out why)) { if (LundunNavigation.Instance != null) LundunNavigation.Instance.ShowToast(why); LundunHaptics.Light(); return; }
         LundunHaptics.Medium();

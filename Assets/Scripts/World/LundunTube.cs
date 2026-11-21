@@ -101,8 +101,96 @@ public class LundunTube : MonoBehaviour
         return best;
     }
 
+    // ------------------------------------------------------------------ G6d: the GPS's question: is the Tube quicker?
+    public const float WalkMetresPerMinute = 80f, DriveMetresPerMinute = 450f;     // a steady walk; a car through town
+
+    /// One comparison: going straight there (walking, or driving if in a car) against walk + Tube + walk.
+    public class TripAdvice
+    {
+        public bool driving;
+        public int directMinutes;                // walk (or drive) all the way, by road
+        public int from = -1, to = -1;           // the stations: get on at `from`, off at `to`
+        public int walkTo, walkFrom, tubeMinutes;
+        public LundunTubeNetwork.Journey journey;
+        public int TubeTotal { get { return walkTo + tubeMinutes + walkFrom; } }
+        public bool HasTube { get { return from >= 0 && to >= 0 && from != to && journey != null; } }
+        /// The Tube's worth it: a few minutes quicker, and clearly so (a car has to be beaten by a lot).
+        public bool TubeBetter
+        {
+            get
+            {
+                if (!HasTube) return false;
+                int saved = directMinutes - TubeTotal;
+                return driving ? saved >= 4 && TubeTotal <= directMinutes * 0.6f : saved >= 3 && TubeTotal <= directMinutes * 0.8f;
+            }
+        }
+        public string DirectText { get { return (driving ? "Drive " : "Walk ") + directMinutes + " min"; } }
+        public string TubeText { get { return HasTube ? "Tube " + TubeTotal + " min" : ""; } }
+        /// "Walk 3 min to Peckam Rye · Market line, change at … · 2 min walk"
+        public string Steps(LundunTube tube)
+        {
+            if (!HasTube) return "";
+            return "Walk " + walkTo + " min to " + LundunTubeNetwork.Title(tube.Names[from]) + " · " + journey.Summary + " to " +
+                   LundunTubeNetwork.Title(tube.Names[to]) + " · walk " + walkFrom + " min";
+        }
+    }
+
+    /// Compare going straight from `a` to `b` with walking to a station, the Tube, and walking from the station at the
+    /// other end. Tries the two stations nearest each end; road distances from the GPS's road map where it has one.
+    public TripAdvice Advise(Vector3 a, Vector3 b, bool driving)
+    {
+        TripAdvice t = new TripAdvice { driving = driving };
+        float direct = RoadMetres(a, b);
+        t.directMinutes = Mathf.Max(1, Mathf.CeilToInt(direct / (driving ? DriveMetresPerMinute : WalkMetresPerMinute)));
+        if (names == null || names.Length < 2) return t;
+        List<int> nearA = NearestTwo(a), nearB = NearestTwo(b);
+        int best = int.MaxValue;
+        foreach (int i in nearA)
+            foreach (int j in nearB)
+            {
+                if (i == j) continue;
+                LundunTubeNetwork.Journey jn = Journey(i, j);
+                if (jn == null || jn.Hops == 0) continue;
+                int wt = WalkMinutes(Flat(tops[i] - a) * 1.3f), wf = WalkMinutes(Flat(b - tops[j]) * 1.3f);
+                int total = wt + jn.Minutes + wf;
+                if (total < best) { best = total; t.from = i; t.to = j; t.journey = jn; }
+            }
+        if (t.from >= 0)
+        {
+            // the walks at each end, by road this time
+            t.walkTo = WalkMinutes(RoadMetres(a, tops[t.from]));
+            t.walkFrom = WalkMinutes(RoadMetres(tops[t.to], b));
+            t.tubeMinutes = t.journey.Minutes;
+        }
+        return t;
+    }
+
+    List<int> NearestTwo(Vector3 p)
+    {
+        List<int> l = new List<int>();
+        for (int i = 0; i < names.Length; i++) if (LundunTubeNetwork.Known(names[i])) l.Add(i);
+        l.Sort((x, y) => Flat(tops[x] - p).CompareTo(Flat(tops[y] - p)));
+        if (l.Count > 2) l.RemoveRange(2, l.Count - 2);
+        return l;
+    }
+
+    static float Flat(Vector3 v) { v.y = 0f; return v.magnitude; }
+
+    /// Metres by road (the GPS's road map), or as the crow flies plus a third if there's no road map.
+    static float RoadMetres(Vector3 a, Vector3 b)
+    {
+        LundunNavigation nav = LundunNavigation.Instance;
+        if (nav != null && nav.Graph != null)
+        {
+            double m;
+            nav.Graph.Route(new NavPoint(a.x, a.z), new NavPoint(b.x, b.z), out m);
+            if (m > 0.1) return (float)m;
+        }
+        return Flat(b - a) * 1.3f;
+    }
+
     /// Walking minutes for a distance (a steady walk: about 80 m a minute).
-    public static int WalkMinutes(float metres) { return Mathf.Max(1, Mathf.CeilToInt(metres / 80f)); }
+    public static int WalkMinutes(float metres) { return Mathf.Max(1, Mathf.CeilToInt(metres / WalkMetresPerMinute)); }
 
     /// Can James go by Tube from where he is now? (why not, if not)
     public bool CanTravelFromHere(out string why)
