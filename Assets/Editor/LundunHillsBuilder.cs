@@ -43,9 +43,22 @@ public static class LundunHillsBuilder
     {
         Scene scene = SceneManager.GetActiveScene();
         if (scene.name != "Lundun") { Dialog("Open the Lundun scene first."); return; }
+        Dialog(Apply());
+    }
+
+    /// G8d: for other menus that change what the hills bent (37 autumn): are there hills in the scene; take them out
+    /// (the city flat again, exactly as it was); put them back in (as menu 40, without its message box).
+    public static bool Present { get { return GameObject.Find(RootName) != null; } }
+    public static int TakeOut() { return PutBack(); }
+    public static string PutIn() { return Apply(); }
+
+    /// Menu 40's work: takes out any hills there already, then makes them all. Returns the message to show.
+    static string Apply()
+    {
+        Scene scene = SceneManager.GetActiveScene();
         TextAsset json = AssetDatabase.LoadAssetAtPath<TextAsset>(DataPath);
-        if (json == null) { Dialog("Can't find " + DataPath + "."); return; }
-        if (GameObject.Find("World") == null) { Dialog("No World in the scene: run Lundun → 1 first."); return; }
+        if (json == null) return "Can't find " + DataPath + ".";
+        if (GameObject.Find("World") == null) return "No World in the scene: run Lundun → 1 first.";
 
         int undone = PutBack();
         try
@@ -80,13 +93,13 @@ public static class LundunHillsBuilder
             if (skipped.Count > 0) msg += "\n\nCouldn't bend (not readable): " + string.Join(", ", skipped);
             msg += "\n\nNow run Lundun → 3 (Bake Navigation) so people can walk up them, then save the scene (Cmd+S).";
             Debug.Log("[Lundun] " + msg.Replace("\n\n", "  ").Replace("\n", " "));
-            Dialog(msg);
+            return msg;
         }
         catch (System.Exception e)
         {
             EditorUtility.ClearProgressBar();
             Debug.LogException(e);
-            Dialog("Something went wrong making the hills (see the Console). Run Lundun → 40b to put the city back flat.");
+            return "Something went wrong making the hills (see the Console). Run Lundun → 40b to put the city back flat.";
         }
     }
 

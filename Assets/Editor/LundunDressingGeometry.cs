@@ -43,6 +43,7 @@ namespace LundunGreybox
     public static partial class Generator
     {
         static List<V2> parkTrees = new List<V2>();
+        static List<double[]> parkCrowns = new List<double[]>();     // G8d: each park tree's crown (x, z, r, h), for Lundun → 37
 
         // ================================================================== park plans (also used by BuildParks)
         static readonly Dictionary<string, string> StationNames = new Dictionary<string, string>

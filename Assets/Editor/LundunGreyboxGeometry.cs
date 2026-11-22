@@ -841,6 +841,7 @@ namespace LundunGreybox
             MeshData leaves = new MeshData("TreeCanopies", "Parks", "Leaves", false) { navIgnore = true };
             List<ParkPlan> plans = PlanParks();        // room kept clear for the Underground entrance + football cage (R5)
             parkTrees = new List<V2>();
+            parkCrowns = new List<double[]>();
             foreach (LwPoly park in W.parks)
             {
                 List<V2> poly = Pts(park.polygon);
@@ -865,6 +866,7 @@ namespace LundunGreybox
                     if (InReserved(q, plans, r + 1)) continue;   // same random numbers drawn either way, so buildings don't move
                     if (Kingsmere && KingsmereKeepsClear(q, r + 1)) continue;     // E8: not in the lake, on the paths or the forecourt
                     parkTrees.Add(q);
+                    parkCrowns.Add(new[] { q.x, q.z, r, h });          // G8d: its crown, for autumn (draws nothing)
                     trunks.Box(q, d, 0.2, 0.2, 0, h * 0.5, false, 0.1, 0, false);
                     Canopy(leaves, q, r, h * 0.4, h);              // V2a: a rounded crown (was a box)
                 }
