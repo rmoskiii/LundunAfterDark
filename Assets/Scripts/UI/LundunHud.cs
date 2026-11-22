@@ -103,7 +103,7 @@ public class LundunHud : MonoBehaviour
         {
             CarController near = vehicles.NearbyCar;
             Transform mine = LundunPlaces.Instance != null ? LundunPlaces.Instance.Kestrel : null;
-            string want = near != null && mine != null && near.transform == mine ? "ENTER" : "STEAL";
+            string want = near != null && mine != null && near.transform == mine ? "ENTER" : LundunCarTheft.IsLocked(near) ? "BREAK IN" : "STEAL";   // G8a
             if (enterLabel.text != want) enterLabel.text = want;
         }
 

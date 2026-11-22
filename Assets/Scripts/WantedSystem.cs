@@ -22,6 +22,8 @@ public class WantedSystem : MonoBehaviour
     [SerializeField] private float shoplifting = 22f;
     [Tooltip("E8: each report while trespassing in the royal quarter (one every few seconds you stay inside)")]
     [SerializeField] private float trespass = 22f;
+    [Tooltip("G8a: breaking into a parked car, seen or heard — just enough for one star")]
+    [SerializeField] private float carTheft = 22f;
     [Tooltip("E8: trespassing on its own never takes you past this many stars")]
     [SerializeField] private int trespassMaxStars = 2;
 
@@ -70,6 +72,7 @@ public class WantedSystem : MonoBehaviour
         {
             case CrimeType.AssaultPedestrian: return 0;
             case CrimeType.Shoplifting: return 0;
+            case CrimeType.CarTheft: return 0;
             case CrimeType.Trespass: return 0;
             case CrimeType.Gunfire: return 1;
             case CrimeType.HitAndRun: return 2;
@@ -240,6 +243,7 @@ public class WantedSystem : MonoBehaviour
             CrimeType.DestroyPoliceCar => destroyPoliceCar,
             CrimeType.Shoplifting => shoplifting,
             CrimeType.Trespass => trespass,
+            CrimeType.CarTheft => carTheft,
             _ => 0f
         };
     }

@@ -69,6 +69,12 @@ public class VehicleSystem : MonoBehaviour
     public Transform PlayerTarget => currentCar != null ? currentCar.transform : player.transform;
 
     public bool IsDriving => currentCar != null;
+
+    /// G8a: asked before James gets into a car: false = not yet (LundunCarTheft is breaking into it first; it calls
+    /// EnterThis when he's in). Null = every car opens straight away, as before.
+    public static System.Func<CarController, bool> BeforeEnter;
+    /// G8a: true while James is breaking into a car (he stands at the door; the ENTER button stays hidden).
+    public static bool BreakingIn;
     /// The car close enough to get into right now (null if none). Read by the HUD for its ENTER / STEAL label.
     public CarController NearbyCar => nearbyCar;
 
@@ -87,7 +93,9 @@ public class VehicleSystem : MonoBehaviour
     void Start()
     {
         Locked = false;
+        BreakingIn = false;
         foreach (CarController car in CarController.All) car.IsDriven = false;
+        if (FindAnyObjectByType<LundunCarTheft>() == null) gameObject.AddComponent<LundunCarTheft>();   // G8a
         ShowDrivingUI(false);
     }
 
@@ -110,6 +118,7 @@ public class VehicleSystem : MonoBehaviour
         }
 
         // On foot: is there a car close enough to get into?
+        if (BreakingIn) { enterButton.SetActive(false); return; }       // G8a: busy at a car door
         nearbyCar = null;
         float closest = enterRange;
         foreach (CarController car in CarController.All)    // includes traffic and parked cars
@@ -220,7 +229,8 @@ public class VehicleSystem : MonoBehaviour
     // Hooked up to the 🚗 button's On Click
     public void EnterCar()
     {
-        if (nearbyCar == null || controlsLocked) return;
+        if (nearbyCar == null || controlsLocked || BreakingIn) return;
+        if (BeforeEnter != null && !BeforeEnter(nearbyCar)) return;     // G8a: locked: breaking in first
 
         if (Entering != null) Entering(nearbyCar);
         currentCar = nearbyCar;
@@ -229,6 +239,14 @@ public class VehicleSystem : MonoBehaviour
         currentCar.ReadsMoveAction = !pointToSteer;            // V1: the stick is worked out here instead
         cameraFollow.SetTarget(currentCar.transform, true);
         ShowDrivingUI(true);
+    }
+
+    /// G8a: get into this car now (after breaking into it).
+    public void EnterThis(CarController car)
+    {
+        if (car == null || currentCar != null) return;
+        nearbyCar = car;
+        EnterCar();
     }
 
     // Hooked up to the exit button's On Click

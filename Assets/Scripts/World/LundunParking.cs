@@ -56,7 +56,7 @@ public class LundunParking : MonoBehaviour
         for (int k = 0; k < slots.Length; k++)
         {
             Vector4 s = slots[(start + k) % slots.Length];
-            Vector3 p = new Vector3(s.x, roadY, s.y);
+            Vector3 p = new Vector3(s.x, roadY + LundunGround.Height(s.x, s.y), s.y);   // G7b: bays on the hills
             float d = Vector2.Distance(new Vector2(p.x, p.z), new Vector2(player.x, player.z));
             if (d < near || d > far) continue;
             if (cam != null && LundunView.CanSee(cam, p)) continue;

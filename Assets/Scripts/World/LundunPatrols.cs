@@ -195,6 +195,7 @@ public class LundunPatrols : MonoBehaviour
         {
             case CrimeType.AssaultPedestrian: return respondMinor;
             case CrimeType.Shoplifting: return respondMinor;          // E5
+            case CrimeType.CarTheft: return respondMinor;             // G8a
             case CrimeType.Trespass: return respondGunfire;           // E8: the royal quarter gets a firm response
             case CrimeType.Gunfire: return respondGunfire;
             case CrimeType.HitAndRun: return respondSerious;

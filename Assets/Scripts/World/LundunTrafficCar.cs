@@ -18,6 +18,8 @@ public class LundunTrafficCar : MonoBehaviour
     /// V2e: James pulled a driver out of this car (LundunCctv: the driver phones it in as stolen).
     public static event System.Action<CarController> Carjacked;
     public bool HasDriver { get; private set; }
+    /// G8a: a parked car James would have to break into (rolled each time it parks: more left open at night).
+    public bool Locked { get; set; }
     public Temper DriverTemper { get; private set; }
 
     [Header("Driving")]
@@ -130,6 +132,7 @@ public class LundunTrafficCar : MonoBehaviour
         PickNext();
         CurrentMode = Mode.Driving;
         HasDriver = true;
+        Locked = false;
         DriverTemper = RollTemper();
         RollStyle();
         toJunction = IsJunction(toNode);
@@ -145,6 +148,7 @@ public class LundunTrafficCar : MonoBehaviour
         sinceStop = 0f; stopUntil = 0f;
         CurrentMode = Mode.Driving;
         HasDriver = true;
+        Locked = false;
         DriverTemper = RollTemper();
         RollStyle();
         toJunction = IsJunction(toNode);
@@ -155,6 +159,7 @@ public class LundunTrafficCar : MonoBehaviour
         graph = null;
         CurrentMode = Mode.Parked;
         HasDriver = false;
+        Locked = LundunCarTheft.RollLocked();                       // G8a
         car.ProportionalBrake = false;
         car.SetTouchInput(0f, 0f);
     }

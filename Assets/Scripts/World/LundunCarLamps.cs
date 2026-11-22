@@ -62,6 +62,10 @@ public class LundunCarLamps : MonoBehaviour
         indicateUntil = dir != 0 ? Time.time + hold : 0f;
     }
 
+    /// G8a: hazard lights (a car alarm): every indicator blinks for 'seconds', parked or not. 0 stops them.
+    public void Hazards(float seconds) { hazardUntil = seconds > 0f ? Time.time + seconds : 0f; }
+    private float hazardUntil;
+
     /// A crash at this point (car space): lamps within 'radius' break.
     public void BreakNear(Vector3 local, float radius)
     {
@@ -153,6 +157,7 @@ public class LundunCarLamps : MonoBehaviour
         }
         if (Time.time > indicateUntil) indicate = 0;
         bool blink = (Time.time * 1.6f) % 1f < 0.5f;
+        bool hazard = Time.time < hazardUntil;                                  // G8a
         bool reversing = car.Speed < -0.4f && car.InputNow.y < -0.05f;
 
         foreach (Lamp l in lamps)
@@ -164,8 +169,8 @@ public class LundunCarLamps : MonoBehaviour
                 case Kind.Head: c = HeadCol; k = running ? Mathf.Lerp(0.5f, 2.6f, night) : 0f; break;
                 case Kind.Tail: c = TailCol; k = running ? (car.Braking ? 3.2f : Mathf.Lerp(0f, 1.1f, night)) : 0f; break;
                 case Kind.Reverse: c = RevCol; k = running && reversing ? 2.2f : 0f; break;
-                case Kind.IndicatorLeft: c = IndCol; k = running && indicate < 0 && blink ? 3f : 0f; break;
-                default: c = IndCol; k = running && indicate > 0 && blink ? 3f : 0f; break;
+                case Kind.IndicatorLeft: c = IndCol; k = (running && indicate < 0 || hazard) && blink ? 3f : 0f; break;
+                default: c = IndCol; k = (running && indicate > 0 || hazard) && blink ? 3f : 0f; break;
             }
             if (Mathf.Abs(k - l.shown) < 0.02f) continue;
             l.shown = k;

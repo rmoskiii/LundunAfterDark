@@ -10,7 +10,8 @@ public enum CrimeType
     KillOfficer,
     DestroyPoliceCar,
     Shoplifting,         // E5: stealing from a shop (only counts if someone sees it)
-    Trespass             // E8: inside the palace railings or the barracks (the guards and cameras always see it)
+    Trespass,            // E8: inside the palace railings or the barracks (the guards and cameras always see it)
+    CarTheft             // G8a: breaking into a parked car (only counts if someone sees or hears it)
 }
 
 // One place every crime gets reported to. Anything can call CrimeSystem.Report(...)
