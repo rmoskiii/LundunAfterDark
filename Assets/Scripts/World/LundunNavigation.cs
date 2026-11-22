@@ -147,7 +147,7 @@ public class LundunNavigation : MonoBehaviour
         WaypointName = string.IsNullOrEmpty(name) ? "Waypoint" : name;
         if (waypointBeam != null)
         {
-            waypointBeam.position = new Vector3(Waypoint.x, waypointBeam.localScale.y, Waypoint.z);
+            waypointBeam.position = new Vector3(Waypoint.x, waypointBeam.localScale.y + LundunGround.Height(Waypoint.x, Waypoint.z), Waypoint.z);   // G7b: on a hill
             waypointBeam.gameObject.SetActive(true);
         }
         Plan();

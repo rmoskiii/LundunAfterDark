@@ -127,6 +127,7 @@ public class LundunMissionRun
     /// The walkable ground at (x, z) (or a little above the road if there's none).
     public static Vector3 Ground(Vector3 p)
     {
+        if (p.y < 2f) p.y += LundunGround.Height(p.x, p.z);                       // G7b: a street-level spot on a hill
         if (NavMesh.SamplePosition(new Vector3(p.x, p.y + 2f, p.z), out NavMeshHit hit, 6f, NavMesh.AllAreas)) return hit.position;
         if (Physics.Raycast(new Vector3(p.x, 60f, p.z), Vector3.down, out RaycastHit r, 120f, LayerMask.GetMask("Default"), QueryTriggerInteraction.Ignore)) return r.point;
         return new Vector3(p.x, 0f, p.z);

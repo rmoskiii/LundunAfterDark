@@ -101,7 +101,7 @@ public class LundunRoadblocks : MonoBehaviour
             Vector3 along = new Vector3((float)(pb.x - pa.x), 0f, (float)(pb.z - pa.z));
             if (along.sqrMagnitude < 1f) continue;
             along.Normalize();
-            Vector3 centre = new Vector3((float)p.x, player.y, (float)p.z);
+            Vector3 centre = new Vector3((float)p.x, player.y + LundunGround.Height((float)p.x, (float)p.z) - LundunGround.Height(player), (float)p.z);   // G7b: up or down a hill
             if (Vector3.Distance(centre, player) < aheadNearest * 0.8f) continue;
             if (Physics.CheckSphere(centre + Vector3.up, 7f, LayerMask.GetMask("Vehicle", "Player"), QueryTriggerInteraction.Ignore)) continue;
 

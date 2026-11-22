@@ -159,7 +159,7 @@ public class LundunPatrols : MonoBehaviour
             Vector3 along = new Vector3((float)dir.x, 0f, (float)dir.z);
             if (Random.value < 0.5f) along = -along;
             Vector3 left = new Vector3(-along.z, 0f, along.x);
-            Vector3 spot = new Vector3((float)p.x, 1f, (float)p.z) + left * (float)(halfWidth * 0.5);      // UK: left lane
+            Vector3 spot = LundunGround.On(new Vector3((float)p.x, 1f, (float)p.z) + left * (float)(halfWidth * 0.5));      // UK: left lane (G7b: on the hills too)
             if (OnCamera(spot)) continue;
             if (LundunMissionZones.Inside(spot)) continue;                   // S1: a mission's set piece
             if (Physics.CheckSphere(spot + Vector3.up, 6f, LayerMask.GetMask("Vehicle", "Player"), QueryTriggerInteraction.Ignore)) continue;
@@ -214,7 +214,7 @@ public class LundunPatrols : MonoBehaviour
         if (!nav.Graph.RandomRoadPoint(new NavPoint(centre.x, centre.z), near, far, rng, true, out p, out dir, out halfWidth, out pave)) return false;
         Vector3 along = new Vector3((float)dir.x, 0f, (float)dir.z);
         Vector3 side = new Vector3(-along.z, 0f, along.x) * (Random.value < 0.5f ? 1f : -1f);
-        Vector3 spot = new Vector3((float)p.x, 0.5f, (float)p.z) + side * (float)(halfWidth + pave * 0.5);
+        Vector3 spot = LundunGround.On(new Vector3((float)p.x, 0.5f, (float)p.z) + side * (float)(halfWidth + pave * 0.5));   // G7b: on the hills too
         if (!NavMesh.SamplePosition(spot, out NavMeshHit hit, 3f, NavMesh.AllAreas)) return false;
         point = hit.position;
         return true;

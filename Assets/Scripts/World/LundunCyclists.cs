@@ -115,7 +115,7 @@ public class LundunCyclists : MonoBehaviour
             if (cls == "service") return;
             facing = Dir(g, from, to);
             Vector3 left = new Vector3(-facing.z, 0f, facing.x);
-            pos = new Vector3((float)p.x, 0f, (float)p.z) + left * Mathf.Max(1.2f, (float)(w * 0.5) - 1.1f);
+            pos = LundunGround.On(new Vector3((float)p.x, 0f, (float)p.z) + left * Mathf.Max(1.2f, (float)(w * 0.5) - 1.1f));   // G7b: on the hills too
             if (cam != null && LundunView.CanSee(cam, pos)) return;
         }
         if (LundunMissionZones.Inside(pos)) return;                              // S1: a mission's set piece

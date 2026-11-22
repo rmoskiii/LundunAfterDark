@@ -84,7 +84,7 @@ public class LundunBusPassengers : MonoBehaviour
             Vector4 b = d.BusStop(i);
             Vector3 t = new Vector3(b.z, 0f, b.w).normalized;
             Vector3 l = new Vector3(-t.z, 0f, t.x);                 // UK: the kerb is on the bus's left
-            Vector3 p = new Vector3(b.x, 0f, b.y);
+            Vector3 p = LundunGround.On(new Vector3(b.x, 0f, b.y));         // G7b: on the hills too
             stops.Add(new Stop { index = i, point = p, travel = t, left = l, kerb = p + l * 1.6f });
         }
     }

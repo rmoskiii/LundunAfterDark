@@ -633,6 +633,7 @@ public class LundunPopulation : MonoBehaviour
             Vector3 left = new Vector3(-along3.z, 0f, along3.x);
             float lateral = parked ? (float)halfWidth - 1.2f : LundunDriver.LaneOffset(halfWidth * 2, cls, nav.Graph.EdgeRoadName(a, b), false, false, 1f);   // V2c: in the kerb lane
             Vector3 pos = new Vector3((float)p.x, 0f, (float)p.z) + left * lateral;
+            pos = LundunGround.On(pos);                                                    // G7b: on the hills, on the road
             if (cam != null && LundunView.CanSee(cam, pos)) continue;
             if (Physics.CheckSphere(pos + Vector3.up, parked ? parkedCarSpacing : movingCarSpacing, LayerMask.GetMask("Vehicle", "Player"), QueryTriggerInteraction.Ignore)) continue;
 
@@ -730,6 +731,7 @@ public class LundunPopulation : MonoBehaviour
             Vector3 along = new Vector3((float)(b.x - a.x), 0f, (float)(b.z - a.z)).normalized;
             Vector3 left = new Vector3(-along.z, 0f, along.x);
             Vector3 pos = new Vector3((float)p.x, 0f, (float)p.z) + left * LundunDriver.LaneOffset(w, cls, null, false, true, 1f);   // V2c: in its lane
+            pos = LundunGround.On(pos);                                                    // G7b: on the hills, on the road
             if (cam != null && LundunView.CanSee(cam, pos)) continue;
             if (Physics.CheckSphere(pos + Vector3.up * 1.5f, 6f, LayerMask.GetMask("Vehicle", "Player"), QueryTriggerInteraction.Ignore)) continue;
 
@@ -784,6 +786,7 @@ public class LundunPopulation : MonoBehaviour
         Vector3 along = (Node(g, to) - Node(g, from)).normalized;
         double w; string cls; g.EdgeInfo(from, to, out w, out cls);
         Vector3 pos = here + new Vector3(-along.z, 0f, along.x) * LundunDriver.LaneOffset(w, false, true);
+        pos = LundunGround.On(pos);                                                        // G7b: on the hills, on the road
         float dp = Flat(pos, player);
         if (dp < 60f || dp > 190f) return false;
         Camera cam = Camera.main;
@@ -1021,6 +1024,7 @@ public class LundunPopulation : MonoBehaviour
             float side = rng.NextDouble() < 0.5 ? -1f : 1f;
             Vector3 left = new Vector3(-(float)dir.z, 0f, (float)dir.x);
             Vector3 c = new Vector3((float)p.x, 0.5f, (float)p.z) + left * side * (float)(halfWidth + pave * 0.5);
+            c = LundunGround.On(c);                                                        // G7b: on the hills, on the pavement
             if (cam != null && LundunView.CanSee(cam, c)) continue;
             if (!UnityEngine.AI.NavMesh.SamplePosition(c, out UnityEngine.AI.NavMeshHit hit, 2f, 1 << 4)) continue;   // pavement area only
             pos = hit.position;

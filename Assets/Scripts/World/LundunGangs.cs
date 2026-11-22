@@ -529,7 +529,7 @@ public class LundunGangs : MonoBehaviour
             Vector3 d1 = (new Vector3((float)p1.x, 0f, (float)p1.z) - c).normalized, d2 = (new Vector3((float)p2.x, 0f, (float)p2.z) - c).normalized;
             Vector3 mid = (d1 + d2).sqrMagnitude > 0.01f ? (d1 + d2).normalized : new Vector3(-d1.z, 0f, d1.x);
             float r = (float)System.Math.Max(w1, w2) * 0.5f + 4.5f;
-            Vector3 corner = c + mid * r * 1.2f;
+            Vector3 corner = LundunGround.On(c + mid * r * 1.2f);                  // G7b: on the hills too
             const int mask = 1 << 4;                                     // the pavement area (as NPCBrain uses)
             if (!NavMesh.SamplePosition(corner, out NavMeshHit hit, 3f, mask) && !NavMesh.SamplePosition(corner, out hit, 3f, NavMesh.AllAreas)) continue;
             found.Add(hit.position);

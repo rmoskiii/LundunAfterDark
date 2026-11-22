@@ -47,7 +47,7 @@ public class LundunBikes : MonoBehaviour
         dockCentre = new Vector3[n]; dockAlong = new Vector3[n]; dockOut = new Vector3[n]; markers = new Transform[n];
         for (int i = 0; i < n; i++)
         {
-            dockCentre[i] = new Vector3(docks[i].x, 0.15f, docks[i].y);
+            dockCentre[i] = LundunGround.On(new Vector3(docks[i].x, 0.15f, docks[i].y));   // G7b: on the hills too
             dockAlong[i] = new Vector3(docks[i].z, 0f, docks[i].w);
             dockOut[i] = i < docksOut.Length ? new Vector3(docksOut[i].x, 0f, docksOut[i].y) : Vector3.forward;
             GameObject m = new GameObject("BikeDock_" + i);

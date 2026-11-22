@@ -185,7 +185,7 @@ public class PoliceDirector : MonoBehaviour
             Vector3 toward = around; toward.y = 0f;
             if (Vector3.Dot(along, toward - flat) < 0f) along = -along;                              // drive towards the search area
             Vector3 left = new Vector3(-along.z, 0f, along.x);
-            Vector3 candidate = new Vector3((float)p.x, 1f, (float)p.z) + left * (float)(halfWidth * 0.5);       // UK: left lane
+            Vector3 candidate = LundunGround.On(new Vector3((float)p.x, 1f, (float)p.z) + left * (float)(halfWidth * 0.5));       // UK: left lane (G7b: on the hills too)
             if (cam != null && CanCameraSee(cam, candidate)) continue;
             if (!NavMesh.SamplePosition(candidate, out NavMeshHit hit, 4f, NavMesh.AllAreas)) continue;
             pos = hit.position + Vector3.up * 0.8f;
