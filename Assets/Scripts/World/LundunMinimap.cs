@@ -62,15 +62,8 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
     void Start()
     {
         vehicles = FindAnyObjectByType<VehicleSystem>();
-        // the GPS route on the minimap too (mission steps and your own waypoints), in Story only: Free Roam unchanged
-        if (LundunGame.IsStory && map != null)
-        {
-            GameObject g = new GameObject("MiniRoute", typeof(RectTransform));
-            RectTransform rt = (RectTransform)g.transform;
-            rt.SetParent(map.transform, false);
-            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero;
-            g.AddComponent<LundunRouteLine>().Setup(mapMinX, mapMinZ, mapWidth, mapHeight, 7f, new Color(0.72f, 0.36f, 1f, 1f));
-        }
+        // the GPS route on the minimap too (mission steps and your own waypoints). G8c: in Free Roam as well as Story
+        EnsureRouteLine();
         Canvas c = GetComponentInParent<Canvas>();
         rootCanvas = c != null ? c.rootCanvas : null;
         if (hudRoot != null) hudBasePos = hudRoot.anchoredPosition;
@@ -120,6 +113,23 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
             carBlip = NewBlip(new Color(1f, 0.85f, 0.25f), "", 14);
             carBlip.target = playerCar;
         }
+    }
+
+    /// G8c: the purple route line on the minimap (a stretched child of the map picture, so it pans, zooms and turns
+    /// with it). Made once; made again if anything ever removed it.
+    private LundunRouteLine miniRoute;
+    void EnsureRouteLine()
+    {
+        if (miniRoute != null || map == null) return;
+        Transform old = map.transform.Find("MiniRoute");
+        if (old != null) { miniRoute = old.GetComponent<LundunRouteLine>(); if (miniRoute != null) return; Destroy(old.gameObject); }
+        GameObject g = new GameObject("MiniRoute", typeof(RectTransform));
+        RectTransform rt = (RectTransform)g.transform;
+        rt.SetParent(map.transform, false);
+        rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero;
+        rt.SetAsLastSibling();                                              // over the map picture and its shading
+        miniRoute = g.AddComponent<LundunRouteLine>();
+        miniRoute.Setup(mapMinX, mapMinZ, mapWidth, mapHeight, 7f, new Color(0.72f, 0.36f, 1f, 1f));
     }
 
     /// S1: a marker that follows this transform (missions: their letters and the objective); clamp = stays on the
@@ -176,6 +186,7 @@ public class LundunMinimap : MonoBehaviour, IPointerClickHandler
     void LateUpdate()
     {
         if (vehicles == null || map == null) return;
+        if (miniRoute == null) EnsureRouteLine();                         // G8c
         Transform player = vehicles.PlayerTarget;
         Vector3 centre = player.position;
         Camera cam = Camera.main;
