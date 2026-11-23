@@ -10,7 +10,8 @@
 // G8d: to show the bare branches, the old green crowns of those trees come out of the dressing's and parks' meshes:
 // each mesh with one is swapped for a copy without it (the originals are never changed, and LundunAutumn remembers
 // every swap, so running 37 again or 37b puts them back exactly). If the city has hills (40), 37 takes them out first
-// and puts them back after, so everything still sits on them. No need to rerun 13, or 40.
+// and puts them back after, so everything still sits on them (G8e: the same with the Tube stairwells, 42). No need
+// to rerun 13, 40 or 42.
 // Safe to run again (it replaces LundunAutumn). Lundun → 37b takes it all out again.
 using System;
 using System.Collections.Generic;
@@ -42,11 +43,13 @@ public static class LundunAutumnBuilder
         if (json == null) { Dialog("Can't find " + DataPath + "."); return; }
         if (GameObject.Find("LundunDressing") == null) { Dialog("No LundunDressing in the scene: the leaves follow the dressing's trees, so run Lundun → 13 first (you only ever need to once)."); return; }
         bool hills = LundunHillsBuilder.Present;
+        bool stairs = LundunTubeStairsBuilder.Present;
         string hillsMsg = null;
         try
         {
             // G8d: the hills out first (so every mesh is as 13 made it), and the last autumn's swaps put back
             if (hills) { EditorUtility.DisplayProgressBar("Lundun", "Taking the hills out for a moment…", 0.02f); LundunHillsBuilder.TakeOut(); }
+            if (stairs) LundunTubeStairsBuilder.TakeOut();                  // G8e: the stairwells too (they come after autumn)
             PutBackCrowns();
 
             LundunWorldData data = LundunExpansionBuilder.Parse(json.text);
@@ -131,6 +134,7 @@ public static class LundunAutumnBuilder
             LundunAutumnRecord rec = root.AddComponent<LundunAutumnRecord>();
             int thinned = ThinCrowns(res, rec);
             EditorUtility.SetDirty(rec);
+            if (stairs) { EditorUtility.DisplayProgressBar("Lundun", "Putting the Tube stairwells back…", 0.88f); LundunTubeStairsBuilder.Apply(); stairs = false; }
             if (hills) { EditorUtility.DisplayProgressBar("Lundun", "Putting the hills back…", 0.9f); hillsMsg = LundunHillsBuilder.PutIn(); hills = false; }
 
             AssetDatabase.SaveAssets();
@@ -144,6 +148,7 @@ public static class LundunAutumnBuilder
         catch (Exception e)
         {
             Debug.LogException(e);
+            if (stairs) { try { LundunTubeStairsBuilder.Apply(); } catch (Exception e2) { Debug.LogException(e2); } }
             if (hills) { try { LundunHillsBuilder.PutIn(); } catch (Exception e2) { Debug.LogException(e2); } }
             Dialog("Autumn leaves failed: " + e.Message + "\n\nThe Console has the details — copy them to Claude. Run 37b to put the trees back as they were.");
         }
@@ -267,9 +272,11 @@ public static class LundunAutumnBuilder
     [MenuItem("Lundun/37b  Remove Autumn Leaves + Bare Trees (G3, G8d)", false, 45)]
     static void Remove()
     {
-        bool hills = LundunHillsBuilder.Present;
+        bool hills = LundunHillsBuilder.Present, stairs = LundunTubeStairsBuilder.Present;
         if (hills) LundunHillsBuilder.TakeOut();
+        if (stairs) LundunTubeStairsBuilder.TakeOut();                  // G8e
         int n = PutBackCrowns();                                        // the trees' crowns back, LundunAutumn gone
+        if (stairs) LundunTubeStairsBuilder.Apply();
         if (hills) LundunHillsBuilder.PutIn();
         AssetDatabase.SaveAssets();
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());

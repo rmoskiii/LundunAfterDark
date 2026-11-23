@@ -77,6 +77,23 @@ public class LundunTube : MonoBehaviour
     }
     bool CanWalk() { return station != null && !LundunMissions.Running && ForcedTo == null; }
 
+    /// G8e: James walked down the steps and in through the way in at the bottom (LundunTubeWayIn): just as if he'd
+    /// tapped TAKE THE TUBE at the top (into the ticket hall; during a job, or sent somewhere, the Tube map as before).
+    public void WalkedDown(Vector3 at)
+    {
+        if (names == null || travelling || LundunTubeStation.Underground || PanelOpen || Time.time < walkedDownAgain) return;
+        PlayerHealth ph = PlayerHealth.Instance;
+        if (ph == null || ph.IsDead || !ph.OnFoot) return;
+        int i = FindNear(at, 16f);
+        if (i < 0) return;
+        walkedDownAgain = Time.time + 2f;
+        if (WantedSystem.Instance != null && WantedSystem.Instance.Stars > 0) { LundunMissions.Toast("Station closed: police incident"); return; }
+        here = i; downAt = i;
+        OpenPanel();
+    }
+    float walkedDownAgain;
+    int downAt = -1;                                               // G8e: the station whose steps he walked down
+
     // ------------------------------------------------------------------ G6c: from the full map, from anywhere
     /// The station whose steps are within `within` metres of a spot (the full map's icons), or -1.
     public int FindNear(Vector3 p, float within)
@@ -317,6 +334,11 @@ public class LundunTube : MonoBehaviour
             {
                 Vector3 d = tops[i] - p; d.y = 0f;
                 if (d.magnitude < useDistance) { here = i; break; }
+            }
+            if (here < 0 && downAt >= 0 && downAt < tops.Length)       // G8e: still down in that station's stairwell
+            {
+                Vector3 d = tops[downAt] - p; d.y = 0f;
+                if (d.magnitude < 12f) here = downAt; else downAt = -1;
             }
         }
         bool show = here >= 0;

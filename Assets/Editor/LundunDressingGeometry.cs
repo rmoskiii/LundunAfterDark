@@ -15,6 +15,8 @@ namespace LundunGreybox
     public class BreakInfo { public string kind; public double x, y, z, yaw, hl, hw, h; }
     public class BusStopInfo { public double x, z, dx, dz; }
     public class StationInfo { public string name; public double x, z, yaw; }
+    /// G8e: a station entrance's pen (open end at c - f·hl, walls along the sides and far end), for Lundun → 42.
+    public class StationPen { public string name; public V2 c, f; public double hl, hw, y; }
 
     public class DressingResult
     {
@@ -24,6 +26,7 @@ namespace LundunGreybox
         public List<BreakInfo> breakables = new List<BreakInfo>();      // V4b
         public List<BusStopInfo> busStops = new List<BusStopInfo>();
         public List<StationInfo> stations = new List<StationInfo>();
+        public List<StationPen> stationPens = new List<StationPen>();      // G8e
         public List<PlaceInfo> places = new List<PlaceInfo>();
         public List<BikeDockInfo> bikeDocks = new List<BikeDockInfo>();
         public List<double[]> crossings = new List<double[]>();       // L2: zebra crossings (x, z, along x, along z, road width)
@@ -612,6 +615,7 @@ namespace LundunGreybox
             Claim(p.c, Math.Max(p.hl, p.hw) + 1.5);
             Claim(tp, 0.8);
             D.stations.Add(new StationInfo { name = p.label, x = open.x, z = open.z, yaw = Yaw(f * -1) });
+            D.stationPens.Add(new StationPen { name = p.label, c = p.c, f = f, hl = p.hl, hw = p.hw, y = y });   // G8e: draws nothing
             D.Count("Underground entrances");
             // a bin and a bench by the entrance
             V2 bq = open - f * 1.5 - l * (p.hw + 1.5);
