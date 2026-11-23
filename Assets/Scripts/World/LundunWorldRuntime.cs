@@ -35,7 +35,8 @@ public class LundunWorldRuntime : MonoBehaviour
     void Update()
     {
         PlayerHealth health = PlayerHealth.Instance;
-        if (vehicles != null && health != null && !health.IsDead && vehicles.PlayerTarget.position.y < drownY)
+        if (vehicles != null && health != null && !health.IsDead && vehicles.PlayerTarget.position.y < drownY
+            && !LundunTubeWayIn.InStairwell(vehicles.PlayerTarget.position))      // G8e: down a Tube stairwell isn't the river
             health.Kill();
 
         if (playerCar != null && playerCar.position.y < lostY && !(vehicles != null && vehicles.IsDriving && vehicles.PlayerTarget == playerCar))
