@@ -33,7 +33,7 @@ public class LundunBusPassengers : MonoBehaviour
         public Stop stop;
         public Vector3 spot;
         public byte state;
-        public float goAt, nextLook;
+        public float goAt, nextLook, repathAt;
         public System.Action<Vector3> hurt;
     }
 
@@ -295,13 +295,20 @@ public class LundunBusPassengers : MonoBehaviour
     }
 
     /// The front door (getting on) or the middle door (getting off), on the kerb side, just outside the bus.
-    static Vector3 Door(LundunTrafficCar bus, bool front)
+    static Vector3 DoorAt(LundunTrafficCar bus, bool front)
     {
         LundunCarShape shape = bus.GetComponent<LundunCarShape>();
         float nose = shape != null ? shape.Nose.z : 5.2f, width = shape != null ? shape.Width : 2.55f;
-        Vector3 local = new Vector3(-width * 0.5f - 0.45f, 0f, front ? nose - 1.4f : nose - 5.6f);
-        Vector3 w = bus.transform.TransformPoint(local);
-        if (NavMesh.SamplePosition(w, out NavMeshHit hit, 1.5f, NavMesh.AllAreas)) return hit.position;
+        return bus.transform.TransformPoint(new Vector3(-width * 0.5f - 0.45f, 0f, front ? nose - 1.4f : nose - 5.6f));
+    }
+
+    /// G9a fix: where to stand to use that door: the pavement right beside it. (The point by the door is out on the
+    /// road, off the pavement people walk on, so they used to stand there trying to reach it until the bus gave up.)
+    Vector3 Door(LundunTrafficCar bus, bool front)
+    {
+        Vector3 w = DoorAt(bus, front);
+        if (NavMesh.SamplePosition(w + Vector3.up, out NavMeshHit hit, 3.5f, pavementMask)) return hit.position;
+        if (NavMesh.SamplePosition(w, out hit, 1.5f, NavMesh.AllAreas)) return hit.position;
         return w;
     }
 
@@ -316,7 +323,7 @@ public class LundunBusPassengers : MonoBehaviour
             jb.boarding.Clear();
             return false;
         }
-        Vector3 front = Door(jb.bus, true);
+        Vector3 front = Door(jb.bus, true), frontDoor = DoorAt(jb.bus, true);
         for (int i = jb.boarding.Count - 1; i >= 0; i--)
         {
             Person p = jb.boarding[i];
@@ -328,8 +335,13 @@ public class LundunBusPassengers : MonoBehaviour
             if (Time.time < p.goAt) continue;
             p.agent.isStopped = false;
             p.agent.speed = 1.7f;
-            if (!p.agent.hasPath || Flat(p.agent.destination, front) > 0.6f) p.agent.SetDestination(front);
-            if (Flat(p.go.transform.position, front) < 0.9f) { Put(p); jb.boarding.RemoveAt(i); }     // on board
+            // G9a fix: path to the pavement by the door, and don't ask again every frame (that froze them)
+            if (Time.time >= p.repathAt && !p.agent.pathPending && (!p.agent.hasPath || Flat(p.agent.destination, front) > 0.6f))
+            { p.agent.SetDestination(front); p.repathAt = Time.time + 0.5f; }
+            Vector3 at = p.go.transform.position;
+            bool there = Flat(at, front) < 0.9f || Flat(at, frontDoor) < 2.0f
+                         || (Time.time > p.goAt + 6f && Flat(at, frontDoor) < 4f);                  // close enough: step on
+            if (there) { Put(p); jb.boarding.RemoveAt(i); }     // on board
         }
         // people getting off, one at a time, walking away along the pavement
         if (jb.toGetOff > 0 && Time.time >= jb.nextOff)

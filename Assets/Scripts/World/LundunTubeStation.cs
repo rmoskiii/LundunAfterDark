@@ -13,6 +13,9 @@ using UnityEngine.UI;
 ///   at the other end  →  walk up the escalators, through the gates  →  up the steps (WAY OUT) onto the street
 /// SKIP is on screen the whole time: straight up to the street at any stop (the old quick ride). The police after you,
 /// a mission starting, or James taken away some other way (wasted, busted): out of the station.
+/// G9a: the train's doors slide open (a lit carriage behind them) and shut again; people on the platform get on and off:
+/// a few step off and walk up the escalators, most of those waiting walk to a door and board, and after it's gone new
+/// people come down to wait.
 public class LundunTubeStation : MonoBehaviour
 {
     public static bool Underground { get; private set; }
@@ -32,7 +35,8 @@ public class LundunTubeStation : MonoBehaviour
               MWhite = 9, MGlass = 10, MWood = 11, MLamp = 12, MScreen = 13, MGreen = 14, MBallast = 15, MDaylight = 16,
               MPoster0 = 17, MDoorway = 21, MCount = 22;
 
-    GameObject root, train, doorsShut, doorsOpen;
+    GameObject root, train, doorsShut, doorsOpen;              // G9a: the left-sliding and right-sliding leaves
+    float doorOpen, doorWant;                                   // G9a: 0 shut … 1 open, and where they're going
     Transform colliders;
     readonly List<TextMeshPro> nameSigns = new List<TextMeshPro>();
     TextMeshPro dotMatrix, linesSign;
@@ -40,6 +44,13 @@ public class LundunTubeStation : MonoBehaviour
     class Gate { public Transform a, b; public float ax, bx, open; public Collider block; }
     readonly List<Gate> gates = new List<Gate>();
     readonly List<GameObject> people = new List<GameObject>();
+
+    // G9a: the people on the platform, who walk (their own little paths; no NavMesh down here)
+    const byte WWait = 0, WBoard = 1, WOff = 2, WCome = 3;
+    class Walker { public GameObject go; public Animator anim; public byte kind; public readonly List<Vector3> path = new List<Vector3>(); public int i; public float speed, startAt, yaw; }
+    readonly List<Walker> walkers = new List<Walker>();
+    float nextComer;
+    int comersLeft;
     Vector3 origin;
     int at = -1;
     bool busy;
@@ -128,8 +139,10 @@ public class LundunTubeStation : MonoBehaviour
         }
         Gates(l);
         TrainTick(l);
+        DoorTick();
+        Walk();
         bool panel = tube.PanelOpen;
-        boardGo.SetActive(!busy && !panel && state == TrainState.Waiting && Time.time >= nextBoard && l.y < -8f && l.z < -26.4f && l.z > -29.5f);
+        boardGo.SetActive(!busy && !panel && state == TrainState.Waiting && doorWant > 0.5f && Time.time >= nextBoard && l.y < -8f && l.z < -26.4f && l.z > -29.5f);
         skipGo.SetActive(!busy && !panel);
     }
 
@@ -154,14 +167,31 @@ public class LundunTubeStation : MonoBehaviour
     {
         state = TrainState.None;
         if (train != null) { train.SetActive(false); train.transform.localPosition = new Vector3(120f, 0f, 0f); }
-        Doors(false);
+        Doors(false, true);
         if (trainAudio != null) trainAudio.Stop();
     }
 
-    void Doors(bool open)
+    // G9a: the leaves slide apart (0.65 m each way) over about a second, and back
+    const float DoorSlide = 0.65f, DoorTime = 1.1f;
+    void Doors(bool open) { Doors(open, false); }
+    void Doors(bool open, bool instant)
     {
-        if (doorsShut != null) doorsShut.SetActive(!open);
-        if (doorsOpen != null) doorsOpen.SetActive(open);
+        doorWant = open ? 1f : 0f;
+        if (instant) { doorOpen = doorWant; SetLeaves(); }
+    }
+
+    void SetLeaves()
+    {
+        float k = Mathf.SmoothStep(0f, 1f, doorOpen);
+        if (doorsShut != null) doorsShut.transform.localPosition = new Vector3(-DoorSlide * k, 0f, 0f);
+        if (doorsOpen != null) doorsOpen.transform.localPosition = new Vector3(DoorSlide * k, 0f, 0f);
+    }
+
+    void DoorTick()
+    {
+        if (Mathf.Approximately(doorOpen, doorWant)) return;
+        doorOpen = Mathf.MoveTowards(doorOpen, doorWant, Time.deltaTime / DoorTime);
+        SetLeaves();
     }
 
     void TrainTick(Vector3 l)
@@ -188,15 +218,22 @@ public class LundunTubeStation : MonoBehaviour
                     state = TrainState.Waiting; waitUntil = now + 25f;
                     Doors(true);
                     if (hiss != null) sfx.PlayOneShot(hiss, 0.7f);
+                    DoorsOpened(Random.Range(1, 5));                // G9a: off, then on
                 }
                 break;
             }
             case TrainState.Waiting:
+                if (now >= waitUntil - DoorTime - 0.3f && doorWant > 0.5f)
+                {
+                    Doors(false);                                   // G9a: shut before it moves
+                    if (hiss != null) sfx.PlayOneShot(hiss, 0.7f);
+                    MissedIt();
+                }
                 if (now >= waitUntil)
                 {
                     state = TrainState.Leaving; stateAt = now;
-                    Doors(false);
-                    if (hiss != null) sfx.PlayOneShot(hiss, 0.7f);
+                    if (doorWant > 0.5f && hiss != null) sfx.PlayOneShot(hiss, 0.7f);    // G9a: (they usually shut already)
+                    Doors(false, true);
                     if (rumble != null) { trainAudio.clip = rumble; trainAudio.Play(); }
                 }
                 break;
@@ -204,7 +241,7 @@ public class LundunTubeStation : MonoBehaviour
             {
                 float k = Mathf.Clamp01((now - stateAt) / Go);
                 train.transform.localPosition = new Vector3(-Far * k * k, 0f, 0f);
-                if (k >= 1f) { state = TrainState.None; train.SetActive(false); nextTrain = now + 18f; }
+                if (k >= 1f) { state = TrainState.None; train.SetActive(false); nextTrain = now + 18f; Restock(); }
                 break;
             }
         }
@@ -265,8 +302,9 @@ public class LundunTubeStation : MonoBehaviour
         // the train's in, doors open; it pulls out a few seconds after James steps off
         train.SetActive(true);
         train.transform.localPosition = Vector3.zero;
-        Doors(true);
-        state = TrainState.Waiting; waitUntil = Time.time + total + 4f; nextBoard = Time.time + total + 4.5f;   // pulls out once he's off
+        Doors(true, true);
+        state = TrainState.Waiting; waitUntil = Time.time + total + 9f; nextBoard = Time.time + total + 4.5f;   // pulls out once he's off (G9a: and the others are on)
+        DoorsOpened(Random.Range(1, 4), total - 0.6f);      // G9a: others get off with him, once the screen's back
         Place(Local(Mathf.Round(Random.Range(-2f, 2f)) * 4.5f, -Drop + 0.05f, -27.6f), 0f);    // off the train, facing the way out
         if (map != null && map.Showing) yield return map.Animate(jn, Mathf.Max(1f, total - 0.7f));
         else
@@ -318,28 +356,180 @@ public class LundunTubeStation : MonoBehaviour
         for (int i = 0; i < n; i++)
         {
             Vector4 s = spots[order[i]];
-            Person(Local(s.x, s.y, s.z), s.w + Random.Range(-20f, 20f));
+            GameObject g = Person(Local(s.x, s.y, s.z), s.w + Random.Range(-20f, 20f));
+            if (g != null && s.y < -1f) walkers.Add(new Walker { go = g, anim = g.GetComponentInChildren<Animator>(), kind = WWait, yaw = s.w });   // G9a
         }
+        comersLeft = 0;
     }
 
-    void Person(Vector3 pos, float yaw)
+    GameObject Person(Vector3 pos, float yaw)
     {
         LundunPopulation pop = LundunPopulation.Instance;
-        if (pop == null) return;
+        if (pop == null) return null;
         GameObject g = pop.NewPerson(null);
-        if (g == null) return;
+        if (g == null) return null;
         NPCBrain b = g.GetComponent<NPCBrain>(); if (b != null) b.enabled = false;          // no wandering, no NavMesh
         NavMeshAgent a = g.GetComponent<NavMeshAgent>(); if (a != null) a.enabled = false;
         g.transform.SetPositionAndRotation(pos, Quaternion.Euler(0f, yaw, 0f));
         g.SetActive(true);
         foreach (Animator an in g.GetComponentsInChildren<Animator>(true)) an.cullingMode = AnimatorCullingMode.AlwaysAnimate;
         people.Add(g);
+        return g;
     }
 
     void ClearPeople()
     {
         foreach (GameObject g in people) if (g != null) Destroy(g);
         people.Clear();
+        walkers.Clear();
+    }
+
+    // ------------------------------------------------------------------ G9a: getting on and off
+    // The doors, in the station's metres (the train stopped at x = 0): two per car, on the platform side.
+    static float DoorX(int d) { return -24.75f + (d / 2) * 16.5f + (d % 2 == 0 ? -4.5f : 4.5f); }
+    const int DoorCount = 8;
+    const float DoorZ = TrainZ + 1.3f, FrontZ = -28.3f, AisleZ = -26.0f;
+    static int NearestDoor(float x)
+    {
+        int best = 0; float bd = float.MaxValue;
+        for (int d = 0; d < DoorCount; d++) { float dd = Mathf.Abs(DoorX(d) - x); if (dd < bd) { bd = dd; best = d; } }
+        return best;
+    }
+
+    // up an escalator lane (or down it): along its slope, from the bottom (s = 0) to near the top
+    Vector3 EscalatorPoint(float laneX, float s)
+    {
+        float th = SlopeDeg * Mathf.Deg2Rad, run = Run();
+        return Local(laneX, -Drop + 0.05f + s * Mathf.Sin(th), -run + s * Mathf.Cos(th));
+    }
+    float EscalatorLength() { float run = Run(); return Mathf.Sqrt(run * run + Drop * Drop); }
+
+    void AddWayUp(Walker w, float fromX)
+    {
+        float lane = Random.value < 0.5f ? -2.6f : 2.6f;
+        w.path.Add(Local(Mathf.Clamp(fromX, -3f, 3f), -Drop + 0.05f, AisleZ + Random.Range(-0.4f, 0.4f)));
+        w.path.Add(Local(lane, -Drop + 0.05f, -Run() - 1.2f));
+        w.path.Add(EscalatorPoint(lane, 0f));
+        w.path.Add(EscalatorPoint(lane, EscalatorLength() - 1.5f));
+    }
+
+    /// The doors are open: 'off' people step out and head up; then most of those waiting walk to a door and get on.
+    void DoorsOpened(int off, float delay = 0f)
+    {
+        float t = Time.time + delay + DoorTime * 0.8f;
+        for (int i = 0; i < off; i++)
+        {
+            int d = Random.Range(0, DoorCount);
+            float x = DoorX(d) + Random.Range(-0.3f, 0.3f);
+            GameObject g = Person(Local(x, -Drop + 0.05f, DoorZ - 0.6f), 0f);
+            if (g == null) break;
+            g.SetActive(false);                                         // until it's their turn to step out
+            Walker w = new Walker { go = g, anim = g.GetComponentInChildren<Animator>(), kind = WOff, speed = Random.Range(1.3f, 1.6f), startAt = t };
+            w.path.Add(Local(x, -Drop + 0.05f, FrontZ + 0.6f));
+            AddWayUp(w, x);
+            walkers.Add(w);
+            t += Random.Range(0.5f, 0.9f);
+        }
+        // those waiting: all but now and then one (waiting for a different line)
+        float on = t + 0.6f;
+        foreach (Walker w in walkers)
+        {
+            if (w.kind != WWait || w.go == null || Random.value < 0.2f) continue;
+            Vector3 l = w.go.transform.position - origin;
+            int d = NearestDoor(l.x);
+            float x = DoorX(d) + Random.Range(-0.25f, 0.25f);
+            w.kind = WBoard; w.speed = Random.Range(1.2f, 1.5f); w.startAt = on + Mathf.Abs(l.x - DoorX(d)) * 0.05f + Random.Range(0f, 0.8f);
+            w.path.Clear(); w.i = 0;
+            w.path.Add(Local(x, -Drop + 0.05f, FrontZ));
+            w.path.Add(Local(x, -Drop + 0.05f, DoorZ - 0.5f));
+        }
+    }
+
+    /// The doors are shutting: anyone not at a door yet waits for the next one.
+    void MissedIt()
+    {
+        foreach (Walker w in walkers)
+        {
+            if (w.kind != WBoard || w.go == null) continue;
+            Vector3 l = w.go.transform.position - origin;
+            if (l.z < FrontZ - 0.3f) continue;                          // already stepping in: let them
+            w.kind = WWait; w.path.Clear(); w.i = 0;
+        }
+    }
+
+    /// The train's gone: a few come down the escalators to wait (up to six on the platform).
+    void Restock()
+    {
+        int waiting = 0;
+        foreach (Walker w in walkers) if (w.kind == WWait || w.kind == WCome) waiting++;
+        comersLeft = Mathf.Max(0, Mathf.Min(Random.Range(1, 4), 6 - waiting));
+        nextComer = Time.time + Random.Range(1f, 4f);
+    }
+
+    void Comer()
+    {
+        float lane = Random.value < 0.5f ? -2.6f : 2.6f;
+        Vector3 from = EscalatorPoint(lane, EscalatorLength() - 1.5f);
+        GameObject g = Person(from, 180f);
+        if (g == null) { comersLeft = 0; return; }
+        Walker w = new Walker { go = g, anim = g.GetComponentInChildren<Animator>(), kind = WCome, speed = Random.Range(1.2f, 1.5f), startAt = Time.time, yaw = 180f + Random.Range(-20f, 20f) };
+        w.path.Add(EscalatorPoint(lane, 0f));
+        w.path.Add(Local(lane, -Drop + 0.05f, -Run() - 1.2f));
+        float x = Random.Range(-30f, 30f);
+        w.path.Add(Local(Mathf.Clamp(x, -3f, 3f), -Drop + 0.05f, AisleZ));
+        w.path.Add(Local(x, -Drop + 0.05f, Random.Range(-27.6f, -25.9f)));
+        walkers.Add(w);
+    }
+
+    void Walk()
+    {
+        if (comersLeft > 0 && Time.time >= nextComer && state != TrainState.Waiting)
+        {
+            comersLeft--; nextComer = Time.time + Random.Range(3f, 7f);
+            Comer();
+        }
+        for (int n = walkers.Count - 1; n >= 0; n--)
+        {
+            Walker w = walkers[n];
+            if (w.go == null) { walkers.RemoveAt(n); continue; }
+            if (w.path.Count == 0 || w.i >= w.path.Count || Time.time < w.startAt)
+            {
+                if (w.go.activeInHierarchy) LundunAnim.Float(w.anim, "Speed", 0f, 0.1f);
+                continue;
+            }
+            if (!w.go.activeSelf) w.go.SetActive(true);
+            Vector3 pos = w.go.transform.position, to = w.path[w.i];
+            Vector3 d = to - pos;
+            float step = w.speed * Time.deltaTime;
+            if (d.magnitude <= step)
+            {
+                w.go.transform.position = to;
+                w.i++;
+                if (w.i >= w.path.Count) Arrived(w, n);
+                continue;
+            }
+            w.go.transform.position = pos + d.normalized * step;
+            Vector3 flat = new Vector3(d.x, 0f, d.z);
+            if (flat.sqrMagnitude > 0.0001f)
+                w.go.transform.rotation = Quaternion.RotateTowards(w.go.transform.rotation, Quaternion.LookRotation(flat), 360f * Time.deltaTime);
+            LundunAnim.Float(w.anim, "Speed", w.speed, 0.1f);
+        }
+    }
+
+    void Arrived(Walker w, int n)
+    {
+        if (w.kind == WBoard || w.kind == WOff)
+        {
+            // on the train, or up the escalator and away
+            people.Remove(w.go);
+            Destroy(w.go);
+            walkers.RemoveAt(n);
+            return;
+        }
+        // come down to wait: stand facing the track
+        w.kind = WWait; w.path.Clear(); w.i = 0;
+        w.go.transform.rotation = Quaternion.Euler(0f, w.yaw, 0f);
+        LundunAnim.Float(w.anim, "Speed", 0f);
     }
 
     void Place(Vector3 pos, float yaw)
@@ -379,8 +569,8 @@ public class LundunTubeStation : MonoBehaviour
         train = new GameObject("Train");
         train.transform.SetParent(root.transform, false);
         MakeRenderer(train.transform, trainKit, "TrainBody");
-        doorsShut = MakeRenderer(train.transform, shutKit, "DoorsShut");
-        doorsOpen = MakeRenderer(train.transform, openKit, "DoorsOpen");
+        doorsShut = MakeRenderer(train.transform, shutKit, "DoorsLeft");          // G9a: both always on, sliding
+        doorsOpen = MakeRenderer(train.transform, openKit, "DoorsRight");
         trainAudio = train.AddComponent<AudioSource>();
         trainAudio.spatialBlend = 1f; trainAudio.minDistance = 6f; trainAudio.maxDistance = 90f; trainAudio.volume = 0.9f;
         trainAudio.playOnAwake = false;
@@ -439,7 +629,7 @@ public class LundunTubeStation : MonoBehaviour
         m[MDaylight] = LundunMeshKit.Mat("TubeDaylight", Color.white, 0.2f, new Color(1f, 0.98f, 0.92f) * 1.6f);
         Color[] posters = { new Color(0.91f, 0.31f, 0.22f), new Color(0.16f, 0.62f, 0.56f), new Color(0.42f, 0.3f, 0.58f), new Color(0.96f, 0.64f, 0.38f) };
         for (int i = 0; i < 4; i++) m[MPoster0 + i] = LundunMeshKit.Mat("TubePoster" + i, posters[i], 0.6f, posters[i] * 0.35f);
-        m[MDoorway] = LundunMeshKit.Mat("TubeDoorway", new Color(0.3f, 0.28f, 0.24f), 0.2f, new Color(0.6f, 0.55f, 0.42f) * 0.5f);
+        m[MDoorway] = LundunMeshKit.Mat("TubeDoorway", new Color(0.86f, 0.83f, 0.72f), 0.2f, new Color(1f, 0.95f, 0.8f) * 0.9f);   // G9a: a lit carriage
         return m;
     }
 
@@ -799,11 +989,16 @@ public class LundunTubeStation : MonoBehaviour
             {
                 float x = cx + dx;
                 trainKit.Box(MDoorway, new Vector3(x, floorY + 1.0f, side + 0.006f), new Vector3(1.3f, 1.95f, 0.015f));
+                // G9a: the lit carriage behind the doors: a yellow grab pole, the floor, a line of seats either side
+                trainKit.Box(MYellow, new Vector3(x, floorY + 1.0f, side + 0.012f), new Vector3(0.05f, 1.95f, 0.006f));
+                trainKit.Box(MBlack, new Vector3(x, floorY + 0.06f, side + 0.012f), new Vector3(1.3f, 0.12f, 0.006f));
+                foreach (int e in new[] { -1, 1 })
+                    trainKit.Box(MNavy, new Vector3(x + e * 0.5f, floorY + 0.55f, side + 0.012f), new Vector3(0.3f, 0.45f, 0.006f));
                 foreach (int e in new[] { -1, 1 })
                 {
-                    shutKit.Box(MRed, new Vector3(x + e * 0.33f, floorY + 1.0f, side + 0.03f), new Vector3(0.64f, 1.95f, 0.04f));
-                    shutKit.Box(MGlass, new Vector3(x + e * 0.33f, floorY + 1.45f, side + 0.052f), new Vector3(0.4f, 0.55f, 0.01f));
-                    openKit.Box(MRed, new Vector3(x + e * 0.98f, floorY + 1.0f, side + 0.03f), new Vector3(0.64f, 1.95f, 0.04f));
+                    LundunMeshKit leaf = e < 0 ? shutKit : openKit;              // G9a: left leaves slide left, right leaves right
+                    leaf.Box(MRed, new Vector3(x + e * 0.33f, floorY + 1.0f, side + 0.03f), new Vector3(0.64f, 1.95f, 0.04f));
+                    leaf.Box(MGlass, new Vector3(x + e * 0.33f, floorY + 1.45f, side + 0.052f), new Vector3(0.4f, 0.55f, 0.01f));
                 }
                 // the far side's doors stay shut
                 foreach (int e in new[] { -1, 1 }) trainKit.Box(MRed, new Vector3(x + e * 0.33f, floorY + 1.0f, TrainZ - 1.33f), new Vector3(0.64f, 1.95f, 0.04f));
