@@ -75,6 +75,7 @@ public class LundunWeather : MonoBehaviour
     private ParticleSystem rain;
     private ParticleSystem.EmissionModule rainEmission;
     private AudioSource rainAudio;
+    const float RainLoudness = 0.5f;                       // turned down to half (the rain was a bit loud)
     private SpriteRenderer[] streaks;
     private Vector3[] streakBase;
     private Color[] streakCol;                       // L5: each lamp's own colour
@@ -309,7 +310,7 @@ public class LundunWeather : MonoBehaviour
         }
         if (rainAudio != null)
         {
-            float want = rainVolume * Mathf.Clamp01(Rain * 1.3f) * ((LundunPubs.InsidePub || LundunArches.Inside || LundunTubeStation.Underground) ? 0.2f : 1f);
+            float want = rainVolume * RainLoudness * Mathf.Clamp01(Rain * 1.3f) * ((LundunPubs.InsidePub || LundunArches.Inside || LundunTubeStation.Underground) ? 0.2f : 1f);
             rainAudio.volume = Mathf.MoveTowards(rainAudio.volume, want, Time.unscaledDeltaTime * 0.3f);
             if (rainAudio.volume > 0.001f && !rainAudio.isPlaying) rainAudio.Play();
             else if (rainAudio.volume <= 0.001f && rainAudio.isPlaying) rainAudio.Stop();
