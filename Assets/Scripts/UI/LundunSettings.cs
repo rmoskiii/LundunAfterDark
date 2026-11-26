@@ -129,6 +129,7 @@ public partial class LundunSettings : MonoBehaviour
                     && !(PlayerHealth.Instance != null && PlayerHealth.Instance.IsDead);
         if (pauseButton.gameObject.activeSelf != show) pauseButton.gameObject.SetActive(show);
         if (IsOpen && fpsNote != null && Time.unscaledTime % 0.5f < Time.unscaledDeltaTime) fpsNote.text = FpsNoteText();
+        if (IsOpen && shareLabel != null) shareLabel.text = LundunShareCard.Instance != null && LundunShareCard.Instance.Busy ? "PREPARING…" : "SHARE";   // G8.1a
     }
 
     // ------------------------------------------------------------------ open / close
@@ -150,8 +151,13 @@ public partial class LundunSettings : MonoBehaviour
         if (missionsTab != null && missionsTab.activeSelf) RefreshMissions();        // S6
         if (dailyTab != null && dailyTab.activeSelf) RefreshDaily();                 // S8
         if (footageButton != null) footageButton.gameObject.SetActive(LundunCctvClips.HasFootage);   // G8.1b
+        if (shareButton != null) shareButton.gameObject.SetActive(LundunShareCard.CanShare && LundunShareCard.LatestId() != null);   // G8.1a
         RefreshButtons();
     }
+
+    private RectTransform shareButton;                                              // G8.1a: SHARE (card)
+    private TextMeshProUGUI shareLabel;
+    void SetPopUp(int i) { LundunCctvClips.PopUpOn = i == 0; RefreshButtons(); }    // G8.1a
 
     private RectTransform footageButton;                                            // G8.1b: LAST FOOTAGE
 
@@ -294,7 +300,7 @@ public partial class LundunSettings : MonoBehaviour
         Image dim = menu.AddComponent<Image>(); dim.color = new Color(0f, 0.01f, 0.03f, 0.72f);       // blocks touches to the game
 
         panel = Rect("Panel", mr);
-        panel.sizeDelta = new Vector2(1000f, 1040f);                                    // v50: room for CAMERA and the guide
+        panel.sizeDelta = new Vector2(1000f, 1128f);                                    // v50: room for CAMERA and the guide; G8.1a: + INCIDENT POP-UP
         Image pi = panel.gameObject.AddComponent<Image>();
         pi.sprite = LundunHudArt.Panel; pi.type = Image.Type.Sliced; pi.pixelsPerUnitMultiplier = 0.35f; pi.color = Ink;
 
@@ -314,6 +320,19 @@ public partial class LundunSettings : MonoBehaviour
         LundunCctvClips.Content(footageButton, "LAST FOOTAGE", Color.white, 22f);
         footageButton.gameObject.SetActive(false);
 
+        // G8.1a: SHARE (the newest card-worthy settled incident's card), top left, mirroring LAST FOOTAGE
+        shareButton = Rect("ShareCard", panel);
+        shareButton.anchorMin = shareButton.anchorMax = new Vector2(0f, 1f); shareButton.pivot = new Vector2(0f, 1f);
+        shareButton.anchoredPosition = new Vector2(24f, -22f); shareButton.sizeDelta = new Vector2(200f, 66f);
+        Image sbi = shareButton.gameObject.AddComponent<Image>();
+        sbi.sprite = LundunHudArt.Pill; sbi.type = Image.Type.Sliced; sbi.pixelsPerUnitMultiplier = 0.67f; sbi.color = new Color(1f, 1f, 1f, 0.12f);
+        Button sbb = shareButton.gameObject.AddComponent<Button>(); sbb.targetGraphic = sbi;
+        sbb.onClick.AddListener(() => { string id = LundunShareCard.LatestId(); if (id != null) LundunShareCard.Share(id, shareButton); LundunHaptics.Light(); });
+        shareButton.gameObject.AddComponent<LundunPressFX>();
+        shareLabel = LundunCctvClips.ShareLabel(shareButton);
+        shareLabel.fontSize = 22f;
+        shareButton.gameObject.SetActive(false);
+
         // A3: tabs, DISPLAY and CONTROLS; V3: CREDITS
         if (LundunGame.IsStory) Tabs(panel, new[] { "DISPLAY", "CONTROLS", "CREW", "MISSIONS", "DAILY", "CREDITS" }, -104f, new[] { 0, 1, 3, 4, 5, 2 });   // S5: CREW, S6: MISSIONS, S8: DAILY
         else Tabs(panel, new[] { "DISPLAY", "CONTROLS", "CREDITS" }, -104f);
@@ -330,6 +349,7 @@ public partial class LundunSettings : MonoBehaviour
         Row(dt, "PERFORMANCE", "stats", new[] { "HIDE", "SHOW" }, SetStats, ref y);
         Row(dt, "DRIVE INFO", "driveinfo", new[] { "HIDE", "SHOW" }, SetDriveInfo, ref y);
         Row(dt, "CAMERA", "camera", new[] { "THIRD", "FIRST", "STEADY" }, SetCamera, ref y);                // v50: STEADY = first person, no head bob
+        Row(dt, "INCIDENT POP-UP", "popup", new[] { "ON", "OFF" }, SetPopUp, ref y);                       // G8.1a: only the pop-up; the pause menu keeps FOOTAGE and SHARE
 
         y = -196f;
         Row(ct, "STEERING", "steering", new[] { "PAD", "ARROWS", "POINT" }, SetSteering, ref y);       // L1
@@ -523,6 +543,7 @@ public partial class LundunSettings : MonoBehaviour
         Mark("steering", (int)VehicleSystem.SteeringMode);
         Mark("driveinfo", VehicleSystem.ShowDriveInfo ? 1 : 0);
         Mark("camera", CameraFollow.Mode);
+        Mark("popup", LundunCctvClips.PopUpOn ? 0 : 1);                             // G8.1a
         if (lookValue != null) lookValue.text = lookSpeed.ToString("0.0") + "×";
         if (aimValue != null) aimValue.text = Mathf.RoundToInt(aimSpeed * 100f) + "%";
     }

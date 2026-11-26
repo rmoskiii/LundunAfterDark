@@ -23,9 +23,14 @@ using UnityEngine.UI;
 ///               one held crash snapshot. Never freed by the limit: a clip whose incident is pinned, the held snapshot,
 ///               the clip being watched. Room needed: the oldest unprotected clip goes. All protected: the new clip is
 ///               not kept, and the Console says so. A pin is never broken.
-///   watching    only SETTLED footage (TryGetSettled). A "CCTV FOOTAGE" button for 6 s after an escape or a big crash
-///               that settles the moment it closes, outside a mission (it pauses the game and plays it); "LAST FOOTAGE"
-///               on the pause menu (LundunSettings). Tap to close.
+///   watching    only SETTLED footage (TryGetSettled). "LAST FOOTAGE" on the pause menu (LundunSettings). Tap to close.
+///   G8.1a: the incident pop-up (one pop-up, replacing the footage-only button): "ESCAPED · Rye Lane" (headline in the
+///               game's colours), the stars, and up to two buttons: ▶ FOOTAGE (when there's settled footage; pauses the
+///               game and plays it) and SHARE (a card-worthy incident, LundunShareCard, on iPhone / in the Editor).
+///               Escapes and big crashes: straight away, 6 s (crashes are footage only). WASTED / BUSTED: once controls
+///               unlock after the respawn fade, 8 s. Only for incidents that settle the moment they close, outside a
+///               mission; never during a mission (a passed mission's cards are on the pause menu's SHARE; VOID never).
+///               INCIDENT POP-UP (DISPLAY tab) switches only this pop-up off: the pause menu still has everything.
 /// Readout (Editor and development builds): "[Replays] ring … · clips … · held …" each time a clip is kept or freed.
 public class LundunCctvClips : MonoBehaviour
 {
@@ -48,6 +53,20 @@ public class LundunCctvClips : MonoBehaviour
     int myMode;
 
     Canvas hud; GameObject prompt; float promptUntil; string promptId;
+    // G8.1a: the incident pop-up's parts, and a WASTED / BUSTED pop-up waiting for the respawn
+    TextMeshProUGUI promptTitle, shareLabel;
+    Image[] promptStars;
+    RectTransform footageRect, shareRect;
+    string pendingId; bool pendingSawLock; float pendingUnlockedAt = -1f, pendingSince;
+    const float AfterRespawn = 1.6f, ArrestPromptFor = 8f, PendingGiveUp = 40f;
+
+    /// G8.1a: the DISPLAY tab's INCIDENT POP-UP (on unless switched off; only the pop-up, never the pause menu).
+    const string PopUpKey = "lad_incident_popup";
+    public static bool PopUpOn
+    {
+        get { return PlayerPrefs.GetInt(PopUpKey, 1) == 1; }
+        set { PlayerPrefs.SetInt(PopUpKey, value ? 1 : 0); PlayerPrefs.Save(); if (!value && Instance != null) { Instance.HidePrompt(); Instance.pendingId = null; } }
+    }
     Canvas closeCanvas; bool stopRequested, watching;
     static Sprite playIcon;
 
@@ -193,12 +212,24 @@ public class LundunCctvClips : MonoBehaviour
         try
         {
             if (r == null || r.mode != myMode || !r.closed) return;
+            if (!PopUpOn) return;                                          // G8.1a: the pause menu still has it
+            if (Time.time - r.endTime > FreshClose) return;                // settled now by a mission pass: pause menu only
+            if (LundunMissions.Running || LundunMissions.CardOpen) return; // never during a mission
+            LundunShareCard.Kind card = LundunShareCard.CardKind(r);
+            bool share = card != LundunShareCard.Kind.None && LundunShareCard.CanShare;
+            bool footage = Clip(r.id) != null;
+            if (!share && !footage) return;
+            if (card == LundunShareCard.Kind.Wasted || card == LundunShareCard.Kind.Busted)
+            {
+                // the WASTED / BUSTED sequence is just starting: wait until he's back on his feet
+                HidePrompt();
+                pendingId = r.id; pendingSawLock = false; pendingUnlockedAt = -1f; pendingSince = Time.unscaledTime;
+                return;
+            }
             bool escape = r.kind == LundunIncidentKind.Chase && (r.end == LundunIncidentEnd.Escaped || r.end == LundunIncidentEnd.EscapedByTrain || r.end == LundunIncidentEnd.Resprayed);
             if (!escape && r.kind != LundunIncidentKind.Crash) return;
-            if (Time.time - r.endTime > FreshClose) return;                // settled now by a mission pass: pause menu only
-            if (LundunMissions.Running || LundunMissions.CardOpen || VehicleSystem.Locked) return;
-            if (Clip(r.id) == null) return;
-            ShowPrompt(r.id);
+            if (VehicleSystem.Locked) return;
+            ShowPrompt(r.id, PromptFor);
         }
         catch (Exception e) { Debug.LogException(e); }
     }
@@ -261,20 +292,60 @@ public class LundunCctvClips : MonoBehaviour
     void Update()
     {
         if (snapAt > 0f && Time.time >= snapAt) { try { TakeSnapshot(); } catch (Exception e) { Debug.LogException(e); } }
+        try { PendingArrest(); } catch (Exception e) { Debug.LogException(e); }
         if (prompt != null && prompt.activeSelf)
         {
+            bool sharing = LundunShareCard.Instance != null && LundunShareCard.Instance.Busy;
+            if (shareLabel != null) shareLabel.text = sharing ? "PREPARING…" : "SHARE";
             bool dead = PlayerHealth.Instance != null && PlayerHealth.Instance.IsDead;
-            if (Time.unscaledTime >= promptUntil || dead || LundunMissions.Running || LundunMissions.CardOpen || VehicleSystem.Locked || Clip(promptId) == null) HidePrompt();
+            LundunIncident r = LundunIncidents.Get(promptId);
+            bool usable = r != null && (Clip(promptId) != null || (LundunShareCard.Eligible(r) && LundunShareCard.CanShare));
+            if (!sharing && (Time.unscaledTime >= promptUntil || dead || LundunMissions.Running || LundunMissions.CardOpen || VehicleSystem.Locked || !usable || !PopUpOn)) HidePrompt();
         }
         keptClips = kept.Count;
         holdingSnapshot = held != null;
     }
 
-    void ShowPrompt(string id)
+    /// G8.1a: a WASTED / BUSTED pop-up waits for the sequence (controls locked) to end and the screen to come back.
+    void PendingArrest()
     {
+        if (pendingId == null) return;
+        if (!PopUpOn || LundunMissions.Running || Time.unscaledTime - pendingSince > PendingGiveUp) { pendingId = null; return; }
+        if (VehicleSystem.Locked) { pendingSawLock = true; pendingUnlockedAt = -1f; return; }
+        if (!pendingSawLock) { if (Time.unscaledTime - pendingSince > 2f) pendingSawLock = true; return; }   // (no lock seen: carry on)
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.IsDead) return;
+        if (pendingUnlockedAt < 0f) { pendingUnlockedAt = Time.unscaledTime; return; }
+        if (Time.unscaledTime - pendingUnlockedAt < AfterRespawn) return;  // the fade back in
+        string id = pendingId; pendingId = null;
+        ShowPrompt(id, ArrestPromptFor);
+    }
+
+    void ShowPrompt(string id, float seconds)
+    {
+        LundunIncident r = LundunIncidents.Get(id);
+        if (r == null) return;
         if (hud == null) BuildPrompt();
         promptId = id;
-        promptUntil = Time.unscaledTime + PromptFor;
+        promptUntil = Time.unscaledTime + seconds;
+
+        // the line: headline (in its colour) and where
+        LundunShareCard.Kind card = LundunShareCard.CardKind(r);
+        string head = card != LundunShareCard.Kind.None ? LundunShareCard.Headline(card)
+                    : r.kind == LundunIncidentKind.Crash ? "CRASH" : "ESCAPED";
+        Color hc = card != LundunShareCard.Kind.None ? LundunShareCard.HeadlineColour(card) : new Color(1f, 0.66f, 0.18f);
+        string street = !string.IsNullOrEmpty(r.endStreet) ? r.endStreet : !string.IsNullOrEmpty(r.startStreet) ? r.startStreet : r.endDistrict;
+        promptTitle.text = "<color=#" + ColorUtility.ToHtmlStringRGB(hc) + ">" + head + "</color>" + (string.IsNullOrEmpty(street) ? "" : "  ·  " + street);
+        int stars = Mathf.Clamp(r.peakStars, 0, promptStars.Length);
+        for (int i = 0; i < promptStars.Length; i++) promptStars[i].gameObject.SetActive(i < stars);
+
+        // the buttons: ▶ FOOTAGE and / or SHARE
+        bool footage = Clip(id) != null;
+        bool share = LundunShareCard.Eligible(r) && LundunShareCard.CanShare;
+        footageRect.gameObject.SetActive(footage);
+        shareRect.gameObject.SetActive(share);
+        if (footage && share) { footageRect.anchoredPosition = new Vector2(-150f, 22f); shareRect.anchoredPosition = new Vector2(150f, 22f); }
+        else if (footage) footageRect.anchoredPosition = new Vector2(0f, 22f);
+        else if (share) shareRect.anchoredPosition = new Vector2(0f, 22f);
         prompt.SetActive(true);
     }
 
@@ -282,7 +353,7 @@ public class LundunCctvClips : MonoBehaviour
 
     void BuildPrompt()
     {
-        GameObject cg = new GameObject("CctvFootageButton");
+        GameObject cg = new GameObject("IncidentPopUp");
         cg.transform.SetParent(transform, false);
         hud = cg.AddComponent<Canvas>();
         hud.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -291,20 +362,77 @@ public class LundunCctvClips : MonoBehaviour
         sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; sc.referenceResolution = new Vector2(1920f, 1080f); sc.matchWidthOrHeight = 0.5f;
         cg.AddComponent<GraphicRaycaster>();
 
-        GameObject b = new GameObject("Button", typeof(RectTransform));
-        b.transform.SetParent(cg.transform, false);
-        RectTransform r = (RectTransform)b.transform;
-        r.anchorMin = r.anchorMax = new Vector2(1f, 0.64f); r.pivot = new Vector2(1f, 0.5f);
-        r.anchoredPosition = new Vector2(-36f, 0f); r.sizeDelta = new Vector2(380f, 84f);
-        Image bg = b.AddComponent<Image>();
-        if (LundunHudArt.Pill != null) { bg.sprite = LundunHudArt.Pill; bg.type = Image.Type.Sliced; bg.pixelsPerUnitMultiplier = 0.67f; }
+        // G8.1a: one panel: the line (headline · where) and the stars on top, the buttons below
+        GameObject pg = new GameObject("Panel", typeof(RectTransform));
+        pg.transform.SetParent(cg.transform, false);
+        RectTransform panel = (RectTransform)pg.transform;
+        panel.anchorMin = panel.anchorMax = new Vector2(1f, 0.64f); panel.pivot = new Vector2(1f, 0.5f);
+        panel.anchoredPosition = new Vector2(-36f, 0f); panel.sizeDelta = new Vector2(640f, 196f);
+        Image bg = pg.AddComponent<Image>();
+        if (LundunHudArt.Panel != null) { bg.sprite = LundunHudArt.Panel; bg.type = Image.Type.Sliced; bg.pixelsPerUnitMultiplier = 0.5f; }
         bg.color = new Color(0.03f, 0.05f, 0.09f, 0.9f);
-        Button btn = b.AddComponent<Button>(); btn.targetGraphic = bg;
-        btn.onClick.AddListener(() => { if (promptId != null) Watch(promptId, false); });
-        b.AddComponent<LundunPressFX>();
-        Content(r, "CCTV FOOTAGE", Color.white, 30f);
-        prompt = b;
+        bg.raycastTarget = false;
+
+        GameObject tg = new GameObject("Line", typeof(RectTransform));
+        tg.transform.SetParent(panel, false);
+        RectTransform tr = (RectTransform)tg.transform;
+        tr.anchorMin = new Vector2(0f, 1f); tr.anchorMax = new Vector2(1f, 1f); tr.pivot = new Vector2(0.5f, 1f);
+        tr.offsetMin = new Vector2(28f, -72f); tr.offsetMax = new Vector2(-200f, -16f);      // a 56-high line, clear of the stars
+        promptTitle = tg.AddComponent<TextMeshProUGUI>();
+        if (LundunHud.Instance != null && LundunHud.Instance.FontAsset != null) promptTitle.font = LundunHud.Instance.FontAsset;
+        promptTitle.fontSize = 32f; promptTitle.color = Color.white; promptTitle.fontStyle = FontStyles.Bold; promptTitle.characterSpacing = 4f;
+        promptTitle.alignment = TextAlignmentOptions.Left; promptTitle.raycastTarget = false; promptTitle.richText = true;
+        promptTitle.textWrappingMode = TextWrappingModes.NoWrap; promptTitle.overflowMode = TextOverflowModes.Ellipsis;
+
+        promptStars = new Image[5];
+        for (int i = 0; i < promptStars.Length; i++)
+        {
+            GameObject sg = new GameObject("Star" + i, typeof(RectTransform));
+            sg.transform.SetParent(panel, false);
+            RectTransform srt = (RectTransform)sg.transform;
+            srt.anchorMin = srt.anchorMax = new Vector2(1f, 1f); srt.pivot = new Vector2(1f, 1f);
+            srt.anchoredPosition = new Vector2(-24f - (promptStars.Length - 1 - i) * 34f, -26f); srt.sizeDelta = new Vector2(30f, 30f);
+            Image st = sg.AddComponent<Image>(); st.sprite = LundunHudArt.Star; st.color = new Color(1f, 0.66f, 0.18f); st.raycastTarget = false;
+            promptStars[i] = st;
+        }
+
+        footageRect = PopButton(panel, "Footage", () => { if (promptId != null) Watch(promptId, false); });
+        Content(footageRect, "FOOTAGE", Color.white, 28f);
+        shareRect = PopButton(panel, "Share", () => { if (promptId != null) LundunShareCard.Share(promptId, shareRect); });
+        shareLabel = ShareLabel(shareRect);
+
+        prompt = cg;
         prompt.SetActive(false);
+    }
+
+    RectTransform PopButton(RectTransform panel, string name, UnityEngine.Events.UnityAction onClick)
+    {
+        GameObject b = new GameObject(name, typeof(RectTransform));
+        b.transform.SetParent(panel, false);
+        RectTransform r = (RectTransform)b.transform;
+        r.anchorMin = r.anchorMax = new Vector2(0.5f, 0f); r.pivot = new Vector2(0.5f, 0f);
+        r.anchoredPosition = new Vector2(0f, 22f); r.sizeDelta = new Vector2(280f, 76f);
+        Image img = b.AddComponent<Image>();
+        if (LundunHudArt.Pill != null) { img.sprite = LundunHudArt.Pill; img.type = Image.Type.Sliced; img.pixelsPerUnitMultiplier = 0.67f; }
+        img.color = new Color(1f, 1f, 1f, 0.14f);
+        Button btn = b.AddComponent<Button>(); btn.targetGraphic = img;
+        btn.onClick.AddListener(onClick);
+        b.AddComponent<LundunPressFX>();
+        return r;
+    }
+
+    /// SHARE's label (it reads PREPARING… while the card is being made). Shared with the pause menu's SHARE.
+    public static TextMeshProUGUI ShareLabel(RectTransform pill)
+    {
+        GameObject tg = new GameObject("Label", typeof(RectTransform));
+        tg.transform.SetParent(pill, false);
+        RectTransform tr = (RectTransform)tg.transform;
+        tr.anchorMin = Vector2.zero; tr.anchorMax = Vector2.one; tr.offsetMin = tr.offsetMax = Vector2.zero;
+        TextMeshProUGUI t = tg.AddComponent<TextMeshProUGUI>();
+        if (LundunHud.Instance != null && LundunHud.Instance.FontAsset != null) t.font = LundunHud.Instance.FontAsset;
+        t.text = "SHARE"; t.fontSize = 28f; t.color = new Color(1f, 0.66f, 0.18f); t.fontStyle = FontStyles.Bold; t.characterSpacing = 6f;
+        t.alignment = TextAlignmentOptions.Center; t.raycastTarget = false;
+        return t;
     }
 
     /// The play triangle and a label inside a pill (shared with the pause menu's LAST FOOTAGE).
