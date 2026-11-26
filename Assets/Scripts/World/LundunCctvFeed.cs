@@ -28,13 +28,27 @@ using UnityEngine.UI;
 ///   phone       a cut or a playback can be shown as a phone held up to James (the picture smaller, the world behind)
 /// Costs: one small extra camera that only draws on the frames it's needed (12 a second during a cut, 4 a second while
 /// recording), no shadows, no post-processing, no anti-aliasing.
+/// G8.1b: the recorder keeps the last 10 seconds at 5 a second (50 small 384×216 pictures in 16-bit colour, ~8 MB,
+/// drawn into one working picture and copied into the ring), with the game time of each frame so a clip can be cut for
+/// an incident (Cut, used by LundunCctvClips). It also records while James drives fast in a camera's view, and for a few
+/// seconds after a big crash; as before, only while a camera actually has him. WASTED / BUSTED play the last ~5 s
+/// (same look, same place in the sequence). Fallbacks (only if the iPhone numbers call for them): fallbackFps4,
+/// fallbackSmall, set before recording starts.
 public class LundunCctvFeed : MonoBehaviour
 {
     public static LundunCctvFeed Instance { get; private set; }
 
-    const int W = 480, H = 270;
-    const int Frames = 12;                    // 3 seconds at 4 a second
-    const float RecordGap = 0.25f, LiveGap = 1f / 12f;
+    const int W = 480, H = 270;              // the live picture (caught cut, scripted cuts, evidence stills)
+    const float LiveGap = 1f / 12f;
+    // G8.1b: the recorder
+    public const float RingSeconds = 10f;     // what the recorder holds: the last 10 seconds
+    const float ReplaySeconds = 5f;           // WASTED / BUSTED play the last ~5 s
+    public const float FastSpeed = 12f;       // m/s: recording while driving at least this fast in a camera's view
+    const int MinClipFrames = 8;              // a clip needs at least this many frames (1.6 s at 5 a second)
+    [Tooltip("G8.1b fallback: record 4 frames a second instead of 5 (set before recording starts; only if the iPhone numbers need it)")]
+    [SerializeField] private bool fallbackFps4 = false;
+    [Tooltip("G8.1b fallback: 320×180 frames instead of 384×216 (set before recording starts; only if the iPhone numbers need it)")]
+    [SerializeField] private bool fallbackSmall = false;
     const float CutLength = 1.1f, CutCooldown = 35f;
 
     /// What the tracking box is round.
@@ -43,9 +57,16 @@ public class LundunCctvFeed : MonoBehaviour
     private Camera eye;
     private RenderTexture live;
     private RenderTexture[] ring;
-    private float[] ringAt, ringHour;
+    private float[] ringAt, ringHour, ringGame;   // G8.1b: + the game time of each frame
     private int[] ringCam;
     private int ringNext;
+    // G8.1b: the ring's size and format, the working picture the eye draws into, the frame waiting to be copied in
+    private int frames, rw, rh;
+    private float recordGap = 0.2f;
+    private RenderTextureFormat ringFormat = RenderTextureFormat.ARGB32;
+    private RenderTexture work;
+    private int pendingSlot = -1;
+    private float keepRecordingUntil = -1f;
 
     private Canvas canvas;
     private RawImage screen;
@@ -73,6 +94,7 @@ public class LundunCctvFeed : MonoBehaviour
         if (Instance == this) Instance = null;
         if (live != null) live.Release();
         if (ring != null) foreach (RenderTexture r in ring) if (r != null) r.Release();
+        if (work != null) work.Release();
     }
 
     void OnPlateRead(int cam) { Show(cam); }
@@ -288,6 +310,13 @@ public class LundunCctvFeed : MonoBehaviour
     // ------------------------------------------------------------------ each frame: draw the camera only when needed
     void LateUpdate()
     {
+        // G8.1b: last frame's recording was drawn into the working picture: copy it into its slot first
+        if (pendingSlot >= 0 && work != null && ring != null)
+        {
+            Graphics.Blit(work, ring[pendingSlot]);
+            ringAt[pendingSlot] = pendingAt; ringGame[pendingSlot] = pendingGame; ringCam[pendingSlot] = pendingCam; ringHour[pendingSlot] = pendingHour;
+            pendingSlot = -1;
+        }
         if (scripted) return;                                           // the scripted cut draws its own frames
         if (eye == null) { if (showUntil < 0f && !Recording()) return; if (!Ready()) return; }
         bool draw = false;
@@ -313,30 +342,49 @@ public class LundunCctvFeed : MonoBehaviour
 
         if (!draw && !replaying && now >= nextRecord && Recording())
         {
-            nextRecord = now + RecordGap;
+            if (ring == null) MakeRing();
+            nextRecord = now + recordGap;
             int cam = cctv.FirstWatching;
             if (cam >= 0)
             {
-                if (ring == null) MakeRing();
                 Aim(cam);
-                eye.targetTexture = ring[ringNext];
-                ringAt[ringNext] = now;
-                ringCam[ringNext] = cam;
-                ringHour[ringNext] = LundunClock.Instance != null ? LundunClock.Instance.Hour : 22f;
-                ringNext = (ringNext + 1) % Frames;
+                eye.targetTexture = work;                                   // G8.1b: drawn small, copied into the ring next frame
+                pendingSlot = ringNext;
+                pendingAt = now; pendingGame = Time.time; pendingCam = cam;
+                pendingHour = LundunClock.Instance != null ? LundunClock.Instance.Hour : 22f;
+                ringAt[ringNext] = 0f;                                      // not usable until it's been copied in
+                ringNext = (ringNext + 1) % frames;
                 draw = true;
             }
         }
         eye.enabled = draw;
     }
 
+    private float pendingAt, pendingGame, pendingHour;
+    private int pendingCam;
+
+    /// G8.1b: keep recording (while a camera has him) for a few seconds: just after a big crash, for its aftermath.
+    public static void KeepRecording(float seconds)
+    {
+        if (Instance != null) Instance.keepRecordingUntil = Mathf.Max(Instance.keepRecordingUntil, Time.unscaledTime + seconds);
+    }
+
+    /// G8.1b: driving fast (in a camera's view, which Recording checks first).
+    bool Fast()
+    {
+        if (vehicles == null) vehicles = FindAnyObjectByType<VehicleSystem>();
+        return vehicles != null && vehicles.IsDriving && vehicles.CurrentCar != null && Mathf.Abs(vehicles.CurrentCar.Speed) >= FastSpeed;
+    }
+
     /// Worth recording: the cameras count, a camera has him, and he's wanted or has just been shooting.
+    /// G8.1b: or he's driving fast, or it's just after a big crash (still only while a camera has him).
     bool Recording()
     {
         if (!LundunCctv.Live || LundunCctv.Instance.FirstWatching < 0) return false;
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.IsDead) return false;
         WantedSystem w = WantedSystem.Instance;
-        return (w != null && w.Stars > 0) || Time.unscaledTime - lastShot < 12f;
+        if ((w != null && w.Stars > 0) || Time.unscaledTime - lastShot < 12f) return true;
+        return Time.unscaledTime < keepRecordingUntil || Fast();
     }
 
     void Aim(int cam)
@@ -358,10 +406,10 @@ public class LundunCctvFeed : MonoBehaviour
         if (ring == null || !Ready() || scripted) yield break;
         float now = Time.unscaledTime;
         List<int> take = new List<int>();
-        for (int k = 0; k < Frames; k++)
+        for (int k = 0; k < frames; k++)
         {
-            int i = (ringNext + k) % Frames;                             // oldest first
-            if (ringAt[i] > 0f && now - ringAt[i] < 4f) take.Add(i);
+            int i = (ringNext + k) % frames;                             // oldest first
+            if (ringAt[i] > 0f && now - ringAt[i] < ReplaySeconds + 0.5f) take.Add(i);   // G8.1b: ~5 s (was 3)
         }
         if (take.Count < 4) yield break;
         replaying = true;
@@ -375,10 +423,69 @@ public class LundunCctvFeed : MonoBehaviour
         {
             screen.texture = ring[i];
             Labels(ringCam[i], ringHour[i]);
-            yield return new WaitForSecondsRealtime(i == take[take.Count - 1] ? 0.6f : RecordGap);
+            yield return new WaitForSecondsRealtime(i == take[take.Count - 1] ? 0.6f : recordGap);
         }
         canvas.enabled = false;
-        for (int k = 0; k < Frames; k++) ringAt[k] = 0f;                // used up
+        for (int k = 0; k < frames; k++) ringAt[k] = 0f;                // used up
+        replaying = false;
+    }
+
+    // ------------------------------------------------------------------ G8.1b: clips for incidents
+    /// A copy of the frames still in the recorder (the last 10 s) whose game time falls between gameFrom and gameTo.
+    /// Null if fewer than 8 (no camera had him in that window). The copy is the clip's own: the recorder overwriting
+    /// itself afterwards can't touch it. Used by LundunCctvClips only.
+    public LundunCctvClip Cut(float gameFrom, float gameTo)
+    {
+        if (ring == null) return null;
+        float now = Time.unscaledTime;
+        List<int> take = new List<int>();
+        for (int k = 0; k < frames; k++)
+        {
+            int i = (ringNext + k) % frames;                             // oldest first
+            if (ringAt[i] > 0f && now - ringAt[i] <= RingSeconds && ringGame[i] >= gameFrom && ringGame[i] <= gameTo) take.Add(i);
+        }
+        if (take.Count < MinClipFrames) return null;
+        LundunCctvClip clip = new LundunCctvClip(take.Count, recordGap);
+        bool copy = SystemInfo.copyTextureSupport != UnityEngine.Rendering.CopyTextureSupport.None;
+        for (int j = 0; j < take.Count; j++)
+        {
+            int i = take[j];
+            RenderTexture rt = new RenderTexture(rw, rh, 0, ringFormat) { name = "CctvClip" + j };
+            rt.Create();
+            if (copy) Graphics.CopyTexture(ring[i], rt); else Graphics.Blit(ring[i], rt);
+            clip.frames[j] = rt; clip.cam[j] = ringCam[i]; clip.hour[j] = ringHour[i];
+        }
+        return clip;
+    }
+
+    /// The recorder's memory (bytes), for the [Replays] readout.
+    public long RingBytes { get { return ring == null ? 0L : (long)frames * FrameBytes + (work != null ? (long)rw * rh * 6 : 0L); } }
+    public long FrameBytes { get { return (long)rw * rh * (ringFormat == RenderTextureFormat.RGB565 ? 2 : 4); } }
+
+    /// G8.1b: play a clip as CCTV footage (the same look as the WASTED / BUSTED playback), "TAP TO CLOSE" on the caption.
+    /// stop: checked all the time (the close tap). Real time, so it plays while the game is paused.
+    public IEnumerator PlayClip(LundunCctvClip clip, Func<bool> stop)
+    {
+        if (clip == null || clip.Freed || !Ready() || scripted || replaying) yield break;
+        replaying = true;
+        showUntil = -1f;
+        eye.enabled = false;
+        box.gameObject.SetActive(false);
+        captionLabel.text = "TAP TO CLOSE";
+        captionBar.SetActive(true);
+        canvas.enabled = true;
+        tagLabel.text = "<< PLAYBACK";
+        for (int j = 0; j < clip.Count; j++)
+        {
+            if (clip.Freed || (stop != null && stop())) break;
+            screen.texture = clip.frames[j];
+            Labels(clip.cam[j], clip.hour[j]);
+            float until = Time.unscaledTime + (j == clip.Count - 1 ? 0.8f : clip.gap);
+            while (Time.unscaledTime < until && !clip.Freed && (stop == null || !stop())) yield return null;
+        }
+        screen.texture = live;
+        captionBar.SetActive(false);
+        canvas.enabled = false;
         replaying = false;
     }
 
@@ -424,9 +531,16 @@ public class LundunCctvFeed : MonoBehaviour
 
     void MakeRing()
     {
-        ring = new RenderTexture[Frames];
-        ringAt = new float[Frames]; ringHour = new float[Frames]; ringCam = new int[Frames];
-        for (int i = 0; i < Frames; i++) ring[i] = new RenderTexture(W, H, 16) { name = "CctvFrame" + i };
+        // G8.1b: 10 s at 5 a second (or the fallbacks), small, 16-bit colour where the phone supports it
+        recordGap = fallbackFps4 ? 0.25f : 0.2f;
+        frames = Mathf.CeilToInt(RingSeconds / recordGap);
+        rw = fallbackSmall ? 320 : 384; rh = fallbackSmall ? 180 : 216;
+        ringFormat = SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RGB565) ? RenderTextureFormat.RGB565 : RenderTextureFormat.ARGB32;
+        ring = new RenderTexture[frames];
+        ringAt = new float[frames]; ringHour = new float[frames]; ringCam = new int[frames]; ringGame = new float[frames];
+        for (int i = 0; i < frames; i++) { ring[i] = new RenderTexture(rw, rh, 0, ringFormat) { name = "CctvFrame" + i }; ring[i].Create(); }
+        work = new RenderTexture(rw, rh, 16) { name = "CctvWork" };
+        ringNext = 0; pendingSlot = -1;
     }
 
     void BuildOverlay()

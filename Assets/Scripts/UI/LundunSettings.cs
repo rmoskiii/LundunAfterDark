@@ -149,8 +149,11 @@ public partial class LundunSettings : MonoBehaviour
         if (crewTab != null && crewTab.activeSelf) RefreshCrew();                    // S5
         if (missionsTab != null && missionsTab.activeSelf) RefreshMissions();        // S6
         if (dailyTab != null && dailyTab.activeSelf) RefreshDaily();                 // S8
+        if (footageButton != null) footageButton.gameObject.SetActive(LundunCctvClips.HasFootage);   // G8.1b
         RefreshButtons();
     }
+
+    private RectTransform footageButton;                                            // G8.1b: LAST FOOTAGE
 
     public void Resume()
     {
@@ -298,6 +301,18 @@ public partial class LundunSettings : MonoBehaviour
         TextMeshProUGUI title = Text(panel, "PAUSED", 52, Color.white);
         title.characterSpacing = 18f;
         Top(title.rectTransform, -26f, 64f);
+
+        // G8.1b: LAST FOOTAGE (the newest settled CCTV footage), beside the title; only shown when there is some
+        footageButton = Rect("LastFootage", panel);
+        footageButton.anchorMin = footageButton.anchorMax = new Vector2(1f, 1f); footageButton.pivot = new Vector2(1f, 1f);
+        footageButton.anchoredPosition = new Vector2(-24f, -22f); footageButton.sizeDelta = new Vector2(270f, 66f);
+        Image fbi = footageButton.gameObject.AddComponent<Image>();
+        fbi.sprite = LundunHudArt.Pill; fbi.type = Image.Type.Sliced; fbi.pixelsPerUnitMultiplier = 0.67f; fbi.color = new Color(1f, 1f, 1f, 0.12f);
+        Button fbb = footageButton.gameObject.AddComponent<Button>(); fbb.targetGraphic = fbi;
+        fbb.onClick.AddListener(() => { LundunCctvClips.WatchLatest(true); LundunHaptics.Light(); });
+        footageButton.gameObject.AddComponent<LundunPressFX>();
+        LundunCctvClips.Content(footageButton, "LAST FOOTAGE", Color.white, 22f);
+        footageButton.gameObject.SetActive(false);
 
         // A3: tabs, DISPLAY and CONTROLS; V3: CREDITS
         if (LundunGame.IsStory) Tabs(panel, new[] { "DISPLAY", "CONTROLS", "CREW", "MISSIONS", "DAILY", "CREDITS" }, -104f, new[] { 0, 1, 3, 4, 5, 2 });   // S5: CREW, S6: MISSIONS, S8: DAILY
