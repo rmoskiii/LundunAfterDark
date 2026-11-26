@@ -14,6 +14,10 @@ public class CarCrash : MonoBehaviour
 
     public float Condition => condition;
 
+    /// G8.0 (notify only, for the incident log): a counted knock (minImpact or more) to the car James is driving:
+    /// the car, the impact (m/s) and where. Nothing listens back.
+    public static event System.Action<CarController, float, Vector3> Crashed;
+
     void Start()
     {
         condition = maxCondition;
@@ -28,6 +32,7 @@ public class CarCrash : MonoBehaviour
         if (impact < minImpact) return;
 
         Vector3 point = collision.GetContact(0).point;
+        if (car != null && car.IsDriven) { try { Crashed?.Invoke(car, impact, point); } catch (System.Exception e) { Debug.LogException(e); } }   // G8.0: notify only
 
         if (crashSound != null)
             AudioSource.PlayClipAtPoint(crashSound, point, Mathf.Clamp01(impact / 20f));

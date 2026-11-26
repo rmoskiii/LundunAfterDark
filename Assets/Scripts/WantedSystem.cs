@@ -56,6 +56,11 @@ public class WantedSystem : MonoBehaviour
     /// W1b: police now know about a crime (seen by them, or a call got through) and roughly where.
     /// Everyday patrols nearby respond, the more serious the crime the further away they come from.
     public static event System.Action<CrimeType, Vector3> CrimeKnown;
+    /// G8.0 (notify only, for the incident log): police lost him (the LOST THEM escape), a respray dropped a star (the
+    /// stars left), a mission raised the level itself (RaiseTo: the new level). Nothing listens back.
+    public static event System.Action LostThem;
+    public static event System.Action<int> StarDropped;
+    public static event System.Action<int> Raised;
 
     [Header("Minor offences (W1b)")]
     [Tooltip("First minor offence (a punch, a scuffle) in front of a patrol gets a warning, not a star. A second one within this many seconds counts")]
@@ -385,6 +390,7 @@ public class WantedSystem : MonoBehaviour
         escapeClock += Time.deltaTime * (InSearchArea ? 1f : outsideSearchArea) * LundunCctv.EscapeFactor;   // V2e: slower on camera, faster in blind spots
         if (escapeClock >= EscapeTime)
         {
+            try { LostThem?.Invoke(); } catch (System.Exception e) { Debug.LogException(e); }   // G8.0: notify only
             ClearWanted();
             Toast("LOST THEM");
             LundunHaptics.Medium();
@@ -412,6 +418,7 @@ public class WantedSystem : MonoBehaviour
         timeSinceSeen = 0f; escapeClock = 0f;
         UpdateStars();
         CrimeKnown?.Invoke(stars >= 3 ? CrimeType.KillOfficer : CrimeType.KillPedestrian, at);
+        try { Raised?.Invoke(Stars); } catch (System.Exception e) { Debug.LogException(e); }       // G8.0: notify only
     }
 
     /// S3: seconds since police last saw James (the train: board unseen and they lose you).
@@ -420,6 +427,7 @@ public class WantedSystem : MonoBehaviour
     /// S7: a respray at ARCHES MOTORS: one star less (the last one clears it).
     public void DropStar()
     {
+        try { StarDropped?.Invoke(Stars <= 1 ? 0 : Stars - 1); } catch (System.Exception e) { Debug.LogException(e); }   // G8.0: notify only
         if (Stars <= 1) { ClearWanted(); return; }
         Stars -= 1;
         heat = Mathf.Min(heat, heatForStar[Mathf.Clamp(Stars, 1, heatForStar.Length) - 1]);

@@ -17,8 +17,12 @@ public enum CrimeType
 // One place every crime gets reported to. Anything can call CrimeSystem.Report(...)
 public static class CrimeSystem
 {
+    /// G8.0 (notify only, for the incident log): every crime reported here, seen or not, before it's passed on.
+    public static event System.Action<CrimeType, Vector3> Reported;
+
     public static void Report(CrimeType type, Vector3 position)
     {
+        try { Reported?.Invoke(type, position); } catch (System.Exception e) { Debug.LogException(e); }   // G8.0: notify only
         if (WantedSystem.Instance != null)
             WantedSystem.Instance.AddCrime(type, position);
     }
