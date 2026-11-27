@@ -158,6 +158,7 @@ public partial class LundunSettings : MonoBehaviour
     private RectTransform shareButton;                                              // G8.1a: SHARE (card)
     private TextMeshProUGUI shareLabel;
     void SetPopUp(int i) { LundunCctvClips.PopUpOn = i == 0; RefreshButtons(); }    // G8.1a
+    void SetRadio(int i) { LundunRadio.Setting = (RadioSetting)i; RefreshButtons(); }  // G8.2a: ON / STREAMER-SAFE / OFF
 
     private RectTransform footageButton;                                            // G8.1b: LAST FOOTAGE
 
@@ -300,7 +301,7 @@ public partial class LundunSettings : MonoBehaviour
         Image dim = menu.AddComponent<Image>(); dim.color = new Color(0f, 0.01f, 0.03f, 0.72f);       // blocks touches to the game
 
         panel = Rect("Panel", mr);
-        panel.sizeDelta = new Vector2(1000f, 1128f);                                    // v50: room for CAMERA and the guide; G8.1a: + INCIDENT POP-UP
+        panel.sizeDelta = new Vector2(1000f, 1216f);                                    // v50: room for CAMERA and the guide; G8.1a: + INCIDENT POP-UP; G8.2a: + RADIO
         Image pi = panel.gameObject.AddComponent<Image>();
         pi.sprite = LundunHudArt.Panel; pi.type = Image.Type.Sliced; pi.pixelsPerUnitMultiplier = 0.35f; pi.color = Ink;
 
@@ -350,6 +351,8 @@ public partial class LundunSettings : MonoBehaviour
         Row(dt, "DRIVE INFO", "driveinfo", new[] { "HIDE", "SHOW" }, SetDriveInfo, ref y);
         Row(dt, "CAMERA", "camera", new[] { "THIRD", "FIRST", "STEADY" }, SetCamera, ref y);                // v50: STEADY = first person, no head bob
         Row(dt, "INCIDENT POP-UP", "popup", new[] { "ON", "OFF" }, SetPopUp, ref y);                       // G8.1a: only the pop-up; the pause menu keeps FOOTAGE and SHARE
+        Row(dt, "RADIO", "radio", new[] { "ON", "STREAMER-SAFE", "OFF" }, SetRadio, ref y);                 // G8.2a: STREAMER-SAFE plays only the approved list
+        foreach (Image ri in groups["radio"]) { TextMeshProUGUI rt = ri.GetComponentInChildren<TextMeshProUGUI>(); if (rt != null) { rt.fontSize = 20f; rt.characterSpacing = 1f; } }
 
         y = -196f;
         Row(ct, "STEERING", "steering", new[] { "PAD", "ARROWS", "POINT" }, SetSteering, ref y);       // L1
@@ -544,6 +547,7 @@ public partial class LundunSettings : MonoBehaviour
         Mark("driveinfo", VehicleSystem.ShowDriveInfo ? 1 : 0);
         Mark("camera", CameraFollow.Mode);
         Mark("popup", LundunCctvClips.PopUpOn ? 0 : 1);                             // G8.1a
+        Mark("radio", (int)LundunRadio.Setting);                                    // G8.2a
         if (lookValue != null) lookValue.text = lookSpeed.ToString("0.0") + "×";
         if (aimValue != null) aimValue.text = Mathf.RoundToInt(aimSpeed * 100f) + "%";
     }

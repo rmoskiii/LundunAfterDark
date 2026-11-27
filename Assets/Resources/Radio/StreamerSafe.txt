@@ -1,0 +1,4 @@
+# STREAMER-SAFE approved list (G8.2a). One exact resource path per line: case-sensitive, no file extension.
+# Only commissioned work whose contract covers streams and player clips goes here. Anything not listed is skipped.
+# LIB_ files are never played in STREAMER-SAFE, even if listed. Lines starting with # are ignored.
+# Example (not active): Radio/Southside/Tracks/night_bus_home
