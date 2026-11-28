@@ -12,7 +12,7 @@ using UnityEngine;
 ///                     Preload Audio Data off, sample rate preserved.
 ///       Default (Editor and other platforms): Vorbis 0.70, the same load type, preload off, sample rate preserved.
 ///       Importer: Load In Background on.
-///     Read back and checked after import (Tools ▸ Lundun ▸ Check Radio Imports): any mismatch is reported by file.
+///     Read back and checked after import (Lundun ▸ Radio ▸ Check Imports): any mismatch is reported by file.
 ///   • The content manifest, Resources/Radio/RadioManifest.txt: every clip's resource path, length and
 ///     AssetDatabase.GetAssetDependencyHash (changes when the bytes or the import settings change). Regenerated without
 ///     loops: only audio changes under Resources/Radio trigger it (never the manifest, StreamerSafe.txt, the READ ME or
@@ -100,7 +100,7 @@ public class LundunRadioImport : AssetPostprocessor
         finally { running = false; }
     }
 
-    [MenuItem("Tools/Lundun/Rebuild Radio Manifest")]
+    [MenuItem("Lundun/Radio/Rebuild Manifest")]
     public static void RebuildManifest() { if (!scheduled) Regenerate(); }
 
     static List<string> RadioAudioPaths()
@@ -136,7 +136,7 @@ public class LundunRadioImport : AssetPostprocessor
     }
 
     // ------------------------------------------------------------------ read-back check
-    [MenuItem("Tools/Lundun/Check Radio Imports")]
+    [MenuItem("Lundun/Radio/Check Imports")]
     static void CheckImportsMenu() { CheckImports(true); }
 
     public static int CheckImports(bool verbose)
@@ -199,7 +199,7 @@ public class LundunRadioImport : AssetPostprocessor
             string want = BuildManifest(out clips);                         // computed in memory; never written here
             string have = File.Exists(ManifestFile) ? File.ReadAllText(ManifestFile) : null;
             if (want != have)
-                throw new BuildFailedException("[Radio] RadioManifest.txt is out of date (" + clips + " radio clips). Run Tools ▸ Lundun ▸ Rebuild Radio Manifest, then build again.");
+                throw new BuildFailedException("[Radio] RadioManifest.txt is out of date (" + clips + " radio clips). Run Lundun ▸ Radio ▸ Rebuild Manifest, then build again.");
             Debug.Log("[Radio] build check: manifest current (" + clips + " clips)");
 
             bool development = (report.summary.options & BuildOptions.Development) != 0;

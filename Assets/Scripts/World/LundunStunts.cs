@@ -5,10 +5,14 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-/// G8.3a: STUNT JUMPS (Free Roam only). Twelve bright, code-made ramps in the city's open spaces (parks, the hilltops,
-/// a garden square, the Memorial Circle island). Hit one fast enough in a car, a van or on a hire bike and the game drops
-/// into real slow motion (Time.timeScale, with the physics step scaled to match) with a side-on stunt camera while you're
-/// in the air. A clean landing: "STUNT JUMP 4/12" (the first time), saved in Free Roam's PlayerPrefs. Story never sees them.
+/// G8.3a: STUNT JUMPS. Twelve bright, code-made ramps in the city's open spaces (parks, the hilltops, a garden square,
+/// the Memorial Circle island). Hit one fast enough in a car, a van or on a hire bike and the game drops into real slow
+/// motion (Time.timeScale, with the physics step scaled to match) with a side-on stunt camera while you're in the air.
+///   Free Roam: a clean landing shows "STUNT JUMP 4/12" (the first time), saved in Free Roam's PlayerPrefs; minimap blips.
+///   Story (G8.3a follow-up): the same ramps in the same places, so the city is identical in both modes, but nothing is
+///   saved or read (the banner shows the distance and height every time) and there are no minimap blips. While a mission
+///   is running the ramps are just solid ramps: no slow motion, no stunt camera, no banner (missions own the camera,
+///   their cutscenes and their clocks).
 ///
 /// Slow motion never leaks: it starts only when the game runs at normal speed, ends only if the speed is still ours, and a
 /// watchdog puts the game back to normal speed and the normal physics step if anything leaves it behind. Pausing mid-air
@@ -19,7 +23,7 @@ public class LundunStunts : MonoBehaviour
 {
     public static LundunStunts Instance { get; private set; }
     public const float SlowScale = 0.35f;                     // distinct from BUSTED's 0.3
-    const string SaveKey = "lad_fr_stunts";                    // Free Roam: a bit per jump
+    const string SaveKey = "lad_fr_stunts";                    // Free Roam: a bit per jump (Story never reads or writes it)
 
     /// The 12 jumps: where the ramp starts (x, z) and which way it faces (degrees: 0 = north/+z, 90 = east/+x). Chosen
     /// from the world plan and the scene's colliders so the run-up, the ramp and the landing are clear.
@@ -27,7 +31,7 @@ public class LundunStunts : MonoBehaviour
     {
         new StuntSite("Hydemoor Park east", 262f, 1040f, 270f),
         new StuntSite("Hydemoor Park south", 150f, 960f, 0f),
-        new StuntSite("Gilmore Green", 245f, 215f, 0f),
+        new StuntSite("Gilmore Green east", 328f, 236f, 345f),   // moved clear of mission 14's fight and ambush spots
         new StuntSite("Quay Gardens", 1300f, 445f, 15f),
         new StuntSite("Rye Hill summit", 1440f, 160f, 70f),
         new StuntSite("Rye Hill west slope", 1250f, 150f, 270f),
@@ -67,7 +71,7 @@ public class LundunStunts : MonoBehaviour
     // James's bike (polled)
     LundunBike myBike; float nextBikePoll;
 
-    // ------------------------------------------------------------------ lifecycle (Free Roam city scenes only)
+    // ------------------------------------------------------------------ lifecycle (the city scene, both modes)
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics() { SceneManager.sceneLoaded -= OnSceneLoaded; Instance = null; }
 
@@ -81,7 +85,7 @@ public class LundunStunts : MonoBehaviour
 
     static void Ensure(Scene s)
     {
-        if (LundunGame.IsStory || !LundunRadio.IsCity(s)) return;            // Free Roam's city only
+        if (!LundunRadio.IsCity(s)) return;                                  // the city, in Free Roam and Story alike
         if (Instance != null && Instance.gameObject.scene == s) return;      // already here
         GameObject g = new GameObject("LundunStunts");
         if (g.scene != s) SceneManager.MoveGameObjectToScene(g, s);           // it goes with the city when the city reloads
@@ -100,7 +104,7 @@ public class LundunStunts : MonoBehaviour
         }
         BuildRamps();
         BuildBanner();
-        Log("12 stunt jumps placed (Free Roam), " + Done + " already done");
+        Log(LundunGame.IsStory ? "12 stunt jumps placed (Story: nothing saved, no minimap blips)" : "12 stunt jumps placed (Free Roam), " + Done + " already done");
     }
 
     void OnDestroy()
@@ -131,7 +135,7 @@ public class LundunStunts : MonoBehaviour
 
     void TrackOnMap()
     {
-        if (minimap != null) return;
+        if (minimap != null || LundunGame.IsStory) return;                      // Story: no blips (nothing to complete)
         minimap = FindAnyObjectByType<LundunMinimap>();
         if (minimap == null) return;
         for (int i = 0; i < ramps.Count; i++) Blip(i);
@@ -146,7 +150,6 @@ public class LundunStunts : MonoBehaviour
     // ------------------------------------------------------------------ every frame
     void Update()
     {
-        if (LundunGame.IsStory) { enabled = false; return; }
         TrackOnMap();
         Watchdog();
         if (Time.timeScale == 0f) return;                                        // paused: nothing moves, nothing lands
@@ -195,10 +198,13 @@ public class LundunStunts : MonoBehaviour
         return bcc != null && !bcc.isGrounded;
     }
 
+    /// A mission is running (Story): the ramps are just ramps (no slow motion, camera or banner).
+    static bool MissionOn { get { return LundunMissions.Running; } }
+
     void LookForRun()
     {
         CarController car; LundunBike bike;
-        if (!Vehicle(out car, out bike)) return;
+        if (MissionOn || !Vehicle(out car, out bike)) return;
         Vector3 p = VehiclePos(car, bike);
         for (int i = 0; i < ramps.Count; i++)
         {
@@ -219,7 +225,7 @@ public class LundunStunts : MonoBehaviour
     void TickArmed()
     {
         CarController car; LundunBike bike;
-        if (!Vehicle(out car, out bike) || car != jumpCar || bike != jumpBike) { Reset(); return; }
+        if (MissionOn || !Vehicle(out car, out bike) || car != jumpCar || bike != jumpBike) { Reset(); return; }
         StuntRamp r = ramps[jumpSite];
         float along, side, above;
         r.Local(VehiclePos(car, bike), out along, out side, out above);
@@ -244,6 +250,7 @@ public class LundunStunts : MonoBehaviour
         CarController car; LundunBike bike;
         bool same = Vehicle(out car, out bike) && car == jumpCar && bike == jumpBike;
         if (!same) { Abort("left the vehicle"); return; }
+        if (MissionOn) { Abort("a mission started"); return; }
         Vector3 p = VehiclePos(car, bike);
         topY = Mathf.Max(topY, p.y);
         if (slowOurs && !Mathf.Approximately(Time.timeScale, SlowScale)) { Abort("the game speed was changed elsewhere"); return; }
@@ -259,6 +266,7 @@ public class LundunStunts : MonoBehaviour
     void TickSettle()
     {
         CarController car; LundunBike bike;
+        if (MissionOn) { Abort("a mission started"); return; }
         bool same = Vehicle(out car, out bike) && car == jumpCar && bike == jumpBike;
         if (!same) { Finish(false, "crashed"); return; }
         bool upright = car != null ? car.transform.up.y > 0.6f : !bike.Crashed;
@@ -275,10 +283,10 @@ public class LundunStunts : MonoBehaviour
         float dist = clean ? d.magnitude : 0f, high = Mathf.Max(0f, topY - lipPoint.y);
         if (clean)
         {
-            bool first = !IsDone(i);
+            bool first = !LundunGame.IsStory && !IsDone(i);                    // Story: never saved, never counted
             if (first) { MarkDone(i); Blip(i); }
             ShowBanner("STUNT JUMP", first ? Done + " / " + Sites.Length : Mathf.RoundToInt(dist) + " m · " + high.ToString("0.0") + " m high", new Color(1f, 0.78f, 0.2f));
-            Log("jump " + (i + 1) + ": clean, " + dist.ToString("0.0") + " m, " + high.ToString("0.0") + " m high" + (first ? " — " + Done + "/" + Sites.Length : " (already done)"));
+            Log("jump " + (i + 1) + ": clean, " + dist.ToString("0.0") + " m, " + high.ToString("0.0") + " m high" + (first ? " — " + Done + "/" + Sites.Length : LundunGame.IsStory ? " (Story: not saved)" : " (already done)"));
         }
         else
         {
@@ -446,7 +454,7 @@ public class LundunStunts : MonoBehaviour
         else { CharacterController cc = bike.GetComponent<CharacterController>(); cc.enabled = false; bike.transform.SetPositionAndRotation(at, rot); cc.enabled = true; }
         Log("test: at jump " + ((testNext - 1) % ramps.Count + 1) + " (" + r.Site.name + ")");
     }
-    [ContextMenu("Test: forget stunt progress")] void TestForget() { PlayerPrefs.DeleteKey(SaveKey); for (int i = 0; i < ramps.Count; i++) Blip(i); Log("progress cleared"); }
+    [ContextMenu("Test: forget stunt progress")] void TestForget() { if (LundunGame.IsStory) { Log("Story: nothing is saved"); return; } PlayerPrefs.DeleteKey(SaveKey); for (int i = 0; i < ramps.Count; i++) Blip(i); Log("progress cleared"); }
 #endif
 }
 
