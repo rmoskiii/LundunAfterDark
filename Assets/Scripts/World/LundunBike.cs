@@ -49,6 +49,8 @@ public class LundunBike : MonoBehaviour
     /// Ridden by an NPC: their pedals and steering (x = steer −1..1, y = pedal 0..1 / brake −1).
     public void SetInput(Vector2 input) { ai = true; aiInput = input; }
     public float Speed { get { return speed; } }
+    /// G8.3a: a stunt ramp gives the bike lift as it leaves the lip (a character controller has no momentum of its own).
+    public void Launch(float up) { if (up > launchUp) launchUp = up; }
     public bool Crashed { get; private set; }
 
     private CharacterController cc;
@@ -61,6 +63,7 @@ public class LundunBike : MonoBehaviour
     private Transform[] bArm = new Transform[2], bForearm = new Transform[2], bHand = new Transform[2];
     private InputAction move;
     private float speed, yaw, lean, wheelAngle, crank, vertical;
+    private float launchUp;           // G8.3a: lift off a stunt ramp's lip, applied on the next step
     private static readonly Collider[] hits = new Collider[8];
     private int vehicleMask;
     private float riderFeet;          // James's root sits this far above his feet (his capsule is centred on it)
@@ -174,7 +177,8 @@ public class LundunBike : MonoBehaviour
         transform.rotation = Quaternion.Euler(0f, yaw, 0f);
         body.localRotation = Quaternion.Euler(0f, 0f, lean);
 
-        vertical = cc.isGrounded ? -1f : vertical + gravity * dt;
+        if (launchUp > 0f) { vertical = launchUp; launchUp = 0f; }      // G8.3a: leaving a stunt ramp's lip
+        else vertical = cc.isGrounded ? -1f : vertical + gravity * dt;
         Vector3 vel = transform.forward * speed + Vector3.up * vertical;
         CollisionFlags flags = cc.Move(vel * dt);
 
